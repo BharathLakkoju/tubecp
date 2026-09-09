@@ -1,23 +1,40 @@
-import { SignIn } from "@clerk/nextjs";
+import PageShell from "@/components/PageShell";
+import SubpageNav from "@/components/SubpageNav";
+import AuthFormShell from "@/components/AuthFormShell";
+import { AuthSignIn } from "@/components/AuthClerk";
 
 export default function SignInPage() {
   if (process.env.E2E_AUTH_BYPASS === "true") {
     return (
-      <div
-        data-testid="e2e-sign-in"
-        style={{ display: "flex", justifyContent: "center", padding: "4rem 1rem" }}
-      >
-        <div>
-          <h1>Sign in</h1>
-          <p>Authentication is bypassed in E2E test mode.</p>
+      <PageShell>
+        <div data-testid="e2e-sign-in" className="flex min-h-dvh flex-col">
+          <SubpageNav />
+          <div className="page-container flex-1">
+            <AuthFormShell
+              title="Sign in"
+              subtitle="Authentication is bypassed in E2E test mode."
+            >
+              <div />
+            </AuthFormShell>
+          </div>
         </div>
-      </div>
+      </PageShell>
     );
   }
 
   return (
-    <div style={{ display: "flex", justifyContent: "center", padding: "4rem 1rem" }}>
-      <SignIn />
-    </div>
+    <PageShell>
+      <div className="flex min-h-dvh flex-col">
+        <SubpageNav />
+        <div className="page-container flex-1">
+          <AuthFormShell
+            title="Welcome back"
+            subtitle="Sign in to start researching YouTube topics and building knowledge bases."
+          >
+            <AuthSignIn />
+          </AuthFormShell>
+        </div>
+      </div>
+    </PageShell>
   );
 }

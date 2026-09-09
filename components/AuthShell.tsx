@@ -1,14 +1,23 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import Link from "next/link";
+import {
+  Children,
+  createContext,
+  isValidElement,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   ClerkProvider,
-  SignedIn,
-  SignedOut,
-  SignInButton,
+  Show,
   UserButton,
   useAuth,
 } from "@clerk/nextjs";
+import { useTheme } from "@/components/ThemeProvider";
+import { buildClerkAppearance } from "@/lib/clerkTheme";
 import type { PlanId } from "@/lib/plans";
 import type { SubscriptionState } from "@/lib/hooks/useSubscription";
 
@@ -73,6 +82,17 @@ function ClerkSubscriptionProvider({ children }: { children: React.ReactNode }) 
   );
 }
 
+function ClerkProviderWithTheme({ children }: { children: React.ReactNode }) {
+  const { themeId } = useTheme();
+  const appearance = useMemo(() => buildClerkAppearance(themeId), [themeId]);
+
+  return (
+    <ClerkProvider appearance={appearance}>
+      <ClerkSubscriptionProvider>{children}</ClerkSubscriptionProvider>
+    </ClerkProvider>
+  );
+}
+
 export function AuthProvider({
   children,
   e2eBypass = false,
@@ -92,9 +112,7 @@ export function AuthProvider({
 
   return (
     <BypassContext.Provider value={false}>
-      <ClerkProvider>
-        <ClerkSubscriptionProvider>{children}</ClerkSubscriptionProvider>
-      </ClerkProvider>
+      <ClerkProviderWithTheme>{children}</ClerkProviderWithTheme>
     </BypassContext.Provider>
   );
 }
@@ -110,29 +128,40 @@ export function useSubscriptionContext(): SubscriptionState {
 export function AppSignedOut({ children }: { children: React.ReactNode }) {
   const bypass = useBypass();
   if (bypass) return <>{children}</>;
-  return <SignedOut>{children}</SignedOut>;
+  return <Show when="signed-out">{children}</Show>;
 }
 
 export function AppSignedIn({ children }: { children: React.ReactNode }) {
   const bypass = useBypass();
   if (bypass) return null;
-  return <SignedIn>{children}</SignedIn>;
+  return <Show when="signed-in">{children}</Show>;
 }
 
+/** @deprecated Prefer `<Link href="/sign-in">` — always navigates to the sign-in page. */
 export function AppSignInButton({
   children,
-  mode,
+  mode: _mode,
 }: {
   children: React.ReactNode;
   mode?: "modal" | "redirect";
 }) {
   const bypass = useBypass();
   if (bypass) return <>{children}</>;
-  return <SignInButton mode={mode}>{children}</SignInButton>;
+
+  const child = Children.only(children);
+  if (isValidElement<{ className?: string; children?: React.ReactNode }>(child)) {
+    return (
+      <Link href="/sign-in" className={child.props.className}>
+        {child.props.children}
+      </Link>
+    );
+  }
+
+  return <Link href="/sign-in">{children}</Link>;
 }
 
-export function AppUserButton({ afterSignOutUrl }: { afterSignOutUrl?: string }) {
+export function AppUserButton() {
   const bypass = useBypass();
   if (bypass) return null;
-  return <UserButton afterSignOutUrl={afterSignOutUrl} />;
+  return <UserButton />;
 }

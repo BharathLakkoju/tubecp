@@ -1,46 +1,89 @@
 import Link from "next/link";
 import { PLANS } from "@/lib/plans";
-import styles from "./page.module.css";
+import PageShell from "@/components/PageShell";
+import SubpageNav from "@/components/SubpageNav";
+import HeroSection from "@/components/HeroSection";
+import FadeIn from "@/components/FadeIn";
+import { cn } from "@/lib/cn";
 
 export default function PricingPage() {
   const plans = [PLANS.free, PLANS.pro, PLANS.researcher];
 
   return (
-    <div className={styles.page}>
-      <div className={styles.inner}>
-        <Link href="/" className={styles.back}>← Back to app</Link>
-        <h1 className={styles.title}>Simple, credit-based pricing</h1>
-        <p className={styles.sub}>
-          Free tier gets ranked video lists. Paid plans unlock knowledge base builds and chat.
-        </p>
+    <PageShell>
+      <div className="flex min-h-dvh flex-col">
+        <SubpageNav />
+        <div className="page-container flex-1">
+        <FadeIn>
+        <HeroSection
+          align="center"
+          showWordmark
+          title="Simple, credit-based pricing"
+          subtitle="Free tier gets ranked video lists. Paid plans unlock knowledge base builds and chat with cited sources."
+        />
+        </FadeIn>
 
-        <div className={styles.grid}>
-          {plans.map((plan) => (
-            <div key={plan.id} className={`${styles.card} ${plan.id === "pro" ? styles.featured : ""}`}>
-              {plan.id === "pro" && <span className={styles.badge}>Most popular</span>}
-              <h2>{plan.name}</h2>
-              <p className={styles.price}>
+        <div className="mt-6 grid grid-cols-3 border border-border max-lg:grid-cols-1">
+          {plans.map((plan, index) => (
+            <div
+              key={plan.id}
+              style={{ "--motion-index": index } as React.CSSProperties}
+              className={cn(
+                "motion-stagger-item relative flex flex-col border-r border-border bg-surface p-5 last:border-r-0 max-lg:border-r-0 max-lg:border-b max-lg:last:border-b-0",
+                plan.id === "pro" && "bg-bg"
+              )}
+            >
+              {plan.id === "pro" && (
+                <span className="absolute top-0 right-0 left-0 bg-accent px-2 py-1 text-center font-mono text-[10px] font-medium tracking-wide text-white uppercase">
+                  most popular
+                </span>
+              )}
+              <h2 className={cn("font-mono text-sm font-semibold text-text", plan.id === "pro" && "mt-4")}>
+                {plan.name}
+              </h2>
+              <p className="my-4 font-mono text-[28px] font-semibold text-text max-sm:text-2xl">
                 ${plan.priceMonthly}
-                <span>/mo</span>
+                <span className="text-xs font-normal text-text-muted">/mo</span>
               </p>
-              <ul>
-                <li>{plan.researchPerDay} researches / day</li>
-                <li>{plan.kbBuildsPerMonth} KB builds / month</li>
-                <li>{plan.chatMessagesPerMonth} chat messages / month</li>
-                <li>{plan.persistentKbs ? "Persistent knowledge bases" : "Ranked lists only"}</li>
+              <ul className="mb-5 flex-1">
+                <li className="border-t border-border py-2 font-mono text-xs text-text-muted">
+                  {plan.researchPerDay} researches / day
+                </li>
+                <li className="border-t border-border py-2 font-mono text-xs text-text-muted">
+                  {plan.kbBuildsPerMonth} KB builds / month
+                </li>
+                <li className="border-t border-border py-2 font-mono text-xs text-text-muted">
+                  {plan.chatMessagesPerMonth} chat messages / month
+                </li>
+                <li className="border-t border-border py-2 font-mono text-xs text-text-muted">
+                  {plan.persistentKbs ? "Persistent knowledge bases" : "Ranked lists only"}
+                </li>
               </ul>
               {plan.id === "free" ? (
-                <Link href="/" className={styles.btnSecondary}>Get started free</Link>
+                <Link href="/sign-up" className="btn-ghost w-full">
+                  get started free →
+                </Link>
               ) : (
                 <>
-                  <Link href={`/api/checkout?plan=${plan.id}`} className={styles.btnPrimary}>
-                    Upgrade to {plan.name}
+                  <Link href={`/api/checkout?plan=${plan.id}`} className="btn-primary w-full">
+                    upgrade to {plan.name} →
                   </Link>
-                  <p className={styles.checkoutLegal}>
+                  <p className="mt-3 text-center font-mono text-[11px] leading-snug text-text-muted">
                     By upgrading, you agree to our{" "}
-                    <Link href="/terms">Terms of Service</Link> and{" "}
-                    <Link href="/refund">Cancellation Policy</Link>. Payments are processed by{" "}
-                    <a href="https://polar.sh" target="_blank" rel="noopener noreferrer">
+                    <Link href="/terms" className="text-text-muted underline">
+                      Terms of Service
+                    </Link>{" "}
+                    and{" "}
+                    <Link href="/refund" className="text-text-muted underline">
+                      Cancellation Policy
+                    </Link>
+                    . Payments are processed by{" "}
+                    <a
+                      href="https://polar.sh"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-text-muted underline"
+                    >
                       Polar
                     </a>{" "}
                     as merchant of record.
@@ -51,13 +94,14 @@ export default function PricingPage() {
           ))}
         </div>
 
-        <p className={styles.pageLegal}>
+        <p className="mt-10 border-t border-border pt-6 font-mono text-xs leading-relaxed text-text-muted">
           Paid plans renew monthly. Cancel anytime—cancellation takes effect at the end of your
           billing period. All fees are non-refundable. See our{" "}
           <Link href="/refund">Cancellation Policy</Link> and{" "}
           <Link href="/privacy">Privacy Policy</Link>.
         </p>
+        </div>
       </div>
-    </div>
+    </PageShell>
   );
 }

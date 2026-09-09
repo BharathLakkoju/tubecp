@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     const polar = getPolarClient();
     const checkout = await polar.checkouts.create({
       products: [productId],
-      successUrl: `${getAppUrl()}/?upgraded=true&plan=${plan.id}`,
+      successUrl: `${getAppUrl()}/app?upgraded=true&plan=${plan.id}`,
       metadata: {
         clerkUserId: userId,
         plan: plan.id,

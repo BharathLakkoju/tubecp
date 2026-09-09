@@ -9,8 +9,8 @@ export function getOpenAIClient(): OpenAI {
       apiKey: assertOpenRouterKey(),
       baseURL: config.openrouterBaseUrl,
       defaultHeaders: {
-        "HTTP-Referer": "https://github.com/youtube-mcp-agent",
-        "X-Title": "YouTube Research Agent",
+        "HTTP-Referer": "https://tubecp.com",
+        "X-Title": "tubecp",
       },
     });
   }

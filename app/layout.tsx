@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
-import { DM_Sans, JetBrains_Mono } from "next/font/google";
+import { DM_Sans, IBM_Plex_Mono } from "next/font/google";
 import { AuthProvider } from "@/components/AuthShell";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import LegalFooter from "@/components/LegalFooter";
+import { BRAND_NAME, BRAND_TAGLINE } from "@/lib/brand";
 import { isE2eAuthBypass } from "@/lib/e2e";
 import "./globals.css";
 
@@ -10,14 +12,22 @@ const dmSans = DM_Sans({
   variable: "--font-sans",
 });
 
-const jetbrainsMono = JetBrains_Mono({
+const ibmPlexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
 });
 
 export const metadata: Metadata = {
-  title: "YouTube Research Agent",
-  description: "Turn YouTube research topics into chattable knowledge bases",
+  title: {
+    default: BRAND_NAME,
+    template: `%s | ${BRAND_NAME}`,
+  },
+  description: BRAND_TAGLINE,
+  applicationName: BRAND_NAME,
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+  },
 };
 
 export const dynamic = "force-dynamic";
@@ -26,18 +36,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const e2eBypass = isE2eAuthBypass();
 
   return (
-    <AuthProvider e2eBypass={e2eBypass}>
-      <html lang="en">
-        <body
-          className={`${dmSans.variable} ${jetbrainsMono.variable}`}
-          data-e2e-bypass={e2eBypass ? "true" : undefined}
-        >
-          <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
-            <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>{children}</div>
-            <LegalFooter />
-          </div>
-        </body>
-      </html>
-    </AuthProvider>
+    <html lang="en" data-theme-id="github" suppressHydrationWarning>
+      <body className={`${dmSans.variable} ${ibmPlexMono.variable}`}>
+        <ThemeProvider>
+          <AuthProvider e2eBypass={e2eBypass}>
+            <div className="flex min-h-dvh flex-col overflow-x-hidden">
+              <div className="flex flex-1 flex-col overflow-x-hidden">{children}</div>
+              <LegalFooter />
+            </div>
+          </AuthProvider>
+        </ThemeProvider>
+      </body>
+    </html>
   );
 }

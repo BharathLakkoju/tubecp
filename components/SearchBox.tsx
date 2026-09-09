@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import styles from "./SearchBox.module.css";
 
 interface Props {
   onSearch: (topic: string) => void;
@@ -23,9 +22,9 @@ export default function SearchBox({ onSearch, loading }: Props) {
   };
 
   return (
-    <div className={styles.searchBox}>
+    <div className="w-full">
       <form onSubmit={handleSubmit}>
-        <div className={styles.searchInputWrap}>
+        <div className="split-field">
           <input
             type="text"
             value={topic}
@@ -35,23 +34,24 @@ export default function SearchBox({ onSearch, loading }: Props) {
             autoFocus
           />
           <button type="submit" disabled={loading || !topic.trim()}>
-            {loading ? "Searching..." : "Research"}
+            {loading ? "searching..." : "research →"}
           </button>
         </div>
       </form>
-      <div className={styles.examples}>
-        <span className={styles.examplesLabel}>Try:</span>
-        {EXAMPLES.map((ex) => (
+      <div className="mt-4 flex flex-col">
+        <span className="mb-2 font-mono text-xs text-text-muted">try:</span>
+        {EXAMPLES.map((ex, i) => (
           <button
             key={ex}
-            className={styles.exampleChip}
+            type="button"
+            className="w-full border-0 border-t border-border bg-transparent py-3 text-left font-mono text-[13px] leading-normal text-text-muted transition-colors duration-150 ease-out hover:text-text disabled:cursor-not-allowed disabled:opacity-50"
             onClick={() => {
               setTopic(ex);
               onSearch(ex);
             }}
             disabled={loading}
           >
-            {ex}
+            {String(i + 1).padStart(2, "0")} {ex}
           </button>
         ))}
       </div>

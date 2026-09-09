@@ -1,12 +1,18 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Public pages", () => {
-  test("home page loads with hero and sign-in CTA", async ({ page }) => {
+  test("landing page loads with hero and CTAs", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(/knowledge base/i);
-    await expect(
-      page.getByRole("button", { name: "Sign in to start researching" })
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(/youtube research/i);
+    await expect(page.getByRole("link", { name: /start researching/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /sign in/i }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: /get started/i })).toBeVisible();
+  });
+
+  test("app page loads sign-in prompt when signed out", async ({ page }) => {
+    await page.goto("/app");
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(/sign in/i);
+    await expect(page.getByRole("link", { name: /sign in to continue/i })).toBeVisible();
   });
 
   test("pricing page shows all plans", async ({ page }) => {
@@ -49,7 +55,7 @@ test.describe("Public pages", () => {
     }
 
     await expect(page.getByTestId("e2e-sign-in")).toBeVisible();
-    await expect(page.getByRole("heading", { name: /sign in/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /welcome back/i })).toBeVisible();
   });
 
   test("health API returns ok", async ({ request }) => {

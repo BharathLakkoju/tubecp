@@ -1,19 +1,29 @@
 import Link from "next/link";
 import { PRODUCT_NAME } from "@/lib/legal";
-import styles from "./LegalFooter.module.css";
 
 export default function LegalFooter() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className={styles.footer}>
-      <nav className={styles.nav} aria-label="Legal">
-        <Link href="/terms">Terms of Service</Link>
-        <Link href="/privacy">Privacy Policy</Link>
-        <Link href="/refund">Cancellation Policy</Link>
-        <Link href="/pricing">Pricing</Link>
+    <footer className="mt-auto border-t border-border px-6 py-6 max-sm:px-4 max-sm:pb-5">
+      <nav className="mb-3 flex flex-wrap justify-center gap-4" aria-label="Legal">
+        <Link href="/terms" className="font-mono text-xs text-text-muted no-underline hover:text-accent">
+          Terms of Service
+        </Link>
+        <Link href="/privacy" className="font-mono text-xs text-text-muted no-underline hover:text-accent">
+          Privacy Policy
+        </Link>
+        <Link href="/refund" className="font-mono text-xs text-text-muted no-underline hover:text-accent">
+          Cancellation Policy
+        </Link>
+        <Link href="/app" className="font-mono text-xs text-text-muted no-underline hover:text-accent">
+          App
+        </Link>
+        <Link href="/pricing" className="font-mono text-xs text-text-muted no-underline hover:text-accent">
+          Pricing
+        </Link>
       </nav>
-      <p className={styles.copy}>
+      <p className="text-center font-mono text-[11px] text-text-muted">
         © {year} {PRODUCT_NAME}
       </p>
     </footer>

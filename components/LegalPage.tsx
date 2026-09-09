@@ -1,5 +1,7 @@
-import Link from "next/link";
-import styles from "./LegalPage.module.css";
+import PageShell from "@/components/PageShell";
+import SubpageNav from "@/components/SubpageNav";
+import FadeIn from "@/components/FadeIn";
+import HeroSection from "@/components/HeroSection";
 
 interface Props {
   title: string;
@@ -9,15 +11,26 @@ interface Props {
 
 export default function LegalPage({ title, lastUpdated, children }: Props) {
   return (
-    <article className={styles.page}>
-      <div className={styles.inner}>
-        <Link href="/" className={styles.back}>← Back to app</Link>
-        <header className={styles.header}>
-          <h1>{title}</h1>
-          <p className={styles.updated}>Last updated: {lastUpdated}</p>
-        </header>
-        <div className={styles.content}>{children}</div>
+    <PageShell>
+      <div className="flex min-h-dvh flex-col">
+        <SubpageNav />
+        <article className="page-container flex-1">
+          <FadeIn>
+            <HeroSection
+              align="center"
+              showWordmark
+              title={title}
+              subtitle={`Last updated: ${lastUpdated}`}
+            />
+          </FadeIn>
+
+          <FadeIn delay={0.06}>
+            <div className="mt-6 border border-border">
+              <div className="legal-content bg-surface px-6 py-8 max-sm:px-4 max-sm:py-6">{children}</div>
+            </div>
+          </FadeIn>
+        </article>
       </div>
-    </article>
+    </PageShell>
   );
 }
