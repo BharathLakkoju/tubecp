@@ -32,13 +32,31 @@ export default function PricingPage() {
               {plan.id === "free" ? (
                 <Link href="/" className={styles.btnSecondary}>Get started free</Link>
               ) : (
-                <Link href={`/api/checkout?plan=${plan.id}`} className={styles.btnPrimary}>
-                  Upgrade to {plan.name}
-                </Link>
+                <>
+                  <Link href={`/api/checkout?plan=${plan.id}`} className={styles.btnPrimary}>
+                    Upgrade to {plan.name}
+                  </Link>
+                  <p className={styles.checkoutLegal}>
+                    By upgrading, you agree to our{" "}
+                    <Link href="/terms">Terms of Service</Link> and{" "}
+                    <Link href="/refund">Cancellation Policy</Link>. Payments are processed by{" "}
+                    <a href="https://polar.sh" target="_blank" rel="noopener noreferrer">
+                      Polar
+                    </a>{" "}
+                    as merchant of record.
+                  </p>
+                </>
               )}
             </div>
           ))}
         </div>
+
+        <p className={styles.pageLegal}>
+          Paid plans renew monthly. Cancel anytime—cancellation takes effect at the end of your
+          billing period. All fees are non-refundable. See our{" "}
+          <Link href="/refund">Cancellation Policy</Link> and{" "}
+          <Link href="/privacy">Privacy Policy</Link>.
+        </p>
       </div>
     </div>
   );

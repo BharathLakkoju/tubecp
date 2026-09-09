@@ -5,6 +5,9 @@ import { isE2eAuthBypass } from "@/lib/e2e";
 const isPublicRoute = createRouteMatcher([
   "/",
   "/pricing",
+  "/terms",
+  "/privacy",
+  "/refund",
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/health",

@@ -16,6 +16,26 @@ test.describe("Public pages", () => {
     await expect(page.getByRole("heading", { name: "Pro" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Researcher" })).toBeVisible();
     await expect(page.getByRole("link", { name: /upgrade to pro/i })).toBeVisible();
+    await expect(page.getByText(/terms of service/i)).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Legal" })).toBeVisible();
+  });
+
+  test("legal pages load", async ({ page }) => {
+    await page.goto("/terms");
+    await expect(page.getByRole("heading", { name: "Terms of Service" })).toBeVisible();
+
+    await page.goto("/privacy");
+    await expect(page.getByRole("heading", { name: "Privacy Policy" })).toBeVisible();
+    await expect(page.getByText(/Clerk/i)).toBeVisible();
+    await expect(page.getByText(/Upstash/i)).toBeVisible();
+    await expect(page.getByText(/OpenRouter/i)).toBeVisible();
+    await expect(page.getByText(/YouTube/i)).toBeVisible();
+    await expect(page.getByText(/Sentry/i)).toBeVisible();
+
+    await page.goto("/refund");
+    await expect(page.getByRole("heading", { name: "Cancellation Policy" })).toBeVisible();
+    await expect(page.getByText(/non-refundable/i)).toBeVisible();
+    await expect(page.getByText(/end of your current billing period/i)).toBeVisible();
   });
 
   test("sign-in page loads", async ({ page }) => {

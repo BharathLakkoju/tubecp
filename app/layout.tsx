@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { DM_Sans, JetBrains_Mono } from "next/font/google";
 import { AuthProvider } from "@/components/AuthShell";
+import LegalFooter from "@/components/LegalFooter";
 import { isE2eAuthBypass } from "@/lib/e2e";
 import "./globals.css";
 
@@ -31,7 +32,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           className={`${dmSans.variable} ${jetbrainsMono.variable}`}
           data-e2e-bypass={e2eBypass ? "true" : undefined}
         >
-          {children}
+          <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>{children}</div>
+            <LegalFooter />
+          </div>
         </body>
       </html>
     </AuthProvider>
