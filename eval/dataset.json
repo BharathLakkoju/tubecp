@@ -1,0 +1,76 @@
+{
+  "version": "1.0",
+  "description": "Starter evaluation dataset for YouTube Research Agent. Run `npm run eval` to score ranking quality. Labels are human-reviewed expectations — update relevanceMin after manual review.",
+  "topics": [
+    {
+      "id": "ai-saas-monetization",
+      "topic": "How developers monetize AI SaaS products in 2026",
+      "minRelevantVideos": 4,
+      "relevanceMin": 55,
+      "notes": "Should surface videos discussing MRR, pricing, real revenue — not generic AI news."
+    },
+    {
+      "id": "react-server-components",
+      "topic": "React Server Components best practices",
+      "minRelevantVideos": 5,
+      "relevanceMin": 55,
+      "notes": "Technical depth required; exclude pure marketing/keynote clips."
+    },
+    {
+      "id": "startup-no-funding",
+      "topic": "Building a startup with no funding bootstrapping",
+      "minRelevantVideos": 4,
+      "relevanceMin": 50,
+      "notes": "Real founder stories, revenue tactics — not motivational fluff only."
+    },
+    {
+      "id": "typescript-generics",
+      "topic": "TypeScript generics advanced patterns",
+      "minRelevantVideos": 4,
+      "relevanceMin": 55,
+      "notes": "Code-level explanations expected."
+    },
+    {
+      "id": "kubernetes-production",
+      "topic": "Kubernetes production deployment pitfalls",
+      "minRelevantVideos": 4,
+      "relevanceMin": 50,
+      "notes": "Ops-focused; not beginner intro to K8s."
+    },
+    {
+      "id": "intermittent-fasting",
+      "topic": "Intermittent fasting science evidence",
+      "minRelevantVideos": 3,
+      "relevanceMin": 45,
+      "notes": "Tests non-tech domain; should cite research discussion not diet vlogs only."
+    },
+    {
+      "id": "cursor-ai-editor",
+      "topic": "How developers use Cursor AI editor for coding",
+      "minRelevantVideos": 3,
+      "relevanceMin": 50,
+      "notes": "Product-specific; titles may not say 'Cursor' verbatim."
+    },
+    {
+      "id": "llm-rag-production",
+      "topic": "Production RAG systems architecture LLM",
+      "minRelevantVideos": 5,
+      "relevanceMin": 55,
+      "notes": "Engineering depth on retrieval, chunking, evaluation."
+    },
+    {
+      "id": "youtube-seo-2026",
+      "topic": "YouTube SEO strategy for small channels 2026",
+      "minRelevantVideos": 4,
+      "relevanceMin": 45,
+      "notes": "Actionable SEO tactics, not generic 'grow fast' content."
+    },
+    {
+      "id": "remote-team-async",
+      "topic": "Managing remote engineering teams async communication",
+      "minRelevantVideos": 3,
+      "relevanceMin": 45,
+      "notes": "Management/process focus."
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+node_modules/
+.next/
+out/
+dist/
+
+# Local runtime data (may contain user content or indexed transcripts)
+data/
+*.db
+
+# Environment & secrets — never commit real keys
+.env
+.env.*
+!.env.example
+.env.local
+.env*.local
+
+# Keys & credentials
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+service-account*.json
+*-credentials.json
+.secrets
+*.secret
+
+# Platform CLI config (often contains auth tokens)
+.vercel
+.sentryclirc
+
+# OS / editor
+.DS_Store
+Thumbs.db
+web/
+
+# Test artifacts
+coverage/
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
