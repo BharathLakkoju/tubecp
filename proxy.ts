@@ -13,6 +13,8 @@ const PUBLIC_PREFIXES = [
   "/api/health",
   "/api/webhook/polar",
   "/api/auth",
+  // Checkout performs its own auth redirect to sign-in with callbackUrl.
+  "/api/checkout",
 ];
 
 function isPublicRoute(pathname: string): boolean {
