@@ -6,7 +6,17 @@ import HeroSection from "@/components/HeroSection";
 import FadeIn from "@/components/FadeIn";
 import { cn } from "@/lib/cn";
 
-export default function PricingPage() {
+type SearchParams = {
+  checkout?: string;
+};
+
+export default async function PricingPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const params = await searchParams;
+  const checkoutCanceled = params.checkout === "canceled";
   const plans = [PLANS.free, PLANS.pro, PLANS.researcher];
 
   return (
@@ -14,6 +24,12 @@ export default function PricingPage() {
       <div className="flex min-h-dvh flex-col">
         <SiteNav variant="landing" />
         <div className="page-container flex-1">
+        {checkoutCanceled && (
+          <p className="mb-6 border border-border bg-surface px-4 py-3 font-mono text-[13px] text-text-muted">
+            Checkout was canceled. Your account remains on the free plan — you can upgrade again
+            whenever you&apos;re ready.
+          </p>
+        )}
         <FadeIn>
         <HeroSection
           align="center"

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import type { OAuthProviderId } from "@/lib/auth-providers";
+import { authLinkWithCallback } from "@/lib/billing/checkout-flow";
 
 function AuthError({ message }: { message: string }) {
   return (
@@ -52,10 +53,12 @@ function SocialButton({
 function OAuthButtons({
   providers,
   disabled,
+  callbackUrl,
   onError,
 }: {
   providers: OAuthProviderId[];
   disabled: boolean;
+  callbackUrl: string;
   onError: (message: string) => void;
 }) {
   const [loadingProvider, setLoadingProvider] = useState<OAuthProviderId | null>(null);
@@ -64,7 +67,7 @@ function OAuthButtons({
     onError("");
     setLoadingProvider(provider);
 
-    const result = await signIn(provider, { callbackUrl: "/app", redirect: false });
+    const result = await signIn(provider, { callbackUrl, redirect: false });
     setLoadingProvider(null);
 
     if (result?.error) {
@@ -102,7 +105,12 @@ function OAuthButtons({
   );
 }
 
-export function SignInForm({ providers }: { providers: OAuthProviderId[] }) {
+type AuthFormProps = {
+  providers: OAuthProviderId[];
+  callbackUrl: string;
+};
+
+export function SignInForm({ providers, callbackUrl }: AuthFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -116,7 +124,7 @@ export function SignInForm({ providers }: { providers: OAuthProviderId[] }) {
     const result = await signIn("credentials", {
       email,
       password,
-      callbackUrl: "/app",
+      callbackUrl,
       redirect: false,
     });
 
@@ -168,18 +176,24 @@ export function SignInForm({ providers }: { providers: OAuthProviderId[] }) {
       {showOAuth && (
         <>
           <AuthDivider />
-          <OAuthButtons providers={providers} disabled={loading} onError={setError} />
+          <OAuthButtons
+            providers={providers}
+            disabled={loading}
+            callbackUrl={callbackUrl}
+            onError={setError}
+          />
         </>
       )}
 
       <p className="auth-footer">
-        No account? <Link href="/sign-up">Create one</Link>
+        No account?{" "}
+        <Link href={authLinkWithCallback("/sign-up", callbackUrl)}>Create one</Link>
       </p>
     </div>
   );
 }
 
-export function SignUpForm({ providers }: { providers: OAuthProviderId[] }) {
+export function SignUpForm({ providers, callbackUrl }: AuthFormProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -208,7 +222,7 @@ export function SignUpForm({ providers }: { providers: OAuthProviderId[] }) {
     const result = await signIn("credentials", {
       email,
       password,
-      callbackUrl: "/app",
+      callbackUrl,
       redirect: false,
     });
 
@@ -272,12 +286,18 @@ export function SignUpForm({ providers }: { providers: OAuthProviderId[] }) {
       {showOAuth && (
         <>
           <AuthDivider />
-          <OAuthButtons providers={providers} disabled={loading} onError={setError} />
+          <OAuthButtons
+            providers={providers}
+            disabled={loading}
+            callbackUrl={callbackUrl}
+            onError={setError}
+          />
         </>
       )}
 
       <p className="auth-footer">
-        Already have an account? <Link href="/sign-in">Sign in</Link>
+        Already have an account?{" "}
+        <Link href={authLinkWithCallback("/sign-in", callbackUrl)}>Sign in</Link>
       </p>
     </div>
   );

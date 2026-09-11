@@ -1,21 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUserId, AuthError } from "@/lib/auth";
+import { checkoutPathForPlan, isPaidPlan } from "@/lib/billing/checkout-flow";
 import { getPolarClient, getAppUrl } from "@/lib/polar";
 import type { PlanId } from "@/lib/plans";
 import { PLANS } from "@/lib/plans";
 
 export async function GET(req: NextRequest) {
+  const planParam = (req.nextUrl.searchParams.get("plan") ?? "pro") as PlanId;
+
   let userId: string;
   try {
     userId = await requireUserId();
   } catch (err) {
     if (err instanceof AuthError) {
-      return NextResponse.redirect(new URL("/sign-in", req.url));
+      const checkoutPlan = isPaidPlan(planParam) ? planParam : "pro";
+      const callbackUrl = encodeURIComponent(checkoutPathForPlan(checkoutPlan));
+      return NextResponse.redirect(new URL(`/sign-in?callbackUrl=${callbackUrl}`, req.url));
     }
     throw err;
   }
 
-  const planParam = (req.nextUrl.searchParams.get("plan") ?? "pro") as PlanId;
   const plan = PLANS[planParam] ?? PLANS.pro;
   const productId = plan.polarProductId;
 
@@ -26,11 +30,14 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  const appUrl = getAppUrl();
+
   try {
     const polar = getPolarClient();
     const checkout = await polar.checkouts.create({
       products: [productId],
-      successUrl: `${getAppUrl()}/app?upgraded=true&plan=${plan.id}`,
+      successUrl: `${appUrl}/app?upgraded=true&plan=${plan.id}`,
+      returnUrl: `${appUrl}/pricing?checkout=canceled`,
       metadata: {
         userId,
         plan: plan.id,

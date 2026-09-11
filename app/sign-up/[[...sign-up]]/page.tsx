@@ -3,9 +3,22 @@ import SiteNav from "@/components/SiteNav";
 import AuthFormShell from "@/components/AuthFormShell";
 import { SignUpForm } from "@/components/AuthForms";
 import { getConfiguredOAuthProviders } from "@/lib/auth-providers";
+import { isCheckoutCallback, resolveAuthCallbackUrl } from "@/lib/billing/checkout-flow";
 
-export default function SignUpPage() {
+type SearchParams = {
+  callbackUrl?: string;
+  plan?: string;
+};
+
+export default async function SignUpPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const params = await searchParams;
   const providers = getConfiguredOAuthProviders();
+  const callbackUrl = resolveAuthCallbackUrl(params);
+  const upgrading = isCheckoutCallback(callbackUrl);
 
   return (
     <PageShell showThemeSwitcher={false}>
@@ -13,10 +26,14 @@ export default function SignUpPage() {
         <SiteNav variant="landing" />
         <div className="page-container flex-1">
           <AuthFormShell
-            title="Create your account"
-            subtitle="Sign up with your name and email, or continue with Google or GitHub."
+            title={upgrading ? "Create your account" : "Create your account"}
+            subtitle={
+              upgrading
+                ? "Create an account to continue to checkout. You stay on the free plan until payment completes."
+                : "Sign up with your name and email, or continue with Google or GitHub."
+            }
           >
-            <SignUpForm providers={providers} />
+            <SignUpForm providers={providers} callbackUrl={callbackUrl} />
           </AuthFormShell>
         </div>
       </div>
