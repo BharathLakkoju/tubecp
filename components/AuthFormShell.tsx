@@ -18,7 +18,7 @@ export default function AuthFormShell({ title, subtitle, children }: Props) {
         </header>
       </FadeIn>
       <FadeIn delay={0.06}>
-        <div className="clerk-wrap w-full">{children}</div>
+        <div className="auth-wrap w-full">{children}</div>
       </FadeIn>
     </div>
   );

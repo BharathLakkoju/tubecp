@@ -38,11 +38,15 @@ export interface VideoAnalysis {
   discussionLevel: "mentioned" | "brief" | "substantial";
 }
 
-export interface RankedVideo {
+export interface VideoSummary {
   videoId: string;
   title: string;
   channel: string;
   url: string;
+  thumbnailUrl: string;
+}
+
+export interface RankedVideo extends VideoSummary {
   relevanceScore: number;
   whyRelevant: string;
   discussionLevel: "brief" | "substantial";
@@ -52,7 +56,16 @@ export interface ResearchResult {
   topic: string;
   queriesUsed: string[];
   videosSearched: number;
+  allVideos: VideoSummary[];
   rankedVideos: RankedVideo[];
+}
+
+/** Partial research data streamed to the UI as each pipeline step completes. */
+export interface ResearchLiveState {
+  queries: string[];
+  allVideos: VideoSummary[];
+  analyzedVideos: VideoSummary[];
+  analyzedScores: Record<string, number>;
 }
 
 export interface TranscriptChunk {

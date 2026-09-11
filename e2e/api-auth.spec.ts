@@ -17,7 +17,7 @@ test.describe("API authentication", () => {
     expect(res.status()).toBe(401);
   });
 
-  test("webhook endpoint is reachable without Clerk auth", async ({ request }) => {
+  test("webhook endpoint is reachable without session auth", async ({ request }) => {
     const res = await request.post("/api/webhook/polar", {
       data: {},
       headers: { "content-type": "application/json" },

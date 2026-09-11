@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { combineScores, metadataText } from "@/lib/services/semantic";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { combineScores, metadataText, preRankCandidates } from "@/lib/services/semantic";
 import { mockVideo } from "../fixtures/research";
+import * as llm from "@/lib/services/llm";
 
 describe("combineScores", () => {
   it("weights LLM, semantic, and metadata scores", () => {
@@ -42,5 +43,37 @@ describe("metadataText", () => {
   it("truncates very long metadata", () => {
     const video = mockVideo({ description: "x".repeat(3000) });
     expect(metadataText(video).length).toBeLessThanOrEqual(2000);
+  });
+});
+
+describe("preRankCandidates", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("falls back to keyword ranking when embeddings fail", async () => {
+    vi.spyOn(llm, "generateEmbedding").mockRejectedValue(new Error("502 HTTP 502"));
+    vi.spyOn(llm, "generateEmbeddings").mockRejectedValue(new Error("502 HTTP 502"));
+
+    const candidates = [
+      mockVideo({ videoId: "a", title: "AI SaaS pricing guide" }),
+      mockVideo({ videoId: "b", title: "Cooking pasta" }),
+      mockVideo({ videoId: "c", title: "AI SaaS monetization deep dive" }),
+    ];
+
+    const ranked = await preRankCandidates("AI SaaS monetization", candidates, 2);
+    expect(ranked).toHaveLength(2);
+    expect(ranked[0].videoId).toBe("c");
+    expect(ranked[1].videoId).toBe("a");
+  });
+
+  it("returns all candidates when under the limit", async () => {
+    const candidates = [mockVideo({ videoId: "a" }), mockVideo({ videoId: "b" })];
+    const ranked = await preRankCandidates("AI SaaS", candidates, 5);
+    expect(ranked).toEqual(candidates);
   });
 });

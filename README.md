@@ -2,7 +2,7 @@
 
 Turn any YouTube research topic into a **chattable knowledge base** — sourced, timestamped, and monetization-ready.
 
-**Stack:** Next.js (Vercel) · Clerk auth · Polar payments · Upstash Redis · Sentry
+**Stack:** Next.js (Vercel) · Auth.js / NextAuth (Google/GitHub) · Neon Postgres · Polar payments · Upstash Redis · Sentry
 
 ## Features
 
@@ -17,8 +17,9 @@ Turn any YouTube research topic into a **chattable knowledge base** — sourced,
 ```bash
 npm install
 cp .env.example .env.local
-# Fill in: YOUTUBE_API_KEY, OPENROUTER_API_KEY, Clerk keys
+# Fill in: YOUTUBE_API_KEY, OPENROUTER_API_KEY, DATABASE_URL, AUTH_SECRET, OAuth keys
 
+npm run db:migrate   # first time: migrates legacy Better Auth schema (if any) + creates Auth.js tables
 npm run dev
 ```
 
@@ -36,8 +37,10 @@ See `.env.example` for the full list. Required:
 |----------|--------|
 | `YOUTUBE_API_KEY` | [Google Cloud Console](https://console.cloud.google.com/apis/credentials) |
 | `OPENROUTER_API_KEY` | [OpenRouter](https://openrouter.ai/keys) |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | [Clerk Dashboard](https://dashboard.clerk.com) |
-| `CLERK_SECRET_KEY` | Clerk Dashboard |
+| `DATABASE_URL` | [Neon](https://neon.tech) Postgres connection string |
+| `AUTH_SECRET` | `openssl rand -base64 32` |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | [Google Cloud Console](https://console.cloud.google.com/apis/credentials) |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | [GitHub Developer Settings](https://github.com/settings/developers) |
 | `UPSTASH_REDIS_REST_URL` | [Upstash](https://console.upstash.com) or Vercel Marketplace |
 | `UPSTASH_REDIS_REST_TOKEN` | Upstash |
 | `POLAR_ACCESS_TOKEN` | [Polar.sh](https://polar.sh) |
@@ -50,7 +53,8 @@ Optional: `NEXT_PUBLIC_SENTRY_DSN` — see [docs/SETUP-SENTRY.md](docs/SETUP-SEN
 ### 3. Connect services
 
 - **Upstash Redis:** Vercel → Storage → Marketplace → Upstash Redis
-- **Clerk:** Add your Vercel domain in Clerk → Domains
+- **OAuth:** Set callback URLs to `https://your-app.vercel.app/api/auth/callback/google` and `/api/auth/callback/github`
+- **Neon:** Run `npm run db:migrate` after setting `DATABASE_URL`
 - **Polar:** Webhook URL → `https://your-app.vercel.app/api/webhook/polar`
 
 ### 4. Create Polar products
@@ -61,7 +65,7 @@ Optional: `NEXT_PUBLIC_SENTRY_DSN` — see [docs/SETUP-SENTRY.md](docs/SETUP-SEN
 
 ## Infrastructure decisions
 
-See [docs/INFRASTRUCTURE.md](docs/INFRASTRUCTURE.md) for why we use Upstash Redis, Clerk, Polar, and Sentry.
+See [docs/INFRASTRUCTURE.md](docs/INFRASTRUCTURE.md) for why we use Neon Postgres, Upstash Redis, Polar, and Sentry.
 
 **Verdict:** Upstash is the best free-tier choice for Vercel serverless. Don't switch unless you hit 500k+ Redis commands/month.
 
@@ -103,9 +107,9 @@ npm run test:ci
 
 **CI** runs on every push/PR via [`.github/workflows/ci.yml`](.github/workflows/ci.yml): unit tests → production build → Playwright E2E.
 
-E2E tests use `E2E_AUTH_BYPASS=true` so they run without real Clerk credentials. To test the real Clerk sign-in UI, set `CLERK_E2E_ENABLED=true` and provide valid Clerk keys before running Playwright.
+E2E tests use `E2E_AUTH_BYPASS=true` so they run without real OAuth credentials.
 
-## API routes (all require Clerk auth except health + webhook)
+## API routes (all require Auth.js session except health + webhook)
 
 | Route | Purpose |
 |-------|---------|

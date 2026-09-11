@@ -28,7 +28,7 @@ For this app's serverless Vercel deployment, **Upstash Redis is the right choice
 transcript:{videoId}     → cached captions (global, shared across users)
 chunk:{id}               → transcript chunks + embeddings
 kb:{kbId}                → knowledge base metadata
-user:sub:{userId}        → plan, usage counters, Polar subscription ID
+user-kbs:{userId}        → list of user's knowledge bases (Redis)
 user-kbs:{userId}        → list of user's knowledge bases
 queries:{hash}           → query expansion cache (48h TTL)
 rl:*                     → rate limit counters
@@ -53,8 +53,8 @@ At that point you're likely making revenue — the cost is negligible vs OpenRou
 ### Turso (libSQL)
 - **Verdict:** Great for relational data, but this app stores JSON blobs and doesn't need SQL joins. Would add complexity without benefit.
 
-### Neon / Supabase Postgres
-- **Verdict:** Better when you need relational queries, user tables, complex billing. Overkill for now — Clerk + Redis handles auth and usage. Consider migrating user/subscription data to Postgres at 1k+ paying users.
+### Neon Postgres — **In use**
+- **Verdict:** Stores Auth.js users/sessions and application subscription data (`user_subscriptions`: plan, usage counters, billing period, Polar references). Neon serverless driver works on Vercel.
 
 ### PlanetScale / Railway Redis
 - **Verdict:** Requires always-on infra or TCP connections. Conflicts with pure Vercel serverless. More expensive for this use case.
@@ -64,12 +64,11 @@ At that point you're likely making revenue — the cost is negligible vs OpenRou
 
 ---
 
-## Clerk — **Recommended**
+## Auth.js (NextAuth) — **In use**
 
-- Free tier: 10,000 MAU
-- Best Next.js integration
-- Handles sign-in, sessions, UserButton out of the box
-- No database needed for auth
+- Self-hosted auth with Google and GitHub OAuth
+- User/session data in Neon Postgres
+- No third-party auth vendor lock-in
 
 ---
 
@@ -95,7 +94,7 @@ At that point you're likely making revenue — the cost is negligible vs OpenRou
 |---------|------|
 | Vercel Hobby/Pro | $0–20 |
 | Upstash Redis | $0 (free tier) |
-| Clerk | $0 (< 10k MAU) |
+| Neon Postgres | $0 (free tier) |
 | Polar | % of revenue only |
 | Sentry | $0 (free tier) |
 | OpenRouter API | ~$0.02–0.10 per research job |
@@ -108,7 +107,6 @@ At that point you're likely making revenue — the cost is negligible vs OpenRou
 ## Recommendation summary
 
 ```
-Keep:  Upstash Redis + Clerk + Polar + Sentry (free) + Vercel
-Skip:  Railway, Render, Fly.io, separate Postgres (for now)
-Revisit: Postgres when you need analytics dashboards or complex billing queries
+Keep:  Neon Postgres + Auth.js + Upstash Redis + Polar + Sentry (free) + Vercel
+Skip:  Railway, Render, Fly.io for this app's primary stack
 ```

@@ -1,5 +1,5 @@
 import PageShell from "@/components/PageShell";
-import SubpageNav from "@/components/SubpageNav";
+import SiteNav from "@/components/SiteNav";
 import FadeIn from "@/components/FadeIn";
 import HeroSection from "@/components/HeroSection";
 
@@ -11,9 +11,9 @@ interface Props {
 
 export default function LegalPage({ title, lastUpdated, children }: Props) {
   return (
-    <PageShell>
+    <PageShell showThemeSwitcher={false}>
       <div className="flex min-h-dvh flex-col">
-        <SubpageNav />
+        <SiteNav variant="landing" />
         <article className="page-container flex-1">
           <FadeIn>
             <HeroSection

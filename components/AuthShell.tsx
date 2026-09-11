@@ -7,17 +7,9 @@ import {
   isValidElement,
   useContext,
   useEffect,
-  useMemo,
   useState,
 } from "react";
-import {
-  ClerkProvider,
-  Show,
-  UserButton,
-  useAuth,
-} from "@clerk/nextjs";
-import { useTheme } from "@/components/ThemeProvider";
-import { buildClerkAppearance } from "@/lib/clerkTheme";
+import { SessionProvider, signOut, useSession } from "next-auth/react";
 import type { PlanId } from "@/lib/plans";
 import type { SubscriptionState } from "@/lib/hooks/useSubscription";
 
@@ -43,15 +35,15 @@ const E2E_SUBSCRIPTION: SubscriptionState = {
   loading: false,
 };
 
-function ClerkSubscriptionProvider({ children }: { children: React.ReactNode }) {
-  const { isSignedIn } = useAuth();
+function SessionSubscriptionProvider({ children }: { children: React.ReactNode }) {
+  const { data: session } = useSession();
   const [state, setState] = useState<SubscriptionState>({
     ...E2E_SUBSCRIPTION,
     loading: true,
   });
 
   useEffect(() => {
-    if (!isSignedIn) {
+    if (!session?.user) {
       setState((s) => ({ ...s, loading: false }));
       return;
     }
@@ -75,21 +67,10 @@ function ClerkSubscriptionProvider({ children }: { children: React.ReactNode }) 
         });
       })
       .catch(() => setState((s) => ({ ...s, loading: false })));
-  }, [isSignedIn]);
+  }, [session?.user]);
 
   return (
     <SubscriptionContext.Provider value={state}>{children}</SubscriptionContext.Provider>
-  );
-}
-
-function ClerkProviderWithTheme({ children }: { children: React.ReactNode }) {
-  const { themeId } = useTheme();
-  const appearance = useMemo(() => buildClerkAppearance(themeId), [themeId]);
-
-  return (
-    <ClerkProvider appearance={appearance}>
-      <ClerkSubscriptionProvider>{children}</ClerkSubscriptionProvider>
-    </ClerkProvider>
   );
 }
 
@@ -112,7 +93,9 @@ export function AuthProvider({
 
   return (
     <BypassContext.Provider value={false}>
-      <ClerkProviderWithTheme>{children}</ClerkProviderWithTheme>
+      <SessionProvider>
+        <SessionSubscriptionProvider>{children}</SessionSubscriptionProvider>
+      </SessionProvider>
     </BypassContext.Provider>
   );
 }
@@ -127,14 +110,22 @@ export function useSubscriptionContext(): SubscriptionState {
 
 export function AppSignedOut({ children }: { children: React.ReactNode }) {
   const bypass = useBypass();
+  const { data: session, status } = useSession();
+
   if (bypass) return <>{children}</>;
-  return <Show when="signed-out">{children}</Show>;
+  if (status === "loading") return null;
+  if (session?.user) return null;
+  return <>{children}</>;
 }
 
 export function AppSignedIn({ children }: { children: React.ReactNode }) {
   const bypass = useBypass();
+  const { data: session, status } = useSession();
+
   if (bypass) return null;
-  return <Show when="signed-in">{children}</Show>;
+  if (status === "loading") return null;
+  if (!session?.user) return null;
+  return <>{children}</>;
 }
 
 /** @deprecated Prefer `<Link href="/sign-in">` — always navigates to the sign-in page. */
@@ -160,8 +151,62 @@ export function AppSignInButton({
   return <Link href="/sign-in">{children}</Link>;
 }
 
+function userInitial(user: { name?: string | null; email?: string | null }): string {
+  const source = user.name?.trim() || user.email?.trim() || "?";
+  return source[0]?.toUpperCase() ?? "?";
+}
+
 export function AppUserButton() {
   const bypass = useBypass();
+  const { data: session } = useSession();
+
   if (bypass) return null;
-  return <UserButton />;
+  if (!session?.user) return null;
+
+  const user = session.user;
+
+  return (
+    <Link
+      href="/account"
+      className="inline-flex size-[34px] shrink-0 items-center justify-center overflow-hidden border border-border bg-surface no-underline transition-[border-color] duration-150 hover:border-text-muted"
+      aria-label="Account settings"
+    >
+      {user.image ? (
+        <img
+          src={user.image}
+          alt=""
+          className="size-full object-cover"
+        />
+      ) : (
+        <span className="font-mono text-[13px] font-medium text-text-muted">
+          {userInitial(user)}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+export function AppSignOutButton({
+  className = "nav-tab",
+  onClick,
+}: {
+  className?: string;
+  onClick?: () => void;
+}) {
+  const bypass = useBypass();
+
+  if (bypass) return null;
+
+  return (
+    <button
+      type="button"
+      className={className}
+      onClick={() => {
+        onClick?.();
+        void signOut({ callbackUrl: "/" });
+      }}
+    >
+      sign out
+    </button>
+  );
 }

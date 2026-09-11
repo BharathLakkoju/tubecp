@@ -4,6 +4,10 @@ import { apiError, AuthError, requireUserId } from "@/lib/auth";
 import { KbAccessError } from "@/lib/kb-access";
 import { FeatureGateError, UsageLimitError } from "@/lib/billing/subscription";
 
+vi.mock("@/auth", () => ({
+  auth: vi.fn().mockResolvedValue(null),
+}));
+
 vi.mock("next/headers", () => ({
   headers: vi.fn(),
 }));
@@ -25,9 +29,9 @@ describe("requireUserId", () => {
 
   it("accepts x-e2e-user-id header in E2E bypass mode", async () => {
     process.env.E2E_AUTH_BYPASS = "true";
-    vi.mocked(headers).mockResolvedValue(new Headers({ "x-e2e-user-id": "e2e_user" }));
+    vi.mocked(headers).mockResolvedValue(new Headers({ "x-e2e-user-id": "1" }));
 
-    await expect(requireUserId()).resolves.toBe("e2e_user");
+    await expect(requireUserId()).resolves.toBe("1");
   });
 });
 

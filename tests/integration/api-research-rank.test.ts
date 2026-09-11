@@ -3,6 +3,10 @@ import { NextRequest } from "next/server";
 import { POST } from "@/app/api/research/rank/route";
 import { mockAnalysisPair } from "../fixtures/research";
 
+vi.mock("@/auth", () => ({
+  auth: vi.fn().mockResolvedValue(null),
+}));
+
 vi.mock("@/lib/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/auth")>();
   return {

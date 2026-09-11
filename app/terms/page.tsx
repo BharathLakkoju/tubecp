@@ -25,7 +25,7 @@ export default function TermsPage() {
 
       <h2>2. Accounts</h2>
       <p>
-        You must create an account through our authentication provider, Clerk, to use most features.
+        You must create an account to use most features.
         You are responsible for maintaining the confidentiality of your account and for all activity
         under it. You must provide accurate information and notify us promptly of unauthorized use.
       </p>
@@ -74,7 +74,8 @@ export default function TermsPage() {
 
       <h2>7. Third-party services</h2>
       <p>
-        The Service integrates with third parties including Clerk (auth), Polar (payments), Upstash
+        The Service integrates with third parties including Neon (user accounts), Polar (payments),
+        Upstash
         (data storage), OpenRouter (AI), the YouTube Data API, and Sentry (monitoring). Your use of
         those services may also be subject to their terms. See our{" "}
         <a href="/privacy">Privacy Policy</a> for how data is shared.

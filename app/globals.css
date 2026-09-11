@@ -8,6 +8,7 @@
   --color-text-muted: var(--text-muted);
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
+  --color-accent-foreground: var(--accent-foreground);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --font-mono: var(--font-mono), ui-monospace, monospace;
@@ -24,6 +25,7 @@
   --text-muted: #57606a;
   --accent: #0969da;
   --accent-hover: #0550ae;
+  --accent-foreground: #ffffff;
   --success: #1a7f37;
   --warning: #9a6700;
   --motion-duration-fast: 150ms;
@@ -40,6 +42,7 @@
   --text-muted: #888888;
   --accent: #33ff33;
   --accent-hover: #66ff66;
+  --accent-foreground: #000000;
   --success: #33ff33;
   --warning: #ffcc00;
 }
@@ -52,6 +55,7 @@
   --text-muted: #64748b;
   --accent: #3b82f6;
   --accent-hover: #60a5fa;
+  --accent-foreground: #ffffff;
   --success: #34d399;
   --warning: #fbbf24;
 }
@@ -64,6 +68,7 @@
   --text-muted: #8888a0;
   --accent: #a78bfa;
   --accent-hover: #c4b5fd;
+  --accent-foreground: #000000;
   --success: #34d399;
   --warning: #fbbf24;
 }
@@ -76,6 +81,7 @@
   --text-muted: #a08090;
   --accent: #f472b6;
   --accent-hover: #f9a8d4;
+  --accent-foreground: #000000;
   --success: #34d399;
   --warning: #fbbf24;
 }
@@ -88,6 +94,7 @@
   --text-muted: #7a8194;
   --accent: #94a3b8;
   --accent-hover: #cbd5e1;
+  --accent-foreground: #000000;
   --success: #34d399;
   --warning: #fbbf24;
 }
@@ -100,6 +107,7 @@
   --text-muted: #6090a0;
   --accent: #22d3ee;
   --accent-hover: #67e8f9;
+  --accent-foreground: #000000;
   --success: #34d399;
   --warning: #fbbf24;
 }
@@ -112,6 +120,7 @@
   --text-muted: #d8dee9;
   --accent: #88c0d0;
   --accent-hover: #8fbcbb;
+  --accent-foreground: #000000;
   --success: #a3be8c;
   --warning: #ebcb8b;
 }
@@ -124,6 +133,7 @@
   --text-muted: #609060;
   --accent: #4ade80;
   --accent-hover: #86efac;
+  --accent-foreground: #000000;
   --success: #4ade80;
   --warning: #fbbf24;
 }
@@ -136,6 +146,7 @@
   --text-muted: #666666;
   --accent: #333333;
   --accent-hover: #555555;
+  --accent-foreground: #ffffff;
   --success: #1a7f37;
   --warning: #9a6700;
 }
@@ -148,6 +159,7 @@
   --text-muted: #7a6a50;
   --accent: #b45309;
   --accent-hover: #d97706;
+  --accent-foreground: #ffffff;
   --success: #1a7f37;
   --warning: #9a6700;
 }
@@ -160,6 +172,7 @@
   --text-muted: #586e75;
   --accent: #268bd2;
   --accent-hover: #2aa198;
+  --accent-foreground: #ffffff;
   --success: #859900;
   --warning: #b58900;
 }
@@ -172,6 +185,7 @@
   --text-muted: #408060;
   --accent: #059669;
   --accent-hover: #10b981;
+  --accent-foreground: #ffffff;
   --success: #059669;
   --warning: #9a6700;
 }
@@ -184,6 +198,7 @@
   --text-muted: #707060;
   --accent: #78716c;
   --accent-hover: #57534e;
+  --accent-foreground: #ffffff;
   --success: #1a7f37;
   --warning: #9a6700;
 }
@@ -196,6 +211,7 @@
   --text-muted: #906070;
   --accent: #db2777;
   --accent-hover: #ec4899;
+  --accent-foreground: #ffffff;
   --success: #1a7f37;
   --warning: #9a6700;
 }
@@ -208,6 +224,7 @@
   --text-muted: #4070a0;
   --accent: #0284c7;
   --accent-hover: #0ea5e9;
+  --accent-foreground: #ffffff;
   --success: #1a7f37;
   --warning: #9a6700;
 }
@@ -247,11 +264,11 @@
     @apply cursor-text;
   }
 
-  a {
+  a:not(.btn-primary):not(.btn-ghost):not(.nav-tab) {
     @apply text-accent no-underline transition-colors duration-150 ease-out;
   }
 
-  a:hover {
+  a:not(.btn-primary):not(.btn-ghost):not(.nav-tab):hover {
     @apply text-accent-hover;
   }
 
@@ -281,16 +298,33 @@
     @apply mx-auto w-full max-w-[860px] px-6 pt-[60px] pb-[100px] max-sm:px-4 max-sm:pt-10 max-sm:pb-20;
   }
 
+  .page-container-wide {
+    @apply mx-auto w-full max-w-6xl px-6 pt-[60px] pb-[100px] max-sm:px-4 max-sm:pt-10 max-sm:pb-20;
+  }
+
   .divider {
     @apply m-0 border-0 border-t border-border;
   }
 
   .btn-primary {
-    @apply inline-flex min-h-11 items-center justify-center gap-1.5 border border-accent bg-accent px-5 py-4 font-mono text-[13px] font-medium text-white no-underline transition-[background-color,border-color,color,transform] duration-150 ease-out hover:border-accent-hover hover:bg-accent-hover hover:text-white active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex min-h-11 items-center justify-center gap-1.5 border px-5 py-4 font-mono text-[13px] font-semibold no-underline transition-[background-color,border-color,color,transform] duration-150 ease-out active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
+    background-color: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-foreground);
+  }
+
+  .btn-primary:hover {
+    background-color: var(--accent-hover);
+    border-color: var(--accent-hover);
+    color: var(--accent-foreground);
   }
 
   .btn-ghost {
     @apply inline-flex min-h-11 items-center justify-center gap-1.5 border border-border bg-transparent px-5 py-4 font-mono text-[13px] font-medium text-text-muted no-underline transition-[background-color,border-color,color,transform] duration-150 ease-out hover:border-text-muted hover:text-text active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-block {
+    @apply box-border flex h-11 w-full min-h-11 items-center justify-center px-4 py-0 text-center whitespace-nowrap;
   }
 
   .btn-row {
@@ -321,7 +355,13 @@
   }
 
   .nav-tab-primary {
-    @apply bg-accent text-white hover:bg-accent-hover hover:text-white;
+    background-color: var(--accent);
+    color: var(--accent-foreground);
+  }
+
+  .nav-tab-primary:hover {
+    background-color: var(--accent-hover);
+    color: var(--accent-foreground);
   }
 
   .plan-badge {
@@ -353,7 +393,14 @@
   }
 
   .split-field button {
-    @apply shrink-0 border-0 bg-accent px-5 py-4 font-mono text-[13px] font-medium text-white transition-[background-color,transform] duration-150 ease-out hover:bg-accent-hover active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 max-sm:w-full;
+    @apply shrink-0 border-0 px-5 py-4 font-mono text-[13px] font-semibold transition-[background-color,color,transform] duration-150 ease-out active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50 max-sm:w-full;
+    background-color: var(--accent);
+    color: var(--accent-foreground);
+  }
+
+  .split-field button:hover {
+    background-color: var(--accent-hover);
+    color: var(--accent-foreground);
   }
 
   .legal-content {
@@ -385,8 +432,98 @@
     @apply text-accent;
   }
 
-  .clerk-wrap :is(.cl-rootBox, .cl-cardBox, .cl-card, .cl-main, .cl-form) {
+  .auth-wrap {
     @apply w-full;
+  }
+
+  .auth-form {
+    @apply flex w-full flex-col gap-4;
+  }
+
+  .auth-field {
+    @apply flex w-full flex-col gap-2;
+  }
+
+  .auth-label {
+    @apply font-mono text-xs font-medium text-text-muted;
+  }
+
+  .auth-field input {
+    @apply w-full border border-border bg-surface px-4 py-3 text-sm text-text transition-[border-color,background-color] duration-150 ease-out placeholder:text-text-muted focus:border-accent;
+  }
+
+  .auth-footer {
+    @apply text-center font-mono text-[13px] text-text-muted;
+  }
+
+  .auth-footer a {
+    color: var(--text);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .auth-footer a:hover {
+    color: var(--accent);
+  }
+
+  .on-accent-fill {
+    background-color: var(--accent);
+    border: 1px solid var(--accent);
+    color: var(--accent-foreground);
+  }
+
+  a.btn-primary,
+  a.btn-primary:hover,
+  a.nav-tab-primary,
+  a.nav-tab-primary:hover,
+  button.btn-primary,
+  button.btn-primary:hover {
+    color: var(--accent-foreground);
+  }
+
+  .auth-divider {
+    @apply relative flex items-center justify-center py-1;
+  }
+
+  .auth-divider::before {
+    content: "";
+    @apply absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border;
+  }
+
+  .auth-divider span {
+    @apply relative bg-bg px-3 font-mono text-[11px] uppercase tracking-wide text-text-muted;
+  }
+
+  .auth-oauth-stack {
+    @apply flex w-full flex-col gap-3;
+  }
+
+  .auth-oauth-btn {
+    @apply w-full border border-border bg-surface px-4 py-3 font-mono text-[13px] font-medium text-text transition-[border-color,background-color] duration-150 ease-out hover:border-text-muted hover:bg-bg disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .auth-profile {
+    @apply flex w-full flex-col gap-8;
+  }
+
+  .auth-profile-section {
+    @apply border border-border bg-surface p-6;
+  }
+
+  .auth-profile-title {
+    @apply mb-4 font-mono text-sm font-semibold text-text;
+  }
+
+  .auth-profile-meta {
+    @apply grid gap-4 font-mono text-[13px];
+  }
+
+  .auth-profile-meta dt {
+    @apply text-text-muted;
+  }
+
+  .auth-profile-meta dd {
+    @apply mt-1 text-text;
   }
 }
 

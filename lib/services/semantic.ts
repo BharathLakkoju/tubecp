@@ -25,6 +25,27 @@ export async function scoreMetadataRelevance(
   return Math.round(cosineSimilarity(topicEmb, metaEmb) * 100);
 }
 
+function keywordPreRank(
+  topic: string,
+  candidates: VideoCandidate[],
+  limit: number
+): VideoCandidate[] {
+  const terms = topic
+    .toLowerCase()
+    .split(/\W+/)
+    .filter((term) => term.length > 2);
+
+  return candidates
+    .map((video) => {
+      const text = metadataText(video).toLowerCase();
+      const score = terms.reduce((sum, term) => sum + (text.includes(term) ? 1 : 0), 0);
+      return { video, score };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map(({ video }) => video);
+}
+
 export async function preRankCandidates(
   topic: string,
   candidates: VideoCandidate[],
@@ -32,25 +53,40 @@ export async function preRankCandidates(
 ): Promise<VideoCandidate[]> {
   if (candidates.length <= limit) return candidates;
 
-  const topicEmb = await getTopicEmbedding(topic);
-  const texts = candidates.map(metadataText);
+  try {
+    const topicEmb = await getTopicEmbedding(topic);
+    const texts = candidates.map(metadataText);
 
-  const batchSize = 20;
-  const scores: number[] = [];
+    const batchSize = 5;
+    const scores: number[] = new Array(candidates.length).fill(-1);
 
-  for (let i = 0; i < texts.length; i += batchSize) {
-    const batch = texts.slice(i, i + batchSize);
-    const embeddings = await generateEmbeddings(batch);
-    for (const emb of embeddings) {
-      scores.push(cosineSimilarity(topicEmb, emb));
+    for (let i = 0; i < texts.length; i += batchSize) {
+      const batch = texts.slice(i, i + batchSize);
+      try {
+        const embeddings = await generateEmbeddings(batch);
+        for (let j = 0; j < embeddings.length; j++) {
+          scores[i + j] = cosineSimilarity(topicEmb, embeddings[j]);
+        }
+      } catch (batchErr) {
+        console.warn(`Embedding batch ${i / batchSize + 1} failed:`, batchErr);
+      }
     }
-  }
 
-  return candidates
-    .map((video, i) => ({ video, score: scores[i] }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit)
-    .map((s) => s.video);
+    const scored = scores.filter((s) => s >= 0).length;
+    if (scored < Math.min(candidates.length, limit)) {
+      console.warn(`Only ${scored}/${candidates.length} embeddings succeeded, using keyword fallback`);
+      return keywordPreRank(topic, candidates, limit);
+    }
+
+    return candidates
+      .map((video, i) => ({ video, score: scores[i] }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map((s) => s.video);
+  } catch (err) {
+    console.warn("Embedding pre-rank failed, using keyword fallback:", err);
+    return keywordPreRank(topic, candidates, limit);
+  }
 }
 
 function chunkSegments(

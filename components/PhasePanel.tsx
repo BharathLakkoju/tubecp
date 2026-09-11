@@ -1,6 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { useHydrated } from "@/lib/hooks/useHydrated";
 import { fadeUp } from "@/lib/motion";
 
 interface Props {
@@ -11,8 +12,9 @@ interface Props {
 
 export default function PhasePanel({ phase, children, className }: Props) {
   const reduced = useReducedMotion();
+  const hydrated = useHydrated();
 
-  if (reduced) {
+  if (reduced || !hydrated) {
     return <div className={className}>{children}</div>;
   }
 

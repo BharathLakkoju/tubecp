@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PLANS } from "@/lib/plans";
 import PageShell from "@/components/PageShell";
-import SubpageNav from "@/components/SubpageNav";
+import SiteNav from "@/components/SiteNav";
 import HeroSection from "@/components/HeroSection";
 import FadeIn from "@/components/FadeIn";
 import { cn } from "@/lib/cn";
@@ -10,9 +10,9 @@ export default function PricingPage() {
   const plans = [PLANS.free, PLANS.pro, PLANS.researcher];
 
   return (
-    <PageShell>
+    <PageShell showThemeSwitcher={false}>
       <div className="flex min-h-dvh flex-col">
-        <SubpageNav />
+        <SiteNav variant="landing" />
         <div className="page-container flex-1">
         <FadeIn>
         <HeroSection
@@ -34,7 +34,7 @@ export default function PricingPage() {
               )}
             >
               {plan.id === "pro" && (
-                <span className="absolute top-0 right-0 left-0 bg-accent px-2 py-1 text-center font-mono text-[10px] font-medium tracking-wide text-white uppercase">
+                <span className="on-accent-fill absolute top-0 right-0 left-0 px-2 py-1 text-center font-mono text-[10px] font-medium tracking-wide uppercase">
                   most popular
                 </span>
               )}
@@ -59,16 +59,21 @@ export default function PricingPage() {
                   {plan.persistentKbs ? "Persistent knowledge bases" : "Ranked lists only"}
                 </li>
               </ul>
-              {plan.id === "free" ? (
-                <Link href="/sign-up" className="btn-ghost w-full">
-                  get started free →
-                </Link>
-              ) : (
-                <>
-                  <Link href={`/api/checkout?plan=${plan.id}`} className="btn-primary w-full">
+              <div className="mt-auto flex flex-col gap-3">
+                {plan.id === "free" ? (
+                  <Link href="/sign-up" className="btn-ghost btn-block">
+                    get started free →
+                  </Link>
+                ) : (
+                  <Link
+                    href={`/api/checkout?plan=${plan.id}`}
+                    className="btn-primary btn-block"
+                  >
                     upgrade to {plan.name} →
                   </Link>
-                  <p className="mt-3 text-center font-mono text-[11px] leading-snug text-text-muted">
+                )}
+                {plan.id !== "free" ? (
+                  <p className="min-h-[4.5rem] text-center font-mono text-[11px] leading-snug text-text-muted">
                     By upgrading, you agree to our{" "}
                     <Link href="/terms" className="text-text-muted underline">
                       Terms of Service
@@ -88,8 +93,15 @@ export default function PricingPage() {
                     </a>{" "}
                     as merchant of record.
                   </p>
-                </>
-              )}
+                ) : (
+                  <p
+                    className="min-h-[4.5rem] text-center font-mono text-[11px] leading-snug text-transparent select-none"
+                    aria-hidden="true"
+                  >
+                    &nbsp;
+                  </p>
+                )}
+              </div>
             </div>
           ))}
         </div>

@@ -1,14 +1,17 @@
 import PageShell from "@/components/PageShell";
-import SubpageNav from "@/components/SubpageNav";
+import SiteNav from "@/components/SiteNav";
 import AuthFormShell from "@/components/AuthFormShell";
-import { AuthSignIn } from "@/components/AuthClerk";
+import { SignInForm } from "@/components/AuthForms";
+import { getConfiguredOAuthProviders } from "@/lib/auth-providers";
 
 export default function SignInPage() {
+  const providers = getConfiguredOAuthProviders();
+
   if (process.env.E2E_AUTH_BYPASS === "true") {
     return (
-      <PageShell>
+      <PageShell showThemeSwitcher={false}>
         <div data-testid="e2e-sign-in" className="flex min-h-dvh flex-col">
-          <SubpageNav />
+          <SiteNav variant="landing" />
           <div className="page-container flex-1">
             <AuthFormShell
               title="Sign in"
@@ -23,15 +26,15 @@ export default function SignInPage() {
   }
 
   return (
-    <PageShell>
+    <PageShell showThemeSwitcher={false}>
       <div className="flex min-h-dvh flex-col">
-        <SubpageNav />
+        <SiteNav variant="landing" />
         <div className="page-container flex-1">
           <AuthFormShell
             title="Welcome back"
-            subtitle="Sign in to start researching YouTube topics and building knowledge bases."
+            subtitle="Sign in with Google or GitHub to research YouTube topics and build knowledge bases."
           >
-            <AuthSignIn />
+            <SignInForm providers={providers} />
           </AuthFormShell>
         </div>
       </div>

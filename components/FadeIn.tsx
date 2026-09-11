@@ -1,6 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
+import { useHydrated } from "@/lib/hooks/useHydrated";
 import { fadeUp } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
@@ -13,10 +14,11 @@ interface Props {
 
 export default function FadeIn({ children, className, delay = 0, as = "div" }: Props) {
   const reduced = useReducedMotion();
+  const hydrated = useHydrated();
   const Component = motion[as];
+  const Tag = as;
 
-  if (reduced) {
-    const Tag = as;
+  if (reduced || !hydrated) {
     return <Tag className={className}>{children}</Tag>;
   }
 

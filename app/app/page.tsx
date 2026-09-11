@@ -3,17 +3,25 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { AppSignedIn, AppSignedOut } from "@/components/AuthShell";
-import type { AppPhase, ResearchResult, KnowledgeBase, ChatMessage } from "@/lib/types";
-import { runResearch, buildKnowledgeBase } from "@/lib/client/workflows";
+import type { AppPhase, ResearchResult, KnowledgeBase, ChatMessage, ResearchLiveState } from "@/lib/types";
+import {
+  runResearch,
+  buildKnowledgeBase,
+  emptyLiveResearch,
+  type ResearchStage,
+  type ResearchLiveUpdate,
+} from "@/lib/client/workflows";
 import { useSubscription } from "@/lib/hooks/useSubscription";
 import PhasePanel from "@/components/PhasePanel";
 import SiteNav from "@/components/SiteNav";
 import PageShell from "@/components/PageShell";
 import HeroSection from "@/components/HeroSection";
 import SearchBox from "@/components/SearchBox";
-import VideoList from "@/components/VideoList";
+import ResearchResults from "@/components/ResearchResults";
+import ResearchLiveView from "@/components/ResearchLiveView";
 import ChatPanel from "@/components/ChatPanel";
 import ProgressBar from "@/components/ProgressBar";
+import ResearchProgress from "@/components/ResearchProgress";
 import UpgradePrompt from "@/components/UpgradePrompt";
 import UsageIndicator from "@/components/UsageIndicator";
 
@@ -38,9 +46,21 @@ export default function AppPage() {
   const [kb, setKb] = useState<KnowledgeBase | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [activeTopic, setActiveTopic] = useState("");
   const [progressMsg, setProgressMsg] = useState("");
   const [progressPct, setProgressPct] = useState(0);
+  const [researchStage, setResearchStage] = useState<ResearchStage>("expanding");
+  const [liveResearch, setLiveResearch] = useState<ResearchLiveState>(emptyLiveResearch);
   const [error, setError] = useState("");
+
+  const mergeLiveResearch = (update: ResearchLiveUpdate) => {
+    setLiveResearch((prev) => ({
+      queries: update.queries ?? prev.queries,
+      allVideos: update.allVideos ?? prev.allVideos,
+      analyzedVideos: update.analyzedVideos ?? prev.analyzedVideos,
+      analyzedScores: update.analyzedScores ?? prev.analyzedScores,
+    }));
+  };
   const [upgraded, setUpgraded] = useState(false);
 
   useEffect(() => {
@@ -54,14 +74,20 @@ export default function AppPage() {
   const handleSearch = async (searchTopic: string) => {
     setLoading(true);
     setError("");
-    setProgressMsg("Starting research...");
+    setActiveTopic(searchTopic);
+    setProgressMsg("");
     setProgressPct(0);
+    setResearchStage("expanding");
+    setLiveResearch(emptyLiveResearch());
+    setResearch(null);
     setPhase("results");
 
     try {
-      const result = await runResearch(searchTopic, 15, (msg, pct) => {
+      const result = await runResearch(searchTopic, 15, (msg, pct, stage, live) => {
         setProgressMsg(msg);
         if (pct !== undefined) setProgressPct(pct);
+        if (stage) setResearchStage(stage);
+        if (live) mergeLiveResearch(live);
       });
       setResearch(result);
       setProgressMsg("");
@@ -145,6 +171,7 @@ export default function AppPage() {
   const handleReset = () => {
     setPhase("search");
     setResearch(null);
+    setLiveResearch(emptyLiveResearch());
     setKb(null);
     setMessages([]);
     setError("");
@@ -210,22 +237,42 @@ export default function AppPage() {
               </>
             )}
 
-            {(phase === "results" || phase === "building") && research && (
+            {(phase === "results" || phase === "building") && (loading || research) && (
               <div>
                 <div className="mb-6 border-b border-border pb-4">
                   <h2 className="font-mono text-base font-semibold break-words text-text">
-                    research: {research.topic}
+                    research: {research?.topic ?? activeTopic}
                   </h2>
-                  <p className="mt-1.5 font-mono text-xs text-text-muted">
-                    {research.videosSearched} videos searched · {research.rankedVideos.length} ranked relevant
-                  </p>
+                  {research && !loading && (
+                    <p className="mt-1.5 font-mono text-xs text-text-muted">
+                      {research.allVideos.length} scraped · {research.rankedVideos.length} semantically relevant
+                    </p>
+                  )}
                 </div>
 
-                {loading && <ProgressBar message={progressMsg} progress={progressPct} />}
+                {loading && phase === "results" && (
+                  <ResearchProgress
+                    topic={activeTopic}
+                    stage={researchStage}
+                    detail={progressMsg}
+                    progress={progressPct}
+                  />
+                )}
 
-                <VideoList videos={research.rankedVideos} />
+                <ResearchLiveView live={liveResearch} />
 
-                {phase === "results" && !loading && research.rankedVideos.length > 0 && (
+                {research && (phase === "building" || !loading) && (
+                  <section className="mt-8 border-t border-border pt-8">
+                    <h3 className="mb-6 font-mono text-[13px] font-semibold text-text">Final results</h3>
+                    <ResearchResults research={research} />
+                  </section>
+                )}
+
+                {phase === "building" && loading && (
+                  <ProgressBar message={progressMsg} progress={progressPct} />
+                )}
+
+                {phase === "results" && !loading && research && research.rankedVideos.length > 0 && (
                   sub.canBuildKb ? (
                     <div className="mt-8 border-t border-border pt-6">
                       <p className="mb-4 font-mono text-[13px] text-text-muted">
@@ -241,12 +288,6 @@ export default function AppPage() {
                       description="Free tier includes ranked video lists. Upgrade to Pro to transcribe videos, build a knowledge base, and chat with cited sources."
                     />
                   )
-                )}
-
-                {research.rankedVideos.length === 0 && !loading && (
-                  <p className="border-t border-border py-8 text-center font-mono text-[13px] text-text-muted">
-                    No relevant videos found. Try a different topic or broader search terms.
-                  </p>
                 )}
 
                 {error && <p className="mt-4 font-mono text-[13px] text-accent">{error}</p>}

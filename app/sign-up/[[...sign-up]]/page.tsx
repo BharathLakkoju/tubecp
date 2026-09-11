@@ -1,22 +1,6 @@
-import PageShell from "@/components/PageShell";
-import SubpageNav from "@/components/SubpageNav";
-import AuthFormShell from "@/components/AuthFormShell";
-import { AuthSignUp } from "@/components/AuthClerk";
+import { redirect } from "next/navigation";
 
+/** OAuth sign-up uses the same flow as sign-in — first provider login creates the account. */
 export default function SignUpPage() {
-  return (
-    <PageShell>
-      <div className="flex min-h-dvh flex-col">
-        <SubpageNav />
-        <div className="page-container flex-1">
-          <AuthFormShell
-            title="Create your account"
-            subtitle="Start researching YouTube topics and turn videos into chattable knowledge bases."
-          >
-            <AuthSignUp />
-          </AuthFormShell>
-        </div>
-      </div>
-    </PageShell>
-  );
+  redirect("/sign-in");
 }

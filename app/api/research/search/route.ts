@@ -25,13 +25,20 @@ export async function POST(req: NextRequest) {
     }
 
     const allCandidates = await searchYouTubeMultiple(queries, dateRange, 15);
-    const candidates = await preRankCandidates(topic, allCandidates, PRE_RANK_LIMIT);
+    const candidates =
+      allCandidates.length <= PRE_RANK_LIMIT
+        ? allCandidates
+        : await preRankCandidates(topic, allCandidates, PRE_RANK_LIMIT).catch((err) => {
+            console.warn("Pre-rank failed, returning unranked candidates:", err);
+            return allCandidates.slice(0, PRE_RANK_LIMIT);
+          });
 
     const topicHash = hashTopic(topic.toLowerCase().trim());
     await cacheQueries(topicHash, queries, allCandidates.map((v) => v.videoId));
 
     return NextResponse.json({
       candidates,
+      allCandidates,
       videosSearched: allCandidates.length,
     });
   } catch (err) {

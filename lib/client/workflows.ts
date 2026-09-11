@@ -1,7 +1,30 @@
-import type { ResearchResult, KnowledgeBase, VideoCandidate, VideoAnalysis } from "@/lib/types";
+import type {
+  ResearchResult,
+  KnowledgeBase,
+  VideoCandidate,
+  VideoAnalysis,
+  ResearchLiveState,
+} from "@/lib/types";
+import { toVideoSummary } from "@/lib/youtube";
 import { ANALYZE_LIMIT } from "@/lib/constants/research";
 
-export type ProgressCallback = (message: string, progress?: number) => void;
+export type ResearchStage = "expanding" | "searching" | "analyzing" | "ranking";
+
+export type ResearchLiveUpdate = Partial<ResearchLiveState>;
+
+export type ProgressCallback = (
+  message: string,
+  progress?: number,
+  stage?: ResearchStage,
+  live?: ResearchLiveUpdate
+) => void;
+
+export const emptyLiveResearch = (): ResearchLiveState => ({
+  queries: [],
+  allVideos: [],
+  analyzedVideos: [],
+  analyzedScores: {},
+});
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(url, {
@@ -22,17 +45,28 @@ export async function runResearch(
   maxVideos = 15,
   onProgress?: ProgressCallback
 ): Promise<ResearchResult> {
-  onProgress?.("Generating search queries...", 5);
+  onProgress?.("expanding", 5, "expanding");
   const { queries } = await postJson<{ queries: string[] }>("/api/research/expand", { topic });
+  onProgress?.("expanded", 10, "expanding", { queries });
 
-  onProgress?.("Searching YouTube...", 15);
-  const { candidates, videosSearched } = await postJson<{
+  onProgress?.("searching", 15, "searching");
+  const { candidates, allCandidates, videosSearched } = await postJson<{
     candidates: VideoCandidate[];
+    allCandidates: VideoCandidate[];
     videosSearched: number;
   }>("/api/research/search", { topic, queries });
 
+  const scraped = (allCandidates ?? []).map(toVideoSummary);
+  onProgress?.("searched", 18, "searching", { allVideos: scraped });
+
   if (candidates.length === 0) {
-    return { topic, queriesUsed: queries, videosSearched: videosSearched ?? 0, rankedVideos: [] };
+    return {
+      topic,
+      queriesUsed: queries,
+      videosSearched: videosSearched ?? 0,
+      allVideos: scraped,
+      rankedVideos: [],
+    };
   }
 
   const toAnalyze = candidates.slice(0, Math.min(candidates.length, ANALYZE_LIMIT));
@@ -41,8 +75,9 @@ export async function runResearch(
   for (let i = 0; i < toAnalyze.length; i++) {
     const video = toAnalyze[i];
     onProgress?.(
-      `Analyzing "${video.title.slice(0, 50)}..." (${i + 1}/${toAnalyze.length})`,
-      20 + Math.round((i / toAnalyze.length) * 65)
+      `"${video.title.slice(0, 50)}…" (${i + 1}/${toAnalyze.length})`,
+      20 + Math.round((i / toAnalyze.length) * 65),
+      "analyzing"
     );
 
     const result = await postJson<{ video: VideoCandidate; analysis: VideoAnalysis }>(
@@ -50,18 +85,30 @@ export async function runResearch(
       { video, topic }
     );
     analyses.push(result);
+
+    const analyzedVideos = analyses.map(({ video: v }) => toVideoSummary(v));
+    const analyzedScores = Object.fromEntries(
+      analyses.map(({ video: v, analysis }) => [v.videoId, analysis.relevanceScore])
+    );
+    onProgress?.(
+      `"${video.title.slice(0, 50)}…" (${i + 1}/${toAnalyze.length})`,
+      20 + Math.round(((i + 1) / toAnalyze.length) * 65),
+      "analyzing",
+      { analyzedVideos, analyzedScores }
+    );
   }
 
-  onProgress?.("Ranking videos by relevance...", 90);
+  onProgress?.("ranking", 90, "ranking");
   const research = await postJson<ResearchResult>("/api/research/rank", {
     topic,
     queriesUsed: queries,
-    videosSearched: videosSearched ?? candidates.length,
+    videosSearched: videosSearched ?? allCandidates?.length ?? candidates.length,
     analyses,
     maxVideos,
+    allCandidates: allCandidates ?? candidates,
   });
 
-  onProgress?.(`Found ${research.rankedVideos.length} relevant videos`, 100);
+  onProgress?.(`found ${research.rankedVideos.length} relevant videos`, 100, "ranking");
   return research;
 }
 

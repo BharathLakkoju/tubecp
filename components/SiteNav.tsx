@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { List, X } from "@phosphor-icons/react";
-import { AppSignedIn, AppSignedOut, AppUserButton } from "@/components/AuthShell";
+import { AppSignedIn, AppSignedOut, AppSignOutButton, AppUserButton } from "@/components/AuthShell";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import Wordmark from "@/components/Wordmark";
 import { useSubscription } from "@/lib/hooks/useSubscription";
@@ -97,6 +97,9 @@ export default function SiteNav({
                 </Link>
               </div>
             )}
+            <div className="nav-tabs">
+              <AppSignOutButton />
+            </div>
             <AppUserButton />
           </AppSignedIn>
 
@@ -173,13 +176,20 @@ export default function SiteNav({
                 open app
               </Link>
             )}
+            <Link href="/account" className={cn(mobileItem, "bg-surface text-text hover:bg-bg hover:text-accent")} onClick={closeMenu}>
+              account
+            </Link>
+            <AppSignOutButton
+              className={cn(mobileItem, "bg-surface text-text hover:bg-bg hover:text-accent")}
+              onClick={closeMenu}
+            />
           </AppSignedIn>
 
           <AppSignedOut>
             <Link href="/sign-in" className={cn(mobileItem, "bg-surface text-text hover:bg-bg hover:text-accent")} onClick={closeMenu}>
               sign in
             </Link>
-            <Link href="/sign-up" className={cn(mobileItem, "bg-accent text-white hover:bg-accent-hover hover:text-white")} onClick={closeMenu}>
+            <Link href="/sign-up" className={cn(mobileItem, "on-accent-fill hover:opacity-90")} onClick={closeMenu}>
               get started →
             </Link>
           </AppSignedOut>

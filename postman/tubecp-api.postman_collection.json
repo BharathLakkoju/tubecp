@@ -1,0 +1,507 @@
+{
+  "info": {
+    "name": "TubeCP API",
+    "description": "All API routes for the TubeCP (youtube-mcp-agent) application.\n\n## Auth setup (required for protected routes)\n\nWithout auth you will get `401 {\"error\":\"Sign in required\",\"code\":\"AUTH_REQUIRED\"}`.\n\n**Option A — Auth.js session cookie (recommended):**\n1. Sign in at {{base_url}}/sign-in in your browser\n2. Open DevTools → Application → Cookies → localhost\n3. Copy the full `authjs.session-token` cookie (name=value)\n4. Paste it into the `session_cookie` collection variable\n5. Keep the Cookie header enabled, keep x-e2e-user-id disabled\n\n**Option B — E2E bypass (local dev only):**\n1. Add `E2E_AUTH_BYPASS=true` to your `.env` file\n2. Restart `npm run dev`\n3. Disable the Cookie header on requests\n4. Enable the `x-e2e-user-id` header (exact name — not x-e2e-user)\n5. Set `e2e_user_id` (default: test_user_123)\n\n## Typical flows\n\n**Research:** Expand → Search → Analyze (per video) → Rank\n**Knowledge base:** Create → Index Video (per video) → Finalize → Chat",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "session_cookie",
+      "value": ""
+    },
+    {
+      "key": "e2e_user_id",
+      "value": "1"
+    },
+    {
+      "key": "kb_id",
+      "value": ""
+    },
+    {
+      "key": "topic",
+      "value": "AI SaaS monetization"
+    }
+  ],
+  "auth": {
+    "type": "noauth"
+  },
+  "item": [
+    {
+      "name": "Public",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/health",
+              "host": ["{{base_url}}"],
+              "path": ["api", "health"]
+            },
+            "description": "No auth required. Returns service status and configured integrations."
+          },
+          "response": []
+        },
+        {
+          "name": "Polar Webhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/webhook/polar",
+              "host": ["{{base_url}}"],
+              "path": ["api", "webhook", "polar"]
+            },
+            "description": "Called by Polar.sh — not for manual use. Requires valid Polar webhook signature."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "User & Billing",
+      "item": [
+        {
+          "name": "Get Subscription",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "__session={{session_cookie}}",
+                "disabled": false
+              },
+              {
+                "key": "x-e2e-user-id",
+                "value": "{{e2e_user_id}}",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/user/subscription",
+              "host": ["{{base_url}}"],
+              "path": ["api", "user", "subscription"]
+            },
+            "description": "Returns plan, limits, usage, and available plans for the signed-in user."
+          },
+          "response": []
+        },
+        {
+          "name": "Checkout — Pro",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "__session={{session_cookie}}",
+                "disabled": false
+              },
+              {
+                "key": "x-e2e-user-id",
+                "value": "{{e2e_user_id}}",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/checkout?plan=pro",
+              "host": ["{{base_url}}"],
+              "path": ["api", "checkout"],
+              "query": [
+                {
+                  "key": "plan",
+                  "value": "pro"
+                }
+              ]
+            },
+            "description": "Redirects to Polar checkout for the Pro plan."
+          },
+          "response": []
+        },
+        {
+          "name": "Checkout — Researcher",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "__session={{session_cookie}}",
+                "disabled": false
+              },
+              {
+                "key": "x-e2e-user-id",
+                "value": "{{e2e_user_id}}",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/checkout?plan=researcher",
+              "host": ["{{base_url}}"],
+              "path": ["api", "checkout"],
+              "query": [
+                {
+                  "key": "plan",
+                  "value": "researcher"
+                }
+              ]
+            },
+            "description": "Redirects to Polar checkout for the Researcher plan."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Research Pipeline",
+      "description": "Free tier (with daily limits). Typical flow: Expand → Search → Analyze → Rank",
+      "item": [
+        {
+          "name": "1. Expand Queries",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const data = pm.response.json();",
+                  "  if (data.queries) {",
+                  "    pm.collectionVariables.set('queries_json', JSON.stringify(data.queries));",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Cookie",
+                "value": "__session={{session_cookie}}",
+                "disabled": false
+              },
+              {
+                "key": "x-e2e-user-id",
+                "value": "{{e2e_user_id}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"topic\": \"{{topic}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/research/expand",
+              "host": ["{{base_url}}"],
+              "path": ["api", "research", "expand"]
+            },
+            "description": "Generates 6-8 search queries for a topic. Counts against daily research limit."
+          },
+          "response": []
+        },
+        {
+          "name": "2. Search YouTube",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Cookie",
+                "value": "__session={{session_cookie}}",
+                "disabled": false
+              },
+              {
+                "key": "x-e2e-user-id",
+                "value": "{{e2e_user_id}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"topic\": \"{{topic}}\",\n  \"queries\": [\n    \"AI SaaS monetization\",\n    \"AI SaaS pricing\",\n    \"AI SaaS revenue models\",\n    \"AI SaaS case study\",\n    \"how to monetize AI SaaS\"\n  ],\n  \"dateRange\": {\n    \"from\": \"2024-01-01T00:00:00Z\",\n    \"to\": \"2026-12-31T23:59:59Z\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/research/search",
+              "host": ["{{base_url}}"],
+              "path": ["api", "research", "search"]
+            },
+            "description": "Searches YouTube and pre-ranks candidates. `dateRange` is optional."
+          },
+          "response": []
+        },
+        {
+          "name": "3. Analyze Video",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Cookie",
+                "value": "__session={{session_cookie}}",
+                "disabled": false
+              },
+              {
+                "key": "x-e2e-user-id",
+                "value": "{{e2e_user_id}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"topic\": \"{{topic}}\",\n  \"video\": {\n    \"videoId\": \"dQw4w9WgXcQ\",\n    \"title\": \"How to monetize AI SaaS in 2026\",\n    \"channel\": \"SaaS Founder\",\n    \"url\": \"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\n    \"publishedAt\": \"2026-01-01T00:00:00Z\",\n    \"duration\": \"18:42\",\n    \"description\": \"Deep dive on AI SaaS pricing, MRR, and revenue models.\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/research/analyze",
+              "host": ["{{base_url}}"],
+              "path": ["api", "research", "analyze"]
+            },
+            "description": "Analyzes a single video for relevance. Repeat for each candidate from search."
+          },
+          "response": []
+        },
+        {
+          "name": "4. Rank Videos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Cookie",
+                "value": "__session={{session_cookie}}",
+                "disabled": false
+              },
+              {
+                "key": "x-e2e-user-id",
+                "value": "{{e2e_user_id}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"topic\": \"{{topic}}\",\n  \"queriesUsed\": [\n    \"AI SaaS monetization\",\n    \"AI SaaS pricing\"\n  ],\n  \"videosSearched\": 42,\n  \"maxVideos\": 15,\n  \"allCandidates\": [\n    {\n      \"videoId\": \"dQw4w9WgXcQ\",\n      \"title\": \"How to monetize AI SaaS in 2026\",\n      \"channel\": \"SaaS Founder\",\n      \"url\": \"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\n      \"publishedAt\": \"2026-01-01T00:00:00Z\"\n    }\n  ],\n  \"analyses\": [\n    {\n      \"video\": {\n        \"videoId\": \"dQw4w9WgXcQ\",\n        \"title\": \"How to monetize AI SaaS in 2026\",\n        \"channel\": \"SaaS Founder\",\n        \"url\": \"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\n        \"publishedAt\": \"2026-01-01T00:00:00Z\"\n      },\n      \"analysis\": {\n        \"videoId\": \"dQw4w9WgXcQ\",\n        \"relevanceScore\": 82,\n        \"discussesTopic\": true,\n        \"summary\": \"Covers AI SaaS pricing with real examples.\",\n        \"discussionLevel\": \"substantial\",\n        \"evidence\": [\n          {\n            \"timestamp\": 120,\n            \"text\": \"We charge $49/mo for our AI SaaS\",\n            \"relevance\": 85\n          }\n        ]\n      }\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/research/rank",
+              "host": ["{{base_url}}"],
+              "path": ["api", "research", "rank"]
+            },
+            "description": "Ranks analyzed videos and returns the final ResearchResult."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Knowledge Base",
+      "description": "Requires Pro or Researcher plan. Flow: Create → Index Video → Finalize",
+      "item": [
+        {
+          "name": "1. Create Knowledge Base",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const data = pm.response.json();",
+                  "  if (data.kbId) {",
+                  "    pm.collectionVariables.set('kb_id', data.kbId);",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Cookie",
+                "value": "__session={{session_cookie}}",
+                "disabled": false
+              },
+              {
+                "key": "x-e2e-user-id",
+                "value": "{{e2e_user_id}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"topic\": \"{{topic}}\",\n  \"rankedVideos\": [\n    {\n      \"videoId\": \"dQw4w9WgXcQ\",\n      \"title\": \"How to monetize AI SaaS in 2026\",\n      \"channel\": \"SaaS Founder\",\n      \"url\": \"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\n      \"thumbnailUrl\": \"https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg\",\n      \"relevanceScore\": 82,\n      \"whyRelevant\": \"Covers AI SaaS pricing with real examples.\",\n      \"discussionLevel\": \"substantial\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/knowledge-base/create",
+              "host": ["{{base_url}}"],
+              "path": ["api", "knowledge-base", "create"]
+            },
+            "description": "Creates a new knowledge base. Auto-saves kbId to collection variable."
+          },
+          "response": []
+        },
+        {
+          "name": "2. Index Video",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Cookie",
+                "value": "__session={{session_cookie}}",
+                "disabled": false
+              },
+              {
+                "key": "x-e2e-user-id",
+                "value": "{{e2e_user_id}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kbId\": \"{{kb_id}}\",\n  \"video\": {\n    \"videoId\": \"dQw4w9WgXcQ\",\n    \"title\": \"How to monetize AI SaaS in 2026\",\n    \"channel\": \"SaaS Founder\",\n    \"url\": \"https://www.youtube.com/watch?v=dQw4w9WgXcQ\",\n    \"thumbnailUrl\": \"https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg\",\n    \"relevanceScore\": 82,\n    \"whyRelevant\": \"Covers AI SaaS pricing with real examples.\",\n    \"discussionLevel\": \"substantial\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/knowledge-base/index-video",
+              "host": ["{{base_url}}"],
+              "path": ["api", "knowledge-base", "index-video"]
+            },
+            "description": "Indexes a single video transcript into the KB. Repeat for each ranked video."
+          },
+          "response": []
+        },
+        {
+          "name": "3. Finalize Knowledge Base",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Cookie",
+                "value": "__session={{session_cookie}}",
+                "disabled": false
+              },
+              {
+                "key": "x-e2e-user-id",
+                "value": "{{e2e_user_id}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kbId\": \"{{kb_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/knowledge-base/finalize",
+              "host": ["{{base_url}}"],
+              "path": ["api", "knowledge-base", "finalize"]
+            },
+            "description": "Marks the knowledge base as ready for chat."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Knowledge Base",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Cookie",
+                "value": "__session={{session_cookie}}",
+                "disabled": false
+              },
+              {
+                "key": "x-e2e-user-id",
+                "value": "{{e2e_user_id}}",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/knowledge-base/{{kb_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "knowledge-base", "{{kb_id}}"]
+            },
+            "description": "Fetches a knowledge base by ID."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Chat",
+      "description": "Requires Pro or Researcher plan and a finalized knowledge base.",
+      "item": [
+        {
+          "name": "Chat with Knowledge Base",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Cookie",
+                "value": "__session={{session_cookie}}",
+                "disabled": false
+              },
+              {
+                "key": "x-e2e-user-id",
+                "value": "{{e2e_user_id}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kbId\": \"{{kb_id}}\",\n  \"message\": \"What pricing models do these videos recommend for AI SaaS?\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/chat",
+              "host": ["{{base_url}}"],
+              "path": ["api", "chat"]
+            },
+            "description": "Ask a question against a finalized knowledge base."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

@@ -27,7 +27,7 @@ export async function runResearchPipeline(
   const allCandidates = await searchYouTubeMultiple(queries, undefined, 15);
 
   if (allCandidates.length === 0) {
-    return { topic, queriesUsed: queries, videosSearched: 0, rankedVideos: [] };
+    return { topic, queriesUsed: queries, videosSearched: 0, allVideos: [], rankedVideos: [] };
   }
 
   onProgress({
@@ -54,7 +54,7 @@ export async function runResearchPipeline(
 
   onProgress({ stage: "ranking", message: "Ranking videos by relevance...", progress: 95 });
 
-  const result = rankVideos(topic, queries, allCandidates.length, analyses, maxVideos);
+  const result = rankVideos(topic, queries, allCandidates.length, analyses, maxVideos, allCandidates);
 
   onProgress({
     stage: "complete",

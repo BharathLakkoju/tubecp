@@ -1,6 +1,6 @@
-import { auth } from "@clerk/nextjs/server";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { isE2eAuthBypass } from "@/lib/e2e";
 import { KbAccessError } from "@/lib/kb-access";
 
@@ -14,11 +14,13 @@ export async function requireUserId(): Promise<string> {
     return testUser;
   }
 
-  const { userId } = await auth();
-  if (!userId) {
+  const session = await auth();
+
+  if (!session?.user?.id) {
     throw new AuthError("Sign in required");
   }
-  return userId;
+
+  return session.user.id;
 }
 
 export class AuthError extends Error {

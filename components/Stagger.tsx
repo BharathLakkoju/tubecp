@@ -1,6 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
+import { useHydrated } from "@/lib/hooks/useHydrated";
 import { fadeUpStaggerContainer, fadeUpStaggerItem } from "@/lib/motion";
 import { cn } from "@/lib/cn";
 
@@ -12,9 +13,10 @@ interface Props {
 
 export default function Stagger({ children, className, as = "div" }: Props) {
   const reduced = useReducedMotion();
+  const hydrated = useHydrated();
   const Tag = as;
 
-  if (reduced) {
+  if (reduced || !hydrated) {
     return <Tag className={className}>{children}</Tag>;
   }
 
@@ -40,9 +42,10 @@ interface ItemProps {
 
 export function StaggerItem({ children, className, as = "div" }: ItemProps) {
   const reduced = useReducedMotion();
+  const hydrated = useHydrated();
   const Tag = as;
 
-  if (reduced) {
+  if (reduced || !hydrated) {
     return <Tag className={className}>{children}</Tag>;
   }
 

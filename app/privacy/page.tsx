@@ -16,22 +16,32 @@ export default function PrivacyPage() {
       </p>
 
       <h2>1. Information we collect</h2>
-      <h3>Account information (Clerk)</h3>
+      <h3>Account information</h3>
       <p>
-        When you sign up or sign in, Clerk processes authentication on our behalf. This may include
-        your email address, name, profile image, authentication identifiers, and session metadata.
-        Clerk&apos;s privacy policy applies to their processing:{" "}
-        <a href="https://clerk.com/legal/privacy" target="_blank" rel="noopener noreferrer">
-          clerk.com/legal/privacy
+        When you sign up or sign in, we store account data in Neon PostgreSQL, including your email
+        address, name, authentication identifiers, and session metadata needed to operate the
+        Service. Neon privacy policy:{" "}
+        <a href="https://neon.tech/privacy-policy" target="_blank" rel="noopener noreferrer">
+          neon.tech/privacy-policy
         </a>
         .
       </p>
 
-      <h3>Usage and subscription data (Upstash Redis)</h3>
+      <h3>Subscription and usage data (Neon PostgreSQL)</h3>
       <p>
-        We store operational data in Upstash Redis, including your Clerk user ID, subscription plan,
-        usage counters (research, knowledge-base builds, chat messages), rate-limit state, and
-        knowledge-base metadata needed to provide the Service. Upstash privacy policy:{" "}
+        We store subscription and usage data in Neon PostgreSQL, including your plan, billing
+        period and renewal dates, usage counters (research, knowledge-base builds, chat messages),
+        and Polar subscription references. Neon privacy policy:{" "}
+        <a href="https://neon.tech/privacy-policy" target="_blank" rel="noopener noreferrer">
+          neon.tech/privacy-policy
+        </a>
+        .
+      </p>
+
+      <h3>Operational cache (Upstash Redis)</h3>
+      <p>
+        We use Upstash Redis for caching transcripts, rate-limit state, and knowledge-base
+        metadata needed to provide the Service. Upstash privacy policy:{" "}
         <a href="https://upstash.com/trust/privacy.pdf" target="_blank" rel="noopener noreferrer">
           upstash.com/trust/privacy
         </a>
@@ -112,8 +122,8 @@ export default function PrivacyPage() {
       <h2>4. How we share information</h2>
       <p>We share information with service providers that help us run the Service:</p>
       <ul>
-        <li>Clerk — authentication</li>
-        <li>Upstash — database and rate limiting</li>
+        <li>Neon — user account storage</li>
+        <li>Upstash — usage data and rate limiting</li>
         <li>OpenRouter — AI inference and embeddings</li>
         <li>Google / YouTube — video search metadata</li>
         <li>Polar — payments and subscriptions</li>
@@ -145,7 +155,7 @@ export default function PrivacyPage() {
       <p>
         Depending on your location, you may have rights to access, correct, delete, or export your
         personal data, and to object to or restrict certain processing. You can update account
-        details through Clerk where available. To exercise privacy rights, contact us at{" "}
+        details on your account page where available. To exercise privacy rights, contact us at{" "}
         <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>. You may also lodge a complaint with
         your local data protection authority.
       </p>

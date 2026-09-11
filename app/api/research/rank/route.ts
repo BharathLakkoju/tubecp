@@ -11,13 +11,14 @@ export async function POST(req: NextRequest) {
     const userId = await requireUserId();
     await rateLimitApi(userId, "research-rank", 20);
 
-    const { topic, queriesUsed, videosSearched, analyses, maxVideos } =
+    const { topic, queriesUsed, videosSearched, analyses, maxVideos, allCandidates } =
       (await req.json()) as {
         topic?: string;
         queriesUsed?: string[];
         videosSearched?: number;
         analyses?: Array<{ video: VideoCandidate; analysis: VideoAnalysis }>;
         maxVideos?: number;
+        allCandidates?: VideoCandidate[];
       };
 
     if (!topic || !queriesUsed || !analyses) {
@@ -32,7 +33,8 @@ export async function POST(req: NextRequest) {
       queriesUsed,
       videosSearched ?? analyses.length,
       analyses,
-      maxVideos ?? 15
+      maxVideos ?? 15,
+      allCandidates ?? []
     );
 
     return NextResponse.json(result);

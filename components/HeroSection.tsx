@@ -30,7 +30,7 @@ export default function HeroSection({
         <p
           className={cn(
             "max-w-xl font-sans text-sm leading-relaxed text-text-muted max-sm:text-[13px]",
-            centered && "mx-auto"
+            centered && "mx-auto",
           )}
         >
           {BRAND_TAGLINE}
@@ -40,7 +40,7 @@ export default function HeroSection({
       <h1
         className={cn(
           "max-w-xl font-mono text-lg font-semibold leading-snug text-text sm:text-xl",
-          centered && "mx-auto"
+          centered && "mx-auto",
         )}
       >
         {title}
@@ -49,13 +49,17 @@ export default function HeroSection({
         <p
           className={cn(
             "mt-2.5 max-w-xl font-mono text-[13px] leading-relaxed text-text-muted",
-            centered && "mx-auto"
+            centered && "mx-auto",
           )}
         >
           {subtitle}
         </p>
       )}
-      {children && <div className={cn("mt-6 w-full", centered && "mx-auto")}>{children}</div>}
+      {children && (
+        <div className={cn("mt-6 w-full", centered && "mx-auto")}>
+          {children}
+        </div>
+      )}
     </section>
   );
 }

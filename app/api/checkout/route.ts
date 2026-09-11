@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
       products: [productId],
       successUrl: `${getAppUrl()}/app?upgraded=true&plan=${plan.id}`,
       metadata: {
-        clerkUserId: userId,
+        userId,
         plan: plan.id,
       },
     });

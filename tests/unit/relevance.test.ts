@@ -62,6 +62,20 @@ describe("rankVideos", () => {
     expect(result.topic).toBe(topic);
     expect(result.queriesUsed).toEqual(queries);
     expect(result.videosSearched).toBe(42);
+    expect(result.allVideos).toEqual([]);
+  });
+
+  it("includes all scraped candidates in allVideos", () => {
+    const scraped = [
+      mockVideo({ videoId: "a", title: "A" }),
+      mockVideo({ videoId: "b", title: "B" }),
+    ];
+    const analyses = [mockAnalysisPair({ videoId: "a" }, { relevanceScore: 80 })];
+
+    const result = rankVideos(topic, queries, 2, analyses, 5, scraped);
+    expect(result.allVideos).toHaveLength(2);
+    expect(result.allVideos[0].thumbnailUrl).toContain("a");
+    expect(result.rankedVideos[0].thumbnailUrl).toContain("a");
   });
 
   it("maps substantial semantic matches to substantial discussion level", () => {

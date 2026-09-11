@@ -32,7 +32,7 @@ test.describe("Public pages", () => {
 
     await page.goto("/privacy");
     await expect(page.getByRole("heading", { name: "Privacy Policy" })).toBeVisible();
-    await expect(page.getByText(/Clerk/i)).toBeVisible();
+    await expect(page.getByText(/Neon/i)).toBeVisible();
     await expect(page.getByText(/Upstash/i)).toBeVisible();
     await expect(page.getByText(/OpenRouter/i)).toBeVisible();
     await expect(page.getByText(/YouTube/i)).toBeVisible();
@@ -47,15 +47,15 @@ test.describe("Public pages", () => {
   test("sign-in page loads", async ({ page }) => {
     await page.goto("/sign-in");
 
-    if (process.env.CLERK_E2E_ENABLED === "true") {
-      await expect(page.locator(".cl-rootBox, [data-clerk-component]")).toBeVisible({
-        timeout: 15_000,
-      });
+    if (process.env.E2E_AUTH_BYPASS === "true") {
+      await expect(page.getByTestId("e2e-sign-in")).toBeVisible();
+      await expect(page.getByRole("heading", { name: /sign in/i })).toBeVisible();
       return;
     }
 
-    await expect(page.getByTestId("e2e-sign-in")).toBeVisible();
     await expect(page.getByRole("heading", { name: /welcome back/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /continue with google/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /continue with github/i })).toBeVisible();
   });
 
   test("health API returns ok", async ({ request }) => {

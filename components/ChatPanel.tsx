@@ -56,7 +56,7 @@ export default function ChatPanel({ topic, kb, messages, loading, onSend }: Prop
                 className={cn(
                   "px-4 py-4 font-mono text-[13px] leading-relaxed",
                   msg.role === "user"
-                    ? "bg-accent text-white"
+                    ? "on-accent-fill"
                     : "border-x border-border bg-surface text-text"
                 )}
               >

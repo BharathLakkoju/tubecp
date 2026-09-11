@@ -9,6 +9,7 @@ import {
   preRankCandidates,
 } from "./semantic";
 import { getCachedAnalysis, cacheAnalysis, hashTopic } from "../store";
+import { toVideoSummary } from "../youtube";
 import type { VideoCandidate, VideoAnalysis } from "../types";
 
 const ANALYSIS_SYSTEM = `You are a video relevance analyst. Score how substantively a YouTube video discusses the research topic based on transcript excerpts.
@@ -139,7 +140,8 @@ export function rankVideos(
   queriesUsed: string[],
   videosSearched: number,
   analyses: Array<{ video: VideoCandidate; analysis: VideoAnalysis }>,
-  maxVideos = 15
+  maxVideos = 15,
+  allCandidates: VideoCandidate[] = []
 ) {
   const rankedVideos = analyses
     .filter(({ analysis }) => {
@@ -156,10 +158,7 @@ export function rankVideos(
     .sort((a, b) => b.analysis.relevanceScore - a.analysis.relevanceScore)
     .slice(0, Math.min(maxVideos, 20))
     .map(({ video, analysis }) => ({
-      videoId: video.videoId,
-      title: video.title,
-      channel: video.channel,
-      url: video.url,
+      ...toVideoSummary(video),
       relevanceScore: analysis.relevanceScore,
       whyRelevant: analysis.summary,
       discussionLevel: (
@@ -170,10 +169,14 @@ export function rankVideos(
       ) as "brief" | "substantial",
     }));
 
+  const scraped =
+    allCandidates.length > 0 ? allCandidates : analyses.map(({ video }) => video);
+
   return {
     topic,
     queriesUsed,
     videosSearched,
+    allVideos: scraped.map(toVideoSummary),
     rankedVideos,
   };
 }
