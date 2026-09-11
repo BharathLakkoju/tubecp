@@ -4,10 +4,13 @@ CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255),
   email VARCHAR(255),
+  password TEXT,
   "emailVerified" TIMESTAMPTZ,
   image TEXT,
   CONSTRAINT users_email_unique UNIQUE (email)
 );
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password TEXT;
 
 CREATE TABLE IF NOT EXISTS accounts (
   id SERIAL PRIMARY KEY,

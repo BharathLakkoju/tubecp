@@ -32,7 +32,7 @@ export default function SignInPage() {
         <div className="page-container flex-1">
           <AuthFormShell
             title="Welcome back"
-            subtitle="Sign in with Google or GitHub to research YouTube topics and build knowledge bases."
+            subtitle="Sign in with email and password, or continue with Google or GitHub."
           >
             <SignInForm providers={providers} />
           </AuthFormShell>

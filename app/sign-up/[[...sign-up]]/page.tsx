@@ -1,6 +1,25 @@
-import { redirect } from "next/navigation";
+import PageShell from "@/components/PageShell";
+import SiteNav from "@/components/SiteNav";
+import AuthFormShell from "@/components/AuthFormShell";
+import { SignUpForm } from "@/components/AuthForms";
+import { getConfiguredOAuthProviders } from "@/lib/auth-providers";
 
-/** OAuth sign-up uses the same flow as sign-in — first provider login creates the account. */
 export default function SignUpPage() {
-  redirect("/sign-in");
+  const providers = getConfiguredOAuthProviders();
+
+  return (
+    <PageShell showThemeSwitcher={false}>
+      <div className="flex min-h-dvh flex-col">
+        <SiteNav variant="landing" />
+        <div className="page-container flex-1">
+          <AuthFormShell
+            title="Create your account"
+            subtitle="Sign up with your name and email, or continue with Google or GitHub."
+          >
+            <SignUpForm providers={providers} />
+          </AuthFormShell>
+        </div>
+      </div>
+    </PageShell>
+  );
 }

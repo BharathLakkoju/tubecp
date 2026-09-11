@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import type { OAuthProviderId } from "@/lib/auth-providers";
@@ -9,6 +10,14 @@ function AuthError({ message }: { message: string }) {
     <p className="border border-red-500/40 bg-red-500/10 px-4 py-3 font-mono text-[13px] text-red-600 dark:text-red-400">
       {message}
     </p>
+  );
+}
+
+function AuthDivider() {
+  return (
+    <div className="auth-divider" aria-hidden="true">
+      <span>or</span>
+    </div>
   );
 }
 
@@ -59,7 +68,11 @@ function OAuthButtons({
     setLoadingProvider(null);
 
     if (result?.error) {
-      onError(result.error === "Configuration" ? "OAuth is not configured on the server." : "Sign in failed");
+      onError(
+        result.error === "Configuration"
+          ? "OAuth is not configured on the server."
+          : "Sign in failed"
+      );
       return;
     }
 
@@ -68,15 +81,7 @@ function OAuthButtons({
     }
   };
 
-  if (providers.length === 0) {
-    return (
-      <p className="font-mono text-[13px] text-text-muted">
-        OAuth sign-in is not configured. Add{" "}
-        <code className="text-text">GOOGLE_CLIENT_ID</code> /{" "}
-        <code className="text-text">GITHUB_CLIENT_ID</code> (and secrets) to your environment.
-      </p>
-    );
-  }
+  if (providers.length === 0) return null;
 
   const busy = disabled || loadingProvider !== null;
 
@@ -98,14 +103,181 @@ function OAuthButtons({
 }
 
 export function SignInForm({ providers }: { providers: OAuthProviderId[] }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    const result = await signIn("credentials", {
+      email,
+      password,
+      callbackUrl: "/app",
+      redirect: false,
+    });
+
+    setLoading(false);
+
+    if (result?.error) {
+      setError("Invalid email or password");
+      return;
+    }
+
+    if (result?.url) {
+      window.location.href = result.url;
+    }
+  };
+
+  const showOAuth = providers.length > 0;
 
   return (
     <div className="auth-form">
       {error && <AuthError message={error} />}
-      <OAuthButtons providers={providers} disabled={false} onError={setError} />
+      <form className="auth-form" onSubmit={handleSubmit}>
+        <label className="auth-field">
+          <span className="auth-label">Email</span>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            required
+            disabled={loading}
+          />
+        </label>
+        <label className="auth-field">
+          <span className="auth-label">Password</span>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+            disabled={loading}
+          />
+        </label>
+        <button type="submit" className="btn-primary btn-block" disabled={loading}>
+          {loading ? "Signing in..." : "Sign in"}
+        </button>
+      </form>
+
+      {showOAuth && (
+        <>
+          <AuthDivider />
+          <OAuthButtons providers={providers} disabled={loading} onError={setError} />
+        </>
+      )}
+
       <p className="auth-footer">
-        First visit? Choose a provider above — we&apos;ll create your account automatically.
+        No account? <Link href="/sign-up">Create one</Link>
+      </p>
+    </div>
+  );
+}
+
+export function SignUpForm({ providers }: { providers: OAuthProviderId[] }) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    const registerRes = await fetch("/api/auth/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email, password }),
+    });
+
+    const registerData = await registerRes.json().catch(() => ({}));
+
+    if (!registerRes.ok) {
+      setLoading(false);
+      setError(registerData.error ?? "Sign up failed");
+      return;
+    }
+
+    const result = await signIn("credentials", {
+      email,
+      password,
+      callbackUrl: "/app",
+      redirect: false,
+    });
+
+    setLoading(false);
+
+    if (result?.error) {
+      setError("Account created, but sign-in failed. Try signing in manually.");
+      return;
+    }
+
+    if (result?.url) {
+      window.location.href = result.url;
+    }
+  };
+
+  const showOAuth = providers.length > 0;
+
+  return (
+    <div className="auth-form">
+      {error && <AuthError message={error} />}
+      <form className="auth-form" onSubmit={handleSubmit}>
+        <label className="auth-field">
+          <span className="auth-label">Name</span>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoComplete="name"
+            required
+            disabled={loading}
+          />
+        </label>
+        <label className="auth-field">
+          <span className="auth-label">Email</span>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            required
+            disabled={loading}
+          />
+        </label>
+        <label className="auth-field">
+          <span className="auth-label">Password</span>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="new-password"
+            minLength={8}
+            required
+            disabled={loading}
+          />
+        </label>
+        <button type="submit" className="btn-primary btn-block" disabled={loading}>
+          {loading ? "Creating account..." : "Create account"}
+        </button>
+      </form>
+
+      {showOAuth && (
+        <>
+          <AuthDivider />
+          <OAuthButtons providers={providers} disabled={loading} onError={setError} />
+        </>
+      )}
+
+      <p className="auth-footer">
+        Already have an account? <Link href="/sign-in">Sign in</Link>
       </p>
     </div>
   );
