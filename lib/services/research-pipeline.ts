@@ -1,8 +1,10 @@
 import { expandQueries } from "./query-expansion";
 import { searchYouTubeMultiple } from "./youtube-search";
 import { analyzeVideo, rankVideos, preRankCandidates } from "./relevance";
-import { ANALYZE_LIMIT, PRE_RANK_LIMIT } from "../constants/research";
+import { selectCandidatesForAnalysis } from "./research-scoring";
+import { getResearchPipelineLimits } from "../research-limits";
 import type { ResearchResult, VideoCandidate, VideoAnalysis } from "../types";
+import type { PlanId } from "../plans";
 
 export type ResearchProgress = {
   stage: string;
@@ -13,18 +15,20 @@ export type ResearchProgress = {
 export async function runResearchPipeline(
   topic: string,
   options?: {
+    planId?: PlanId;
     maxVideos?: number;
     onProgress?: (p: ResearchProgress) => void;
   }
 ): Promise<ResearchResult> {
-  const maxVideos = Math.min(options?.maxVideos ?? 15, 20);
+  const limits = getResearchPipelineLimits(options?.planId);
+  const maxResults = options?.maxVideos ?? limits.maxResults;
   const onProgress = options?.onProgress ?? (() => {});
 
   onProgress({ stage: "expanding", message: "Generating search queries...", progress: 5 });
   const queries = await expandQueries(topic);
 
   onProgress({ stage: "searching", message: "Searching YouTube...", progress: 12 });
-  const allCandidates = await searchYouTubeMultiple(queries, undefined, 15);
+  const allCandidates = await searchYouTubeMultiple(queries, undefined, 25);
 
   if (allCandidates.length === 0) {
     return { topic, queriesUsed: queries, videosSearched: 0, allVideos: [], rankedVideos: [] };
@@ -36,9 +40,12 @@ export async function runResearchPipeline(
     progress: 20,
   });
 
-  const candidates = await preRankCandidates(topic, allCandidates, PRE_RANK_LIMIT);
-  const toAnalyze = candidates.slice(0, ANALYZE_LIMIT);
+  const preRanked =
+    allCandidates.length <= limits.preRankLimit
+      ? allCandidates
+      : await preRankCandidates(topic, allCandidates, limits.preRankLimit);
 
+  const toAnalyze = selectCandidatesForAnalysis(topic, preRanked, limits);
   const analyses: Array<{ video: VideoCandidate; analysis: VideoAnalysis }> = [];
 
   for (let i = 0; i < toAnalyze.length; i++) {
@@ -54,7 +61,14 @@ export async function runResearchPipeline(
 
   onProgress({ stage: "ranking", message: "Ranking videos by relevance...", progress: 95 });
 
-  const result = rankVideos(topic, queries, allCandidates.length, analyses, maxVideos, allCandidates);
+  const result = rankVideos(
+    topic,
+    queries,
+    allCandidates.length,
+    analyses,
+    maxResults,
+    allCandidates
+  );
 
   onProgress({
     stage: "complete",

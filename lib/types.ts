@@ -98,6 +98,7 @@ export interface KnowledgeBase {
 export interface KnowledgeBaseRecord extends KnowledgeBase {
   chunkIds: string[];
   userId: string;
+  chatMessages?: ChatMessage[];
 }
 
 export interface ChatSource {

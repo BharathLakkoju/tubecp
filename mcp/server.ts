@@ -4,9 +4,8 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { searchYouTube } from "../lib/services/youtube-search.js";
 import { getTranscript } from "../lib/services/transcript.js";
-import { analyzeVideo, rankVideos } from "../lib/services/relevance.js";
-import { expandQueries } from "../lib/services/query-expansion.js";
-import { searchYouTubeMultiple } from "../lib/services/youtube-search.js";
+import { analyzeVideo } from "../lib/services/relevance.js";
+import { runResearchPipeline } from "../lib/services/research-pipeline.js";
 import {
   createKnowledgeBase,
   indexVideoInKnowledgeBase,
@@ -70,14 +69,10 @@ server.tool(
     maxVideos: z.number().optional(),
   },
   async ({ topic, maxVideos }) => {
-    const queries = await expandQueries(topic);
-    const candidates = await searchYouTubeMultiple(queries, undefined, 15);
-    const analyses = [];
-    for (const video of candidates.slice(0, 20)) {
-      const analysis = await analyzeVideo(video, topic);
-      analyses.push({ video, analysis });
-    }
-    const result = rankVideos(topic, queries, candidates.length, analyses, maxVideos ?? 15);
+    const result = await runResearchPipeline(topic, {
+      planId: "pro",
+      maxVideos,
+    });
     return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
   }
 );

@@ -3,35 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import LoadingSpinner from "@/components/LoadingSpinner";
 
-type SubscriptionInfo = {
-  plan: { name: string };
-  subscription: {
-    plan: string;
-    status: string;
-    periodEnd?: string;
-    userId: string;
-  };
-  usage: {
-    kbBuildsUsed: number;
-    chatMessagesUsed: number;
-    researchUsedToday: number;
-  };
-  limits: {
-    kbBuildsPerMonth: number;
-    chatMessagesPerMonth: number;
-    researchPerDay: number;
-  };
-};
-
-function formatDate(iso?: string): string {
-  if (!iso) return "—";
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
+type PasswordState = "pending" | "available" | "unavailable";
 
 export default function AccountProfile() {
   const { data: session, status, update } = useSession();
@@ -39,7 +13,12 @@ export default function AccountProfile() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
+  const [passwordState, setPasswordState] = useState<PasswordState>("pending");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   const user = session?.user;
 
@@ -50,20 +29,22 @@ export default function AccountProfile() {
   }, [user?.name]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setPasswordState("unavailable");
+      return;
+    }
 
-    fetch("/api/user/subscription")
+    setPasswordState("pending");
+    fetch("/api/user/profile")
       .then((r) => r.json())
       .then((data) => {
-        if (data.plan) setSubscription(data as SubscriptionInfo);
+        setPasswordState(data.hasPassword ? "available" : "unavailable");
       })
-      .catch(() => {});
+      .catch(() => setPasswordState("unavailable"));
   }, [user]);
 
   if (status === "loading") {
-    return (
-      <p className="font-mono text-[13px] text-text-muted">Loading account...</p>
-    );
+    return <LoadingSpinner label="Loading account..." />;
   }
 
   if (!user) {
@@ -102,6 +83,31 @@ export default function AccountProfile() {
     setMessage("Profile updated.");
   };
 
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordSaving(true);
+    setPasswordError(null);
+    setPasswordMessage(null);
+
+    const res = await fetch("/api/user/password", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    setPasswordSaving(false);
+
+    if (!res.ok) {
+      setPasswordError(data.error ?? "Failed to update password");
+      return;
+    }
+
+    setCurrentPassword("");
+    setNewPassword("");
+    setPasswordMessage(data.message ?? "Password updated.");
+  };
+
   return (
     <div className="auth-profile">
       <section className="auth-profile-section">
@@ -111,59 +117,8 @@ export default function AccountProfile() {
             <dt>Email</dt>
             <dd>{user.email}</dd>
           </div>
-          <div>
-            <dt>User ID</dt>
-            <dd className="break-all">{user.id}</dd>
-          </div>
         </dl>
       </section>
-
-      {subscription && (
-        <section className="auth-profile-section">
-          <h2 className="auth-profile-title">Plan &amp; usage</h2>
-          <dl className="auth-profile-meta">
-            <div>
-              <dt>Current plan</dt>
-              <dd>{subscription.plan.name}</dd>
-            </div>
-            <div>
-              <dt>Status</dt>
-              <dd>{subscription.subscription.status}</dd>
-            </div>
-            <div>
-              <dt>Renews / resets</dt>
-              <dd>{formatDate(subscription.subscription.periodEnd)}</dd>
-            </div>
-            <div>
-              <dt>Research today</dt>
-              <dd>
-                {subscription.usage.researchUsedToday} / {subscription.limits.researchPerDay}
-              </dd>
-            </div>
-            {subscription.limits.kbBuildsPerMonth > 0 && (
-              <div>
-                <dt>KB builds this period</dt>
-                <dd>
-                  {subscription.usage.kbBuildsUsed} / {subscription.limits.kbBuildsPerMonth}
-                </dd>
-              </div>
-            )}
-            {subscription.limits.chatMessagesPerMonth > 0 && (
-              <div>
-                <dt>Chat messages this period</dt>
-                <dd>
-                  {subscription.usage.chatMessagesUsed} / {subscription.limits.chatMessagesPerMonth}
-                </dd>
-              </div>
-            )}
-          </dl>
-          {subscription.subscription.plan === "free" && (
-            <Link href="/pricing" className="btn-primary mt-4 inline-flex">
-              upgrade plan →
-            </Link>
-          )}
-        </section>
-      )}
 
       <section className="auth-profile-section">
         <h2 className="auth-profile-title">Display name</h2>
@@ -189,10 +144,81 @@ export default function AccountProfile() {
             />
           </label>
           <button type="submit" className="btn-primary" disabled={saving}>
-            {saving ? "Saving..." : "Save changes"}
+            {saving ? (
+              <span className="inline-flex items-center gap-2">
+                <LoadingSpinner size="sm" />
+                Saving...
+              </span>
+            ) : (
+              "Save changes"
+            )}
           </button>
         </form>
       </section>
+
+      {passwordState !== "unavailable" && (
+        <section className="auth-profile-section">
+          <h2 className="auth-profile-title">Password</h2>
+          {passwordState === "pending" ? (
+            <LoadingSpinner size="sm" label="Loading password settings..." />
+          ) : (
+            <>
+              <form className="auth-form" onSubmit={handlePasswordChange}>
+                {passwordError && (
+                  <p className="border border-red-500/40 bg-red-500/10 px-4 py-3 font-mono text-[13px] text-red-600 dark:text-red-400">
+                    {passwordError}
+                  </p>
+                )}
+                {passwordMessage && (
+                  <p className="border border-border bg-surface px-4 py-3 font-mono text-[13px] text-text-muted">
+                    {passwordMessage}
+                  </p>
+                )}
+                <label className="auth-field">
+                  <span className="auth-label">Current password</span>
+                  <input
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    autoComplete="current-password"
+                    required
+                    disabled={passwordSaving}
+                  />
+                </label>
+                <label className="auth-field">
+                  <span className="auth-label">New password</span>
+                  <input
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                    disabled={passwordSaving}
+                  />
+                </label>
+                <button type="submit" className="btn-primary" disabled={passwordSaving}>
+                  {passwordSaving ? (
+                    <span className="inline-flex items-center gap-2">
+                      <LoadingSpinner size="sm" />
+                      Updating...
+                    </span>
+                  ) : (
+                    "Update password"
+                  )}
+                </button>
+              </form>
+              <p className="mt-4 font-mono text-[13px] text-text-muted">
+                Signed out?{" "}
+                <Link href="/forgot-password" className="text-text underline-offset-2 hover:underline">
+                  Reset via email
+                </Link>
+                .
+              </p>
+            </>
+          )}
+        </section>
+      )}
     </div>
   );
 }

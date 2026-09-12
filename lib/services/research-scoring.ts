@@ -1,3 +1,4 @@
+import type { ResearchPipelineLimits } from "../research-limits";
 import type { VideoCandidate } from "../types";
 
 export const CURRENT_YEAR = new Date().getFullYear();
@@ -121,4 +122,28 @@ export function isStrongYouTubeMatch(video: VideoCandidate, metadataScore: numbe
     (video.searchScore !== undefined && video.searchScore >= 18) ||
     metadataScore >= 62
   );
+}
+
+/** Minimum bar for paid-tier "analyze all worthy" soft caps. */
+export function isWorthyForAnalysis(topic: string, video: VideoCandidate): boolean {
+  const keyword = topicKeywordScore(topic, `${video.title} ${video.description ?? ""}`);
+
+  if (keyword >= 45) return true;
+  if (video.searchRank !== undefined && video.searchRank <= 20) return true;
+  if ((video.searchScore ?? 0) >= 8) return true;
+  if ((video.matchedQueries ?? 0) >= 2) return true;
+
+  return isStrongYouTubeMatch(video, keyword);
+}
+
+export function selectCandidatesForAnalysis(
+  topic: string,
+  preRanked: VideoCandidate[],
+  limits: ResearchPipelineLimits
+): VideoCandidate[] {
+  const pool = limits.analyzeAllWorthy
+    ? preRanked.filter((video) => isWorthyForAnalysis(topic, video))
+    : preRanked;
+
+  return pool.slice(0, limits.analyzeLimit);
 }

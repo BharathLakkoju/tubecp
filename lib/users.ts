@@ -31,6 +31,11 @@ export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+/** True when the user registered with email + password (not OAuth-only). */
+export function hasPasswordAuth(user: Pick<DbUser, "password"> | null | undefined): boolean {
+  return Boolean(user?.password);
+}
+
 export async function getUserByEmail(email: string): Promise<DbUser | null> {
   const pool = createDbPool();
   const result = await pool.query<UserRow>(
@@ -48,6 +53,21 @@ export async function verifyUserPassword(
   if (!user?.password) return null;
   const valid = await verifyPassword(password, user.password);
   return valid ? user : null;
+}
+
+export async function getUserById(id: string): Promise<DbUser | null> {
+  const pool = createDbPool();
+  const result = await pool.query<UserRow>(
+    `SELECT id, name, email, password, image FROM users WHERE id = $1`,
+    [id]
+  );
+  return result.rows[0] ? rowToUser(result.rows[0]) : null;
+}
+
+export async function updateUserPassword(userId: string, plainPassword: string): Promise<void> {
+  const pool = createDbPool();
+  const passwordHash = await hashPassword(plainPassword);
+  await pool.query(`UPDATE users SET password = $1 WHERE id = $2`, [passwordHash, userId]);
 }
 
 export async function createUserWithPassword(

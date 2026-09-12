@@ -74,7 +74,7 @@ export default function SiteNav({
             </Link>
           </div>
 
-          <ThemeSwitcher compact />
+          <ThemeSwitcher variant="icon" />
 
           <AppSignedIn>
             {variant === "app" && !sub.loading && (
@@ -116,7 +116,7 @@ export default function SiteNav({
         </nav>
 
         <div className="flex shrink-0 items-center gap-3 md:hidden">
-          <ThemeSwitcher compact />
+          <ThemeSwitcher variant="icon" />
           <AppSignedIn>
             <AppUserButton />
           </AppSignedIn>

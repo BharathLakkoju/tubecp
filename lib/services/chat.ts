@@ -1,4 +1,4 @@
-import { generateText, generateEmbedding, cosineSimilarity } from "./llm";
+import { generateText, generateTextStream, generateEmbedding, cosineSimilarity } from "./llm";
 import { getKnowledgeBase, getChunksByIds } from "../store";
 import { formatTimestamp, timestampUrl } from "./transcript";
 import type { ChatResponse, ChatSource } from "../types";
@@ -12,26 +12,62 @@ Rules:
 4. Be concise but thorough.
 5. Format sources at the end as a list.`;
 
+export type ChatStreamEvent =
+  | { type: "status"; message: string }
+  | { type: "token"; text: string }
+  | { type: "done"; sources: ChatSource[]; gaps?: string }
+  | { type: "error"; message: string };
+
 export async function chatWithKnowledgeBase(
   kbId: string,
   message: string
 ): Promise<ChatResponse> {
+  let answer = "";
+  let sources: ChatSource[] = [];
+  let gaps: string | undefined;
+
+  for await (const event of streamKnowledgeBaseChat(kbId, message)) {
+    if (event.type === "token") {
+      answer += event.text;
+    } else if (event.type === "done") {
+      sources = event.sources;
+      gaps = event.gaps;
+    } else if (event.type === "error") {
+      throw new Error(event.message);
+    }
+  }
+
+  return { answer, sources, gaps };
+}
+
+export async function* streamKnowledgeBaseChat(
+  kbId: string,
+  message: string
+): AsyncGenerator<ChatStreamEvent> {
+  yield { type: "status", message: "Exploring your question..." };
+
   const kb = await getKnowledgeBase(kbId);
   if (!kb) {
-    throw new Error(`Knowledge base not found: ${kbId}`);
+    yield { type: "error", message: `Knowledge base not found: ${kbId}` };
+    return;
   }
   if (kb.status !== "ready") {
-    throw new Error(`Knowledge base is not ready (status: ${kb.status})`);
+    yield { type: "error", message: `Knowledge base is not ready (status: ${kb.status})` };
+    return;
   }
 
   const chunks = await getChunksByIds(kb.chunkIds);
   if (chunks.length === 0) {
-    return {
-      answer: "This knowledge base has no indexed content yet.",
+    yield { type: "token", text: "This knowledge base has no indexed content yet." };
+    yield {
+      type: "done",
       sources: [],
       gaps: "No transcript data available.",
     };
+    return;
   }
+
+  yield { type: "status", message: "Finding relevant resources..." };
 
   const queryEmbedding = await generateEmbedding(message);
   const scored = chunks
@@ -44,6 +80,9 @@ export async function chatWithKnowledgeBase(
     .slice(0, 12);
 
   const topScore = scored[0]?.score ?? 0;
+
+  yield { type: "status", message: "Understanding key points..." };
+
   const context = scored
     .map(
       ({ chunk }) =>
@@ -58,7 +97,16 @@ Question: ${message}
 Relevant transcript excerpts:
 ${context}`;
 
-  const answer = await generateText(CHAT_SYSTEM, userPrompt, { maxTokens: 2000 });
+  yield { type: "status", message: "Creating a relevant response..." };
+
+  try {
+    for await (const token of generateTextStream(CHAT_SYSTEM, userPrompt, { maxTokens: 2000 })) {
+      yield { type: "token", text: token };
+    }
+  } catch (err) {
+    const fallback = await generateText(CHAT_SYSTEM, userPrompt, { maxTokens: 2000 });
+    yield { type: "token", text: fallback };
+  }
 
   const sources: ChatSource[] = scored.slice(0, 5).map(({ chunk }) => ({
     videoId: chunk.videoId,
@@ -74,5 +122,5 @@ ${context}`;
       "Low confidence — the indexed videos may not contain sufficient information to answer this question well. Consider rephrasing or building a knowledge base with more videos.";
   }
 
-  return { answer, sources, gaps };
+  yield { type: "done", sources, gaps };
 }

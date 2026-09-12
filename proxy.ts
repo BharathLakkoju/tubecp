@@ -10,6 +10,8 @@ const PUBLIC_PREFIXES = [
   "/refund",
   "/sign-in",
   "/sign-up",
+  "/forgot-password",
+  "/reset-password",
   "/api/health",
   "/api/webhook/polar",
   "/api/auth",

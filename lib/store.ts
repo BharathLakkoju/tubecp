@@ -164,3 +164,19 @@ export async function addUserKnowledgeBase(userId: string, kbId: string): Promis
 export async function getUserKnowledgeBases(userId: string): Promise<string[]> {
   return (await get<string[]>(`user-kbs:${userId}`)) ?? [];
 }
+
+export async function listUserKnowledgeBaseRecords(
+  userId: string
+): Promise<KnowledgeBaseRecord[]> {
+  const ids = await getUserKnowledgeBases(userId);
+  const records: KnowledgeBaseRecord[] = [];
+
+  for (const kbId of ids) {
+    const kb = await getKnowledgeBase(kbId);
+    if (kb && kb.userId === userId) {
+      records.push(kb);
+    }
+  }
+
+  return records;
+}

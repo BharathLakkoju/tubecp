@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchYouTubeMultiple } from "@/lib/services/youtube-search";
 import { preRankCandidates } from "@/lib/services/relevance";
+import { selectCandidatesForAnalysis } from "@/lib/services/research-scoring";
 import { cacheQueries, hashTopic } from "@/lib/store";
-import { PRE_RANK_LIMIT, PRIMARY_SEARCH_RESULTS } from "@/lib/constants/research";
+import { PRIMARY_SEARCH_RESULTS } from "@/lib/constants/research";
+import { getResearchPipelineLimits } from "@/lib/research-limits";
+import { getUserSubscription } from "@/lib/billing/subscription";
 import { requireUserId, apiError } from "@/lib/auth";
 import { rateLimitApi } from "@/lib/ratelimit";
 import type { DateRange } from "@/lib/types";
@@ -24,14 +27,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "topic and queries are required" }, { status: 400 });
     }
 
+    const sub = await getUserSubscription(userId);
+    const limits = getResearchPipelineLimits(sub.plan);
+
     const allCandidates = await searchYouTubeMultiple(queries, dateRange, PRIMARY_SEARCH_RESULTS);
-    const candidates =
-      allCandidates.length <= PRE_RANK_LIMIT
+    const preRanked =
+      allCandidates.length <= limits.preRankLimit
         ? allCandidates
-        : await preRankCandidates(topic, allCandidates, PRE_RANK_LIMIT).catch((err) => {
+        : await preRankCandidates(topic, allCandidates, limits.preRankLimit).catch((err) => {
             console.warn("Pre-rank failed, returning unranked candidates:", err);
-            return allCandidates.slice(0, PRE_RANK_LIMIT);
+            return allCandidates.slice(0, limits.preRankLimit);
           });
+
+    const candidates = selectCandidatesForAnalysis(topic, preRanked, limits);
 
     const topicHash = hashTopic(topic.toLowerCase().trim());
     await cacheQueries(topicHash, queries, allCandidates.map((v) => v.videoId));
@@ -40,6 +48,7 @@ export async function POST(req: NextRequest) {
       candidates,
       allCandidates,
       videosSearched: allCandidates.length,
+      pipelineLimits: limits,
     });
   } catch (err) {
     return apiError(err);

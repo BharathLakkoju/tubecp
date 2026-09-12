@@ -37,7 +37,7 @@ async function evaluateTopic(item: EvalTopic, runIndex?: number) {
   console.log(`Notes: ${item.notes}`);
 
   const result = await runResearchPipeline(item.topic, {
-    maxVideos: 15,
+    planId: "free",
     onProgress: (p) => {
       if (p.stage === "analyzing" || p.stage === "complete") {
         process.stdout.write(`  ${p.message}\n`);

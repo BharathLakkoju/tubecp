@@ -36,7 +36,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const e2eBypass = isE2eAuthBypass();
 
   return (
-    <html lang="en" data-theme-id="github" data-scroll-behavior="smooth" suppressHydrationWarning>
+    <html lang="en" data-color-scheme="light" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body className={`${dmSans.variable} ${ibmPlexMono.variable}`}>
         <ThemeProvider>
           <AuthProvider e2eBypass={e2eBypass}>

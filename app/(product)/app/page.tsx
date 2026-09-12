@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AppSignedIn, AppSignedOut } from "@/components/AuthShell";
-import type { AppPhase, ResearchResult, KnowledgeBase, ChatMessage, ResearchLiveState } from "@/lib/types";
+import type { ResearchResult, ResearchLiveState } from "@/lib/types";
 import {
   runResearch,
   buildKnowledgeBase,
@@ -11,40 +12,24 @@ import {
   type ResearchStage,
   type ResearchLiveUpdate,
 } from "@/lib/client/workflows";
+import { parseClientError } from "@/lib/client/chat";
 import { useSubscription } from "@/lib/hooks/useSubscription";
 import PhasePanel from "@/components/PhasePanel";
-import SiteNav from "@/components/SiteNav";
-import PageShell from "@/components/PageShell";
 import HeroSection from "@/components/HeroSection";
 import SearchBox from "@/components/SearchBox";
 import ResearchResults from "@/components/ResearchResults";
 import ResearchLiveView from "@/components/ResearchLiveView";
-import ChatPanel from "@/components/ChatPanel";
 import ProgressBar from "@/components/ProgressBar";
 import ResearchProgress from "@/components/ResearchProgress";
 import UpgradePrompt from "@/components/UpgradePrompt";
 import UsageIndicator from "@/components/UsageIndicator";
-
-function parseError(err: unknown): string {
-  const msg = String(err);
-  if (msg.includes("FEATURE_GATE") || msg.includes("Pro plan")) {
-    return "Knowledge base and chat require a Pro plan.";
-  }
-  if (msg.includes("USAGE_LIMIT")) {
-    return msg.replace("Error: ", "");
-  }
-  if (msg.includes("Sign in")) {
-    return "Please sign in to continue.";
-  }
-  return msg.replace("Error: ", "");
-}
+import MobileNavToggle from "@/components/MobileNavToggle";
 
 export default function AppPage() {
+  const router = useRouter();
   const sub = useSubscription();
-  const [phase, setPhase] = useState<AppPhase>("search");
+  const [phase, setPhase] = useState<"search" | "results" | "building">("search");
   const [research, setResearch] = useState<ResearchResult | null>(null);
-  const [kb, setKb] = useState<KnowledgeBase | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeTopic, setActiveTopic] = useState("");
   const [progressMsg, setProgressMsg] = useState("");
@@ -52,6 +37,7 @@ export default function AppPage() {
   const [researchStage, setResearchStage] = useState<ResearchStage>("expanding");
   const [liveResearch, setLiveResearch] = useState<ResearchLiveState>(emptyLiveResearch);
   const [error, setError] = useState("");
+  const [upgraded, setUpgraded] = useState(false);
 
   const mergeLiveResearch = (update: ResearchLiveUpdate) => {
     setLiveResearch((prev) => ({
@@ -61,7 +47,6 @@ export default function AppPage() {
       analyzedScores: update.analyzedScores ?? prev.analyzedScores,
     }));
   };
-  const [upgraded, setUpgraded] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -83,7 +68,7 @@ export default function AppPage() {
     setPhase("results");
 
     try {
-      const result = await runResearch(searchTopic, 15, (msg, pct, stage, live) => {
+      const result = await runResearch(searchTopic, (msg, pct, stage, live) => {
         setProgressMsg(msg);
         if (pct !== undefined) setProgressPct(pct);
         if (stage) setResearchStage(stage);
@@ -92,7 +77,7 @@ export default function AppPage() {
       setResearch(result);
       setProgressMsg("");
     } catch (err) {
-      setError(parseError(err));
+      setError(parseClientError(err));
       setPhase("search");
     } finally {
       setLoading(false);
@@ -118,17 +103,9 @@ export default function AppPage() {
           if (pct !== undefined) setProgressPct(pct);
         }
       );
-
-      setKb(result);
-      setPhase("chat");
-      setMessages([
-        {
-          role: "assistant",
-          content: `Knowledge base ready! I've indexed ${result.videosIndexed} videos (${result.chunksIndexed} chunks, ~${result.totalMinutes} min) on "${result.topic}".\n\nAsk me anything — answers are grounded in video transcripts with sources.`,
-        },
-      ]);
+      router.push(`/app/kb/${result.kbId}`);
     } catch (err) {
-      setError(parseError(err));
+      setError(parseClientError(err));
       setPhase("results");
     } finally {
       setLoading(false);
@@ -136,81 +113,33 @@ export default function AppPage() {
     }
   };
 
-  const handleChat = async (message: string) => {
-    if (!kb) return;
-
-    const userMsg: ChatMessage = { role: "user", content: message };
-    setMessages((prev) => [...prev, userMsg]);
-    setLoading(true);
-
-    try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kbId: kb.kbId, message }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: data.answer,
-          sources: data.sources,
-          gaps: data.gaps,
-        },
-      ]);
-    } catch (err) {
-      setMessages((prev) => [...prev, { role: "assistant", content: parseError(err) }]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleReset = () => {
-    setPhase("search");
-    setResearch(null);
-    setLiveResearch(emptyLiveResearch());
-    setKb(null);
-    setMessages([]);
-    setError("");
-  };
-
-  const panelKey =
-    phase === "search" ? "search" : phase === "chat" ? "chat" : "research";
+  const panelKey = phase === "search" ? "search" : "research";
 
   return (
-    <PageShell showThemeSwitcher={false}>
-      <div className="flex min-h-dvh flex-col">
-        <SiteNav
-          variant="app"
-          onReset={handleReset}
-          showNewResearch={phase !== "search"}
-        />
+    <div className="app-panel">
+      <div className="app-panel-scroll">
+        <div className="app-inline-header-row mb-4 md:hidden">
+          <MobileNavToggle />
+        </div>
+        {upgraded && (
+          <div className="motion-fade-up mb-6 border border-border bg-surface px-4 py-3 text-center font-mono text-[13px] text-success">
+            upgrade successful — you can now build knowledge bases and chat.
+          </div>
+        )}
 
-        <main className="page-container flex-1">
-          {upgraded && (
-            <div className="motion-fade-up mb-6 border border-border bg-surface px-4 py-3 text-center font-mono text-[13px] text-success">
-              upgrade successful — you can now build knowledge bases and chat.
-            </div>
-          )}
+        <AppSignedOut>
+          <HeroSection
+            align="center"
+            showWordmark={false}
+            title="Sign in to start researching"
+            subtitle="Search YouTube by topic, rank relevant videos, and build chattable knowledge bases with cited sources."
+          >
+            <Link href="/sign-in" className="btn-primary">sign in to continue →</Link>
+          </HeroSection>
+        </AppSignedOut>
 
-          <AppSignedOut>
-            <div className="motion-fade-up">
-            <HeroSection
-              align="center"
-              showWordmark={false}
-              title="Sign in to start researching"
-              subtitle="Search YouTube by topic, rank relevant videos, and build chattable knowledge bases with cited sources."
-            >
-              <Link href="/sign-in" className="btn-primary">sign in to continue →</Link>
-            </HeroSection>
-            </div>
-          </AppSignedOut>
-
-          <AppSignedIn>
-            <PhasePanel phase={panelKey}>
+        <AppSignedIn>
+          <PhasePanel phase={panelKey}>
             {phase === "search" && (
               <>
                 <HeroSection
@@ -243,7 +172,7 @@ export default function AppPage() {
                   <h2 className="font-mono text-base font-semibold break-words text-text">
                     research: {research?.topic ?? activeTopic}
                   </h2>
-                  {research && !loading && (
+                  {research && !loading && phase === "results" && (
                     <p className="mt-1.5 font-mono text-xs text-text-muted">
                       {research.allVideos.length} scraped · {research.rankedVideos.length} semantically relevant
                     </p>
@@ -264,7 +193,7 @@ export default function AppPage() {
                 {research && (phase === "building" || !loading) && (
                   <section className="mt-8 border-t border-border pt-8">
                     <h3 className="mb-6 font-mono text-[13px] font-semibold text-text">Final results</h3>
-                    <ResearchResults research={research} />
+                    <ResearchResults research={research} showCopyLinks={sub.plan === "free"} />
                   </section>
                 )}
 
@@ -293,20 +222,9 @@ export default function AppPage() {
                 {error && <p className="mt-4 font-mono text-[13px] text-accent">{error}</p>}
               </div>
             )}
-
-            {phase === "chat" && kb && sub.canChat && (
-              <ChatPanel
-                topic={kb.topic}
-                kb={kb}
-                messages={messages}
-                loading={loading}
-                onSend={handleChat}
-              />
-            )}
-            </PhasePanel>
-          </AppSignedIn>
-        </main>
+          </PhasePanel>
+        </AppSignedIn>
       </div>
-    </PageShell>
+    </div>
   );
 }

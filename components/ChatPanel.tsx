@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { motion, useReducedMotion } from "framer-motion";
 import type { KnowledgeBase, ChatMessage } from "@/lib/types";
-import { fadeUp } from "@/lib/motion";
+import type { KbChatStreamState } from "@/lib/hooks/useKbChatStream";
 import { cn } from "@/lib/cn";
+import MarkdownContent from "@/components/MarkdownContent";
+import LoadingSpinner from "@/components/LoadingSpinner";
+import MobileNavToggle from "@/components/MobileNavToggle";
 
 function formatTimestamp(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -16,130 +18,134 @@ interface Props {
   topic: string;
   kb: KnowledgeBase;
   messages: ChatMessage[];
-  loading: boolean;
+  stream?: KbChatStreamState | null;
   onSend: (message: string) => void;
 }
 
-export default function ChatPanel({ topic, kb, messages, loading, onSend }: Props) {
+export default function ChatPanel({ topic, kb, messages, stream, onSend }: Props) {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const reduced = useReducedMotion();
+  const isBusy = Boolean(stream);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, stream?.content, stream?.status]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (input.trim() && !loading) {
+    if (input.trim() && !isBusy) {
       onSend(input.trim());
       setInput("");
     }
   };
 
-  return (
-    <div className="flex min-h-[calc(100dvh-120px)] flex-col max-md:min-h-[calc(100dvh-5.5rem)]">
-      <div className="mb-4 border-b border-border pb-4">
-        <h2 className="font-mono text-base font-semibold text-text sm:text-lg">
-          Chat with Knowledge Base
-        </h2>
-        <p className="mt-1 font-mono text-xs text-text-muted">
-          {kb.videosIndexed} videos · {kb.chunksIndexed} chunks · ~{kb.totalMinutes} min
-        </p>
-      </div>
+  const showStreamStatus = stream && !stream.content;
 
-      <div className="flex flex-1 flex-col overflow-y-auto">
-        {messages.map((msg, i) => {
-          const content = (
-            <>
-              <div
-                className={cn(
-                  "px-4 py-4 font-mono text-[13px] leading-relaxed",
-                  msg.role === "user"
-                    ? "on-accent-fill"
-                    : "border-x border-border bg-surface text-text"
-                )}
-              >
-                {msg.content.split("\n").map((line, j) => (
+  return (
+    <div className="chat-panel">
+      <div className="chat-panel-body">
+        <div className="chat-panel-header glass-header">
+          <div className="app-inline-header-row">
+            <MobileNavToggle />
+            <div className="app-inline-header-text">
+              <h2 className="chat-panel-title">{kb.topic}</h2>
+              <p className="chat-panel-meta">
+                {kb.videosIndexed} videos · {kb.chunksIndexed} chunks · ~{kb.totalMinutes} min
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="chat-panel-messages">
+        {messages.length === 0 && !stream && (
+          <p className="chat-panel-empty">Start a conversation about this knowledge base.</p>
+        )}
+
+        {messages.map((msg, i) => (
+          <div
+            key={i}
+            className={cn("chat-message", msg.role === "user" ? "chat-message-user" : "chat-message-assistant")}
+          >
+            <div className="chat-message-bubble">
+              {msg.role === "assistant" ? (
+                <MarkdownContent content={msg.content} />
+              ) : (
+                msg.content.split("\n").map((line, j) => (
                   <p key={j} className="mb-1.5 last:mb-0">
                     {line}
                   </p>
+                ))
+              )}
+            </div>
+
+            {msg.sources && msg.sources.length > 0 && (
+              <div className="chat-message-sources">
+                <span className="chat-message-sources-label">Sources</span>
+                {msg.sources.map((src, j) => (
+                  <a
+                    key={j}
+                    href={src.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="chat-message-source-link"
+                  >
+                    {src.title} @ {formatTimestamp(src.timestamp)}
+                  </a>
                 ))}
               </div>
-              {msg.sources && msg.sources.length > 0 && (
-                <div className="border border-border border-t-0 bg-surface px-4 py-3">
-                  <span className="mb-1.5 block font-mono text-[10px] tracking-wide text-text-muted uppercase">
-                    Sources
-                  </span>
-                  {msg.sources.map((src, j) => (
-                    <a
-                      key={j}
-                      href={src.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block py-0.5 font-mono text-xs text-accent break-words"
-                    >
-                      {src.title} @ {formatTimestamp(src.timestamp)}
-                    </a>
-                  ))}
-                </div>
-              )}
-              {msg.gaps && (
-                <div className="border border-border border-t-0 bg-surface px-4 py-3">
-                  <span className="mb-1 block font-mono text-[10px] tracking-wide text-warning uppercase">
-                    Gaps
-                  </span>
-                  <p className="font-mono text-xs text-text-muted">{msg.gaps}</p>
-                </div>
-              )}
-            </>
-          );
+            )}
 
-          if (reduced) {
-            return (
-              <div key={i} className="max-w-full border-t border-border">
-                {content}
+            {msg.gaps && (
+              <div className="chat-message-gaps">
+                <span className="chat-message-gaps-label">Gaps</span>
+                <p>{msg.gaps}</p>
               </div>
-            );
-          }
+            )}
+          </div>
+        ))}
 
-          return (
-            <motion.div
-              key={i}
-              initial="hidden"
-              animate="visible"
-              variants={fadeUp}
-              className="max-w-full border-t border-border"
-            >
-              {content}
-            </motion.div>
-          );
-        })}
-        {loading && (
-          <div className="max-w-full border-t border-border">
-            <div className="inline-flex gap-1 border border-border bg-surface px-4 py-4">
-              <span className="size-1.5 animate-blink bg-text-muted" />
-              <span className="size-1.5 animate-blink bg-text-muted [animation-delay:0.2s]" />
-              <span className="size-1.5 animate-blink bg-text-muted [animation-delay:0.4s]" />
+        {stream && (
+          <div className="chat-message chat-message-assistant">
+            <div className="chat-message-bubble">
+              {showStreamStatus ? (
+                <div className="chat-stream-status">
+                  <LoadingSpinner size="sm" />
+                  <span className="chat-stream-status-text">{stream.status}</span>
+                </div>
+              ) : (
+                <div className="chat-stream-markdown">
+                  <MarkdownContent content={stream.content} />
+                  {stream.isRevealing && (
+                    <span className="chat-stream-cursor" aria-hidden="true" />
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
+
         <div ref={messagesEndRef} />
+        </div>
       </div>
 
-      <form className="split-field sticky bottom-0 mt-4 bg-bg max-md:pb-[env(safe-area-inset-bottom)]" onSubmit={handleSubmit}>
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={`Ask about "${topic}"...`}
-          disabled={loading}
-          className="max-md:text-base"
-        />
-        <button type="submit" disabled={loading || !input.trim()}>
-          send →
-        </button>
-      </form>
+      <div className="chat-panel-composer-wrap">
+        <form className="chat-panel-composer" onSubmit={handleSubmit}>
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={`Ask about "${topic}"...`}
+            disabled={isBusy}
+            className="chat-panel-input"
+          />
+          <button type="submit" className="chat-panel-send" disabled={isBusy || !input.trim()}>
+            Send
+          </button>
+        </form>
+        <p className="chat-panel-disclaimer">
+          The responses may be inaccurate. please report any issues and help us improve the application.
+        </p>
+      </div>
     </div>
   );
 }

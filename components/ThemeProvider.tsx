@@ -9,70 +9,73 @@ import {
   useState,
 } from "react";
 import {
-  DEFAULT_THEME_ID,
-  THEMES,
+  DEFAULT_COLOR_MODE,
   THEME_STORAGE_KEY,
-  isThemeId,
-  type ThemeId,
+  isColorMode,
+  migrateLegacyTheme,
+  type ColorMode,
 } from "@/lib/theme";
 
 interface ThemeContextValue {
-  themeId: ThemeId;
-  setThemeId: (id: ThemeId) => void;
+  colorMode: ColorMode;
+  setColorMode: (mode: ColorMode) => void;
+  toggleColorMode: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-function readStoredTheme(): ThemeId {
-  if (typeof window === "undefined") return DEFAULT_THEME_ID;
+function readStoredColorMode(): ColorMode {
+  if (typeof window === "undefined") return DEFAULT_COLOR_MODE;
 
   try {
     const raw = localStorage.getItem(THEME_STORAGE_KEY);
-    if (!raw) return DEFAULT_THEME_ID;
+    if (!raw) return DEFAULT_COLOR_MODE;
 
-    if (isThemeId(raw)) return raw;
+    if (isColorMode(raw)) return raw;
 
-    const parsed = JSON.parse(raw) as { mode?: string; vibe?: string; themeId?: string };
-    if (parsed.themeId && isThemeId(parsed.themeId)) return parsed.themeId;
+    const parsed = JSON.parse(raw) as { mode?: string; themeId?: string };
+    if (parsed.themeId) return migrateLegacyTheme(parsed.themeId);
+    if (parsed.mode === "dark" || parsed.mode === "light") return parsed.mode;
 
-    // Migrate legacy mode+vibe storage
-    if (parsed.mode === "dark") {
-      if (parsed.vibe === "ocean") return "ocean";
-      if (parsed.vibe === "forest") return "forest";
-      return "midnight";
-    }
-    return DEFAULT_THEME_ID;
+    return migrateLegacyTheme(raw);
   } catch {
-    return DEFAULT_THEME_ID;
+    return DEFAULT_COLOR_MODE;
   }
 }
 
-function applyThemeToDocument(themeId: ThemeId) {
-  document.documentElement.dataset.themeId = themeId;
+function applyColorMode(mode: ColorMode) {
+  document.documentElement.dataset.colorScheme = mode;
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [themeId, setThemeIdState] = useState<ThemeId>(DEFAULT_THEME_ID);
+  const [colorMode, setColorModeState] = useState<ColorMode>(DEFAULT_COLOR_MODE);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const stored = readStoredTheme();
-    setThemeIdState(stored);
-    applyThemeToDocument(stored);
+    const stored = readStoredColorMode();
+    setColorModeState(stored);
+    applyColorMode(stored);
     setReady(true);
   }, []);
 
   useEffect(() => {
     if (!ready) return;
-    applyThemeToDocument(themeId);
-    localStorage.setItem(THEME_STORAGE_KEY, themeId);
-  }, [themeId, ready]);
+    applyColorMode(colorMode);
+    localStorage.setItem(THEME_STORAGE_KEY, colorMode);
+  }, [colorMode, ready]);
 
-  const setThemeId = useCallback((id: ThemeId) => {
-    setThemeIdState(id);
+  const setColorMode = useCallback((mode: ColorMode) => {
+    setColorModeState(mode);
   }, []);
 
-  const value = useMemo(() => ({ themeId, setThemeId }), [themeId, setThemeId]);
+  const toggleColorMode = useCallback(() => {
+    setColorModeState((mode) => (mode === "light" ? "dark" : "light"));
+  }, []);
+
+  const value = useMemo(
+    () => ({ colorMode, setColorMode, toggleColorMode }),
+    [colorMode, setColorMode, toggleColorMode]
+  );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
@@ -83,9 +86,4 @@ export function useTheme() {
     throw new Error("useTheme must be used within ThemeProvider");
   }
   return ctx;
-}
-
-export function useThemeTokens() {
-  const { themeId } = useTheme();
-  return THEMES[themeId].tokens;
 }

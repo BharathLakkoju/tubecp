@@ -194,7 +194,7 @@ export function rankVideos(
       );
     })
     .sort((a, b) => b.analysis.relevanceScore - a.analysis.relevanceScore)
-    .slice(0, Math.min(maxVideos, 20))
+    .slice(0, maxVideos)
     .map(({ video, analysis }) => ({
       ...toVideoSummary(video),
       relevanceScore: analysis.relevanceScore,

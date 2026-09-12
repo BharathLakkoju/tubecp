@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { finalizeKnowledgeBase } from "@/lib/services/knowledge-base";
+import { ensureKbWelcomeMessage } from "@/lib/services/kb-chat";
 import { requireUserId, apiError } from "@/lib/auth";
 import { assertKbAccess } from "@/lib/kb-access";
 import { getUserSubscription } from "@/lib/billing/subscription";
@@ -22,6 +23,9 @@ export async function POST(req: NextRequest) {
     const persistent = getPlan(sub.plan).persistentKbs;
 
     const kb = await finalizeKnowledgeBase(kbId, persistent);
+
+    await ensureKbWelcomeMessage(kbId);
+
     return NextResponse.json({ kb });
   } catch (err) {
     return apiError(err);

@@ -2,10 +2,31 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { createDbPool } from "@/lib/db";
+import { getUserById, hasPasswordAuth } from "@/lib/users";
+import { requireUserId, apiError } from "@/lib/auth";
 
 const profileSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(255, "Name is too long"),
 });
+
+export async function GET() {
+  try {
+    const userId = await requireUserId();
+    const user = await getUserById(userId);
+
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      name: user.name,
+      email: user.email,
+      hasPassword: hasPasswordAuth(user),
+    });
+  } catch (err) {
+    return apiError(err);
+  }
+}
 
 export async function PATCH(request: Request) {
   const session = await auth();

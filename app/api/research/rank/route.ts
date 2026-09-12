@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rankVideos } from "@/lib/services/relevance";
 import { requireUserId, apiError } from "@/lib/auth";
-import { checkAndIncrementUsage } from "@/lib/billing/subscription";
+import { checkAndIncrementUsage, getUserSubscription } from "@/lib/billing/subscription";
+import { getResearchPipelineLimits } from "@/lib/research-limits";
 import { rateLimitApi } from "@/lib/ratelimit";
 import type { VideoAnalysis, VideoCandidate } from "@/lib/types";
 
@@ -12,15 +13,13 @@ export async function POST(req: NextRequest) {
     const userId = await requireUserId();
     await rateLimitApi(userId, "research-rank", 20);
 
-    const { topic, queriesUsed, videosSearched, analyses, maxVideos, allCandidates } =
-      (await req.json()) as {
-        topic?: string;
-        queriesUsed?: string[];
-        videosSearched?: number;
-        analyses?: Array<{ video: VideoCandidate; analysis: VideoAnalysis }>;
-        maxVideos?: number;
-        allCandidates?: VideoCandidate[];
-      };
+    const { topic, queriesUsed, videosSearched, analyses, allCandidates } = (await req.json()) as {
+      topic?: string;
+      queriesUsed?: string[];
+      videosSearched?: number;
+      analyses?: Array<{ video: VideoCandidate; analysis: VideoAnalysis }>;
+      allCandidates?: VideoCandidate[];
+    };
 
     if (!topic || !queriesUsed || !analyses) {
       return NextResponse.json(
@@ -29,12 +28,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const sub = await getUserSubscription(userId);
+    const limits = getResearchPipelineLimits(sub.plan);
+
     const result = rankVideos(
       topic,
       queriesUsed,
       videosSearched ?? analyses.length,
       analyses,
-      maxVideos ?? 15,
+      limits.maxResults,
       allCandidates ?? []
     );
 

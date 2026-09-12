@@ -84,6 +84,71 @@ export async function generateText(
   return data.choices?.[0]?.message?.content ?? "";
 }
 
+export async function* generateTextStream(
+  systemPrompt: string,
+  userPrompt: string,
+  options?: { temperature?: number; maxTokens?: number }
+): AsyncGenerator<string> {
+  const url = `${config.openrouterBaseUrl.replace(/\/$/, "")}/chat/completions`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: openRouterHeaders(),
+    body: JSON.stringify({
+      model: config.llmModel,
+      temperature: options?.temperature ?? 0.3,
+      max_tokens: options?.maxTokens ?? 2000,
+      stream: true,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new OpenRouterError(
+      response.status,
+      `OpenRouter ${response.status}: ${detail.slice(0, 500)}`
+    );
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("OpenRouter returned no response body");
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) continue;
+
+      const payload = trimmed.slice(5).trim();
+      if (!payload || payload === "[DONE]") continue;
+
+      try {
+        const parsed = JSON.parse(payload) as {
+          choices?: Array<{ delta?: { content?: string } }>;
+        };
+        const text = parsed.choices?.[0]?.delta?.content;
+        if (text) yield text;
+      } catch {
+        // skip malformed SSE chunks
+      }
+    }
+  }
+}
+
 export async function generateEmbedding(text: string): Promise<number[]> {
   const data = await withRetry(() =>
     openRouterPost<{ data?: Array<{ embedding: number[] }> }>("/embeddings", {

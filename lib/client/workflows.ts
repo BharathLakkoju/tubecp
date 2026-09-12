@@ -6,7 +6,6 @@ import type {
   ResearchLiveState,
 } from "@/lib/types";
 import { toVideoSummary } from "@/lib/youtube";
-import { ANALYZE_LIMIT } from "@/lib/constants/research";
 
 export type ResearchStage = "expanding" | "searching" | "analyzing" | "ranking";
 
@@ -42,7 +41,6 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 
 export async function runResearch(
   topic: string,
-  maxVideos = 15,
   onProgress?: ProgressCallback
 ): Promise<ResearchResult> {
   onProgress?.("expanding", 5, "expanding");
@@ -69,7 +67,7 @@ export async function runResearch(
     };
   }
 
-  const toAnalyze = candidates.slice(0, Math.min(candidates.length, ANALYZE_LIMIT));
+  const toAnalyze = candidates;
   const analyses: Array<{ video: VideoCandidate; analysis: VideoAnalysis }> = [];
 
   for (let i = 0; i < toAnalyze.length; i++) {
@@ -104,7 +102,6 @@ export async function runResearch(
     queriesUsed: queries,
     videosSearched: videosSearched ?? allCandidates?.length ?? candidates.length,
     analyses,
-    maxVideos,
     allCandidates: allCandidates ?? candidates,
   });
 

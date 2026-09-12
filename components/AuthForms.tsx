@@ -168,6 +168,12 @@ export function SignInForm({ providers, callbackUrl }: AuthFormProps) {
             disabled={loading}
           />
         </label>
+        <p className="auth-footer !mt-0 !border-0 !pt-0 text-left">
+          <Link href="/forgot-password">Forgot password?</Link>
+          <span className="block mt-1 text-[11px] text-text-muted">
+            Email and password accounts only
+          </span>
+        </p>
         <button type="submit" className="btn-primary btn-block" disabled={loading}>
           {loading ? "Signing in..." : "Sign in"}
         </button>
@@ -298,6 +304,149 @@ export function SignUpForm({ providers, callbackUrl }: AuthFormProps) {
       <p className="auth-footer">
         Already have an account?{" "}
         <Link href={authLinkWithCallback("/sign-in", callbackUrl)}>Sign in</Link>
+      </p>
+    </div>
+  );
+}
+
+export function ForgotPasswordForm() {
+  const [email, setEmail] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setMessage(null);
+    setLoading(true);
+
+    const res = await fetch("/api/auth/forgot-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    setLoading(false);
+
+    if (!res.ok) {
+      setError(data.error ?? "Could not send reset email");
+      return;
+    }
+
+    setMessage(data.message ?? "Check your email for a reset link.");
+  };
+
+  return (
+    <div className="auth-form">
+      {error && <AuthError message={error} />}
+      {message && (
+        <p className="border border-border bg-surface px-4 py-3 font-mono text-[13px] text-text-muted">
+          {message}
+        </p>
+      )}
+      <form className="auth-form" onSubmit={handleSubmit}>
+        <label className="auth-field">
+          <span className="auth-label">Email</span>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            required
+            disabled={loading || Boolean(message)}
+          />
+        </label>
+        <button
+          type="submit"
+          className="btn-primary btn-block"
+          disabled={loading || Boolean(message)}
+        >
+          {loading ? "Sending..." : "Send reset link"}
+        </button>
+      </form>
+      <p className="auth-footer">
+        <Link href="/sign-in">Back to sign in</Link>
+      </p>
+    </div>
+  );
+}
+
+export function ResetPasswordForm({ token }: { token: string }) {
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    const res = await fetch("/api/auth/reset-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, password }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    setLoading(false);
+
+    if (!res.ok) {
+      setError(data.error ?? "Could not reset password");
+      return;
+    }
+
+    setDone(true);
+  };
+
+  if (!token) {
+    return (
+      <div className="auth-form">
+        <AuthError message="This reset link is invalid. Request a new one from the sign-in page." />
+        <p className="auth-footer">
+          <Link href="/forgot-password">Request reset link</Link>
+        </p>
+      </div>
+    );
+  }
+
+  if (done) {
+    return (
+      <div className="auth-form">
+        <p className="border border-border bg-surface px-4 py-3 font-mono text-[13px] text-text-muted">
+          Password updated. You can sign in with your new password.
+        </p>
+        <p className="auth-footer">
+          <Link href="/sign-in">Sign in</Link>
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="auth-form">
+      {error && <AuthError message={error} />}
+      <form className="auth-form" onSubmit={handleSubmit}>
+        <label className="auth-field">
+          <span className="auth-label">New password</span>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="new-password"
+            minLength={8}
+            required
+            disabled={loading}
+          />
+        </label>
+        <button type="submit" className="btn-primary btn-block" disabled={loading}>
+          {loading ? "Updating..." : "Update password"}
+        </button>
+      </form>
+      <p className="auth-footer">
+        <Link href="/forgot-password">Request a new link</Link>
       </p>
     </div>
   );

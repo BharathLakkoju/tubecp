@@ -3,6 +3,7 @@
 import { useEllipsis } from "@/lib/hooks/useEllipsis";
 import type { ResearchStage } from "@/lib/client/workflows";
 import ProgressBar from "@/components/ProgressBar";
+import LoadingSpinner from "@/components/LoadingSpinner";
 
 const STAGES: { id: ResearchStage; label: string }[] = [
   { id: "expanding", label: "expanding" },
@@ -56,8 +57,8 @@ export default function ResearchProgress({ topic, stage, detail, progress }: Pro
                 active ? "text-text" : done ? "text-success" : "text-text-muted"
               }`}
             >
-              <span className="w-4 shrink-0 text-center" aria-hidden="true">
-                {done ? "✓" : active ? "›" : "·"}
+              <span className="flex w-4 shrink-0 items-center justify-center" aria-hidden="true">
+                {done ? "✓" : active ? <LoadingSpinner size="sm" /> : "·"}
               </span>
               <StageLabel label={s.label} active={active} />
               {pending && <span className="sr-only">pending</span>}
