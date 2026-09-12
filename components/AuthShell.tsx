@@ -168,7 +168,7 @@ export function AppUserButton() {
   return (
     <Link
       href="/account"
-      className="inline-flex size-[34px] shrink-0 items-center justify-center overflow-hidden border border-border bg-surface no-underline transition-[border-color] duration-150 hover:border-text-muted"
+      className="inline-flex size-8.5 shrink-0 items-center justify-center overflow-hidden border border-border bg-surface no-underline transition-[border-color] duration-150 hover:border-text-muted"
       aria-label="Account settings"
     >
       {user.image ? (

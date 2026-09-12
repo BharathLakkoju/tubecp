@@ -1,0 +1,29 @@
+---
+description: No popup modals — use dedicated pages for user-facing flows
+alwaysApply: true
+---
+
+# No popup modals
+
+This app does not use popup modals, dialogs, or overlay panels for user-facing flows.
+
+## Required patterns
+
+- **Sign in** → `/sign-in` (OAuth via Better Auth — never popup modals)
+- **Account settings** → `/account`
+- Use `PageShell`, `SiteNav`, and full-page auth forms on dedicated routes
+
+## Navigation affordances
+
+- Signed-in users reach account settings via the avatar link in `AppUserButton` → `/account`
+- Primary actions use `<Link>` or route navigation, not `onClick` + overlay
+
+## Allowed exceptions
+
+- **Mobile nav sheet** (`SiteNav` full-screen overlay) — navigation only, not forms
+- **Compact utility menus** (e.g. theme picker) — small anchored dropdowns, not full modals
+- **Browser-native** `<select>` and focus rings
+
+## When adding new UI
+
+If a flow would open a modal (auth, settings, confirmations, multi-step forms), create a dedicated route instead.
