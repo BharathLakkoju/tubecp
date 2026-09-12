@@ -1,4 +1,3 @@
-import OpenAI from "openai";
 import { assertOpenRouterKey, config } from "../config";
 
 const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
@@ -25,20 +24,42 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 4): Promise<T> {
   throw lastErr;
 }
 
-let client: OpenAI | null = null;
+function openRouterHeaders(): Record<string, string> {
+  return {
+    Authorization: `Bearer ${assertOpenRouterKey()}`,
+    "Content-Type": "application/json",
+    "HTTP-Referer": "https://tubecp.com",
+    "X-Title": "tubecp",
+  };
+}
 
-export function getOpenAIClient(): OpenAI {
-  if (!client) {
-    client = new OpenAI({
-      apiKey: assertOpenRouterKey(),
-      baseURL: config.openrouterBaseUrl,
-      defaultHeaders: {
-        "HTTP-Referer": "https://tubecp.com",
-        "X-Title": "tubecp",
-      },
-    });
+class OpenRouterError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "OpenRouterError";
+    this.status = status;
   }
-  return client;
+}
+
+async function openRouterPost<T>(path: string, body: unknown): Promise<T> {
+  const url = `${config.openrouterBaseUrl.replace(/\/$/, "")}${path}`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: openRouterHeaders(),
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new OpenRouterError(
+      response.status,
+      `OpenRouter ${response.status}: ${detail.slice(0, 500)}`
+    );
+  }
+
+  return (await response.json()) as T;
 }
 
 export async function generateText(
@@ -46,9 +67,10 @@ export async function generateText(
   userPrompt: string,
   options?: { temperature?: number; maxTokens?: number }
 ): Promise<string> {
-  const openai = getOpenAIClient();
-  const response = await withRetry(() =>
-    openai.chat.completions.create({
+  const data = await withRetry(() =>
+    openRouterPost<{
+      choices?: Array<{ message?: { content?: string } }>;
+    }>("/chat/completions", {
       model: config.llmModel,
       temperature: options?.temperature ?? 0.3,
       max_tokens: options?.maxTokens ?? 2000,
@@ -58,30 +80,42 @@ export async function generateText(
       ],
     })
   );
-  return response.choices[0]?.message?.content ?? "";
+
+  return data.choices?.[0]?.message?.content ?? "";
 }
 
 export async function generateEmbedding(text: string): Promise<number[]> {
-  const openai = getOpenAIClient();
-  const response = await withRetry(() =>
-    openai.embeddings.create({
+  const data = await withRetry(() =>
+    openRouterPost<{ data?: Array<{ embedding: number[] }> }>("/embeddings", {
       model: config.embeddingModel,
       input: text.slice(0, 8000),
     })
   );
-  return response.data[0].embedding;
+
+  const embedding = data.data?.[0]?.embedding;
+  if (!embedding) {
+    throw new Error("OpenRouter returned no embedding data");
+  }
+  return embedding;
 }
 
 export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
-  const openai = getOpenAIClient();
-  const response = await withRetry(() =>
-    openai.embeddings.create({
+
+  const data = await withRetry(() =>
+    openRouterPost<{ data?: Array<{ embedding: number[] }> }>("/embeddings", {
       model: config.embeddingModel,
       input: texts.map((t) => t.slice(0, 8000)),
     })
   );
-  return response.data.map((d) => d.embedding);
+
+  const embeddings = data.data?.map((item) => item.embedding) ?? [];
+  if (embeddings.length !== texts.length) {
+    throw new Error(
+      `OpenRouter returned ${embeddings.length} embeddings for ${texts.length} inputs`
+    );
+  }
+  return embeddings;
 }
 
 export function cosineSimilarity(a: number[], b: number[]): number {

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { searchYouTubeMultiple } from "@/lib/services/youtube-search";
 import { preRankCandidates } from "@/lib/services/relevance";
 import { cacheQueries, hashTopic } from "@/lib/store";
-import { PRE_RANK_LIMIT } from "@/lib/constants/research";
+import { PRE_RANK_LIMIT, PRIMARY_SEARCH_RESULTS } from "@/lib/constants/research";
 import { requireUserId, apiError } from "@/lib/auth";
 import { rateLimitApi } from "@/lib/ratelimit";
 import type { DateRange } from "@/lib/types";
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "topic and queries are required" }, { status: 400 });
     }
 
-    const allCandidates = await searchYouTubeMultiple(queries, dateRange, 15);
+    const allCandidates = await searchYouTubeMultiple(queries, dateRange, PRIMARY_SEARCH_RESULTS);
     const candidates =
       allCandidates.length <= PRE_RANK_LIMIT
         ? allCandidates

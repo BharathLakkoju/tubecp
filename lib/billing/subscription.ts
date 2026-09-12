@@ -256,16 +256,12 @@ async function persistSubscription(sub: UserSubscription): Promise<void> {
   }
 }
 
-export async function checkAndIncrementUsage(
-  userId: string,
-  type: UsageType
-): Promise<UserSubscription> {
-  const sub = await getUserSubscription(userId);
-  const plan = getPlan(sub.plan);
-
+function assertUsageWithinLimit(sub: UserSubscription, type: UsageType): void {
   if (usageLimitsBypassed()) {
-    return sub;
+    return;
   }
+
+  const plan = getPlan(sub.plan);
 
   if (sub.status !== "active" && sub.plan !== "free") {
     throw new FeatureGateError("Your subscription is not active. Please update billing.");
@@ -277,7 +273,7 @@ export async function checkAndIncrementUsage(
         `Daily research limit reached (${plan.researchPerDay}/day). Upgrade for more.`
       );
     }
-    sub.researchUsedToday += 1;
+    return;
   }
 
   if (type === "kb_build") {
@@ -289,7 +285,7 @@ export async function checkAndIncrementUsage(
         `Monthly KB build limit reached (${plan.kbBuildsPerMonth}/mo). Upgrade or wait until next month.`
       );
     }
-    sub.kbBuildsUsed += 1;
+    return;
   }
 
   if (type === "chat") {
@@ -301,6 +297,39 @@ export async function checkAndIncrementUsage(
         `Monthly chat limit reached (${plan.chatMessagesPerMonth}/mo). Upgrade or wait until next month.`
       );
     }
+  }
+}
+
+/** Check quota without consuming it (e.g. at the start of a multi-step flow). */
+export async function assertUsageAvailable(
+  userId: string,
+  type: UsageType
+): Promise<UserSubscription> {
+  const sub = await getUserSubscription(userId);
+  assertUsageWithinLimit(sub, type);
+  return sub;
+}
+
+export async function checkAndIncrementUsage(
+  userId: string,
+  type: UsageType
+): Promise<UserSubscription> {
+  const sub = await getUserSubscription(userId);
+  assertUsageWithinLimit(sub, type);
+
+  if (usageLimitsBypassed()) {
+    return sub;
+  }
+
+  if (type === "research") {
+    sub.researchUsedToday += 1;
+  }
+
+  if (type === "kb_build") {
+    sub.kbBuildsUsed += 1;
+  }
+
+  if (type === "chat") {
     sub.chatMessagesUsed += 1;
   }
 

@@ -1,5 +1,10 @@
 import { google } from "googleapis";
 import { assertYoutubeKey } from "../config";
+import {
+  PRIMARY_SEARCH_RESULTS,
+  MAX_SECONDARY_QUERIES,
+  SECONDARY_SEARCH_RESULTS,
+} from "../constants/research";
 import type { DateRange, VideoCandidate } from "../types";
 
 function parseDuration(iso?: string): string | undefined {
@@ -32,7 +37,6 @@ export async function searchYouTube(
     order: "relevance",
     publishedAfter: options?.publishedAfter,
     publishedBefore: options?.publishedBefore,
-    videoCaption: "closedCaption",
   });
 
   const items = response.data.items ?? [];
@@ -70,27 +74,86 @@ export async function searchYouTube(
   return results;
 }
 
+type ScoredCandidate = {
+  video: VideoCandidate;
+  score: number;
+  bestRank: number;
+  hits: number;
+};
+
+function positionScore(rank: number, isPrimary: boolean): number {
+  if (isPrimary) return Math.max(0, 30 - rank);
+  return Math.max(0, 12 - rank);
+}
+
+function mergeSearchResults(
+  scoreMap: Map<string, ScoredCandidate>,
+  videos: VideoCandidate[],
+  isPrimary: boolean,
+  weight: number
+): void {
+  videos.forEach((video, index) => {
+    const rank = index + 1;
+    const points = positionScore(rank, isPrimary) * weight;
+    const existing = scoreMap.get(video.videoId);
+
+    if (existing) {
+      existing.score += points;
+      existing.hits += 1;
+      existing.bestRank = Math.min(existing.bestRank, rank);
+    } else {
+      scoreMap.set(video.videoId, {
+        video,
+        score: points,
+        bestRank: rank,
+        hits: 1,
+      });
+    }
+  });
+}
+
 export async function searchYouTubeMultiple(
   queries: string[],
   dateRange?: DateRange,
-  maxPerQuery = 15
+  maxPerQuery = PRIMARY_SEARCH_RESULTS
 ): Promise<VideoCandidate[]> {
-  const seen = new Set<string>();
-  const results: VideoCandidate[] = [];
+  if (queries.length === 0) return [];
 
-  for (const query of queries) {
-    const videos = await searchYouTube(query, {
-      maxResults: maxPerQuery,
-      publishedAfter: dateRange?.from,
-      publishedBefore: dateRange?.to,
+  const [primary, ...secondary] = queries;
+  const scoreMap = new Map<string, ScoredCandidate>();
+  const searchOpts = {
+    publishedAfter: dateRange?.from,
+    publishedBefore: dateRange?.to,
+  };
+
+  const primaryResults = await searchYouTube(primary, {
+    ...searchOpts,
+    maxResults: maxPerQuery,
+  });
+  mergeSearchResults(scoreMap, primaryResults, true, 1);
+
+  const secondaryQueries = secondary.slice(0, MAX_SECONDARY_QUERIES);
+  if (secondaryQueries.length > 0) {
+    const secondaryBatches = await Promise.all(
+      secondaryQueries.map((query) =>
+        searchYouTube(query, {
+          ...searchOpts,
+          maxResults: SECONDARY_SEARCH_RESULTS,
+        })
+      )
+    );
+
+    secondaryBatches.forEach((videos, index) => {
+      mergeSearchResults(scoreMap, videos, false, 0.4);
     });
-    for (const video of videos) {
-      if (!seen.has(video.videoId)) {
-        seen.add(video.videoId);
-        results.push(video);
-      }
-    }
   }
 
-  return results;
+  return Array.from(scoreMap.values())
+    .sort((a, b) => b.score - a.score)
+    .map(({ video, score, bestRank, hits }) => ({
+      ...video,
+      searchScore: Math.round(score),
+      searchRank: bestRank,
+      matchedQueries: hits,
+    }));
 }

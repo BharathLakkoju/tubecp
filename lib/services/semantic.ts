@@ -1,4 +1,5 @@
 import { generateEmbedding, generateEmbeddings, cosineSimilarity } from "./llm";
+import { hybridCandidateScore, topicKeywordScore, topicTerms } from "./research-scoring";
 import type { VideoCandidate, TranscriptSegment } from "../types";
 
 const topicEmbeddingCache = new Map<string, number[]>();
@@ -30,16 +31,11 @@ function keywordPreRank(
   candidates: VideoCandidate[],
   limit: number
 ): VideoCandidate[] {
-  const terms = topic
-    .toLowerCase()
-    .split(/\W+/)
-    .filter((term) => term.length > 2);
-
   return candidates
     .map((video) => {
-      const text = metadataText(video).toLowerCase();
-      const score = terms.reduce((sum, term) => sum + (text.includes(term) ? 1 : 0), 0);
-      return { video, score };
+      const keyword = topicKeywordScore(topic, metadataText(video));
+      const searchBoost = video.searchScore ?? 0;
+      return { video, score: keyword + searchBoost * 0.6 };
     })
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
@@ -79,7 +75,10 @@ export async function preRankCandidates(
     }
 
     return candidates
-      .map((video, i) => ({ video, score: scores[i] }))
+      .map((video, i) => ({
+        video,
+        score: hybridCandidateScore(topic, video, scores[i]),
+      }))
       .sort((a, b) => b.score - a.score)
       .slice(0, limit)
       .map((s) => s.video);
@@ -195,14 +194,23 @@ export function combineScores(
   llmScore: number,
   semanticScore: number,
   metadataScore: number,
-  discussionLevel: "mentioned" | "brief" | "substantial"
+  discussionLevel: "mentioned" | "brief" | "substantial",
+  searchBoost = 0
 ): number {
   let composite = Math.round(
-    llmScore * 0.35 + semanticScore * 0.4 + metadataScore * 0.25
+    llmScore * 0.3 + semanticScore * 0.35 + metadataScore * 0.35
   );
 
   if (discussionLevel === "substantial") composite = Math.min(100, composite + 5);
-  if (discussionLevel === "mentioned" && semanticScore < 40) composite = Math.min(composite, 45);
+  if (discussionLevel === "mentioned" && semanticScore < 35) {
+    composite = Math.min(composite, 50);
+  }
+
+  if (searchBoost > 0) {
+    composite = Math.min(100, composite + Math.round(searchBoost * 0.15));
+  }
 
   return Math.min(100, Math.max(0, composite));
 }
+
+export { topicKeywordScore, topicTerms };

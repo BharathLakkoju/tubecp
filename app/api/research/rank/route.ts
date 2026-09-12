@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rankVideos } from "@/lib/services/relevance";
 import { requireUserId, apiError } from "@/lib/auth";
+import { checkAndIncrementUsage } from "@/lib/billing/subscription";
 import { rateLimitApi } from "@/lib/ratelimit";
 import type { VideoAnalysis, VideoCandidate } from "@/lib/types";
 
@@ -36,6 +37,8 @@ export async function POST(req: NextRequest) {
       maxVideos ?? 15,
       allCandidates ?? []
     );
+
+    await checkAndIncrementUsage(userId, "research");
 
     return NextResponse.json(result);
   } catch (err) {

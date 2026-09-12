@@ -6,7 +6,7 @@ import * as llm from "@/lib/services/llm";
 describe("combineScores", () => {
   it("weights LLM, semantic, and metadata scores", () => {
     const score = combineScores(80, 70, 60, "brief");
-    expect(score).toBe(Math.round(80 * 0.35 + 70 * 0.4 + 60 * 0.25));
+    expect(score).toBe(Math.round(80 * 0.3 + 70 * 0.35 + 60 * 0.35));
   });
 
   it("boosts substantial discussion", () => {
@@ -18,7 +18,7 @@ describe("combineScores", () => {
 
   it("caps mentioned videos with low semantic score", () => {
     const score = combineScores(90, 20, 80, "mentioned");
-    expect(score).toBeLessThanOrEqual(45);
+    expect(score).toBeLessThanOrEqual(50);
   });
 
   it("clamps to 0-100", () => {

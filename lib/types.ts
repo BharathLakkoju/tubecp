@@ -6,6 +6,12 @@ export interface VideoCandidate {
   publishedAt: string;
   duration?: string;
   description?: string;
+  /** Best position across search queries (1 = top result). */
+  searchRank?: number;
+  /** Composite score from YouTube search positions across queries. */
+  searchScore?: number;
+  /** How many expanded queries returned this video. */
+  matchedQueries?: number;
 }
 
 export interface TranscriptSegment {

@@ -9,10 +9,11 @@ import {
   preRankCandidates,
 } from "./semantic";
 import { getCachedAnalysis, cacheAnalysis, hashTopic } from "../store";
+import { isStrongYouTubeMatch, topicKeywordScore } from "./research-scoring";
 import { toVideoSummary } from "../youtube";
 import type { VideoCandidate, VideoAnalysis } from "../types";
 
-const ANALYSIS_SYSTEM = `You are a video relevance analyst. Score how substantively a YouTube video discusses the research topic based on transcript excerpts.
+const ANALYSIS_SYSTEM = `You are a video relevance analyst for YouTube research. Score how well a video helps someone answer the research topic.
 
 Respond with ONLY valid JSON:
 {
@@ -23,13 +24,17 @@ Respond with ONLY valid JSON:
   "evidence": [{ "timestamp": <seconds>, "text": "<short quote>", "relevance": <0-100> }]
 }
 
-Scoring rubric (be consistent):
-- 80-100 substantial: deep discussion, examples, actionable detail on the topic
-- 55-79 brief: meaningful segment but not the main focus
-- 30-54 mentioned: passing reference only
-- 0-29 not relevant: wrong topic, clickbait title, or generic content
+Scoring rubric:
+- 75-100 substantial: the video is mainly about this topic with actionable detail
+- 50-74 brief: meaningful coverage, even if the format is a vlog or build diary
+- 35-49 mentioned: partially relevant, title/thumbnail match but shallow coverage
+- 0-34 not relevant: wrong topic or misleading title
 
-discussesTopic=true only if score >= 40. Prefer precision but do not miss videos that clearly address the topic in the transcript.`;
+Important:
+- "How I built X" / solo developer journey videos ARE relevant when they match the topic
+- Do not penalize conversational tone or tangents if the core question is answered
+- discussesTopic=true when score >= 35 OR the title clearly matches the research question
+- Prefer recall over precision — include videos a human would click on YouTube search`;
 
 function parseAnalysisJson(
   response: string,
@@ -45,7 +50,7 @@ function parseAnalysisJson(
     return {
       videoId,
       relevanceScore: llmScore,
-      discussesTopic: Boolean(parsed.discussesTopic) || llmScore >= 40,
+      discussesTopic: Boolean(parsed.discussesTopic) || llmScore >= 35,
       summary: parsed.summary ?? "",
       discussionLevel,
       evidence: (parsed.evidence ?? []).map(
@@ -70,7 +75,16 @@ export async function analyzeVideo(
   if (cached) return cached;
 
   const topicEmb = await getTopicEmbedding(topic);
-  const metadataScore = await scoreMetadataRelevance(topic, video, topicEmb);
+  const embeddingMetaScore = await scoreMetadataRelevance(topic, video, topicEmb);
+  const keywordScore = topicKeywordScore(topic, `${video.title} ${video.description ?? ""}`);
+  let metadataScore = Math.min(
+    100,
+    Math.round(embeddingMetaScore * 0.55 + keywordScore * 0.45)
+  );
+
+  if (video.searchRank && video.searchRank <= 5) {
+    metadataScore = Math.min(100, metadataScore + 12);
+  }
 
   let semanticScore = 0;
   let transcriptText = "";
@@ -89,9 +103,16 @@ export async function analyzeVideo(
     semanticScore = Math.round(metadataScore * 0.85);
   }
 
+  const searchContext =
+    video.searchRank !== undefined
+      ? `YouTube search rank: #${video.searchRank} (appeared in ${video.matchedQueries ?? 1} queries)`
+      : "YouTube search rank: unknown";
+
   const userPrompt = `Research topic: "${topic}"
 
 Video: "${video.title}" by ${video.channel}
+${searchContext}
+Title/metadata keyword match: ${keywordScore}/100
 Metadata relevance (embedding): ${metadataScore}/100
 Transcript relevance (embedding): ${semanticScore}/100
 
@@ -106,15 +127,22 @@ ${transcriptText || "(no transcript available)"}`;
   const parsed = parseAnalysisJson(response, video.videoId);
 
   const llmScore = parsed?.relevanceScore ?? Math.round(metadataScore * 0.6 + semanticScore * 0.4);
-  const discussionLevel = parsed?.discussionLevel ?? (semanticScore >= 55 ? "brief" : "mentioned");
+  const discussionLevel = parsed?.discussionLevel ?? (semanticScore >= 50 ? "brief" : "mentioned");
+  const strongSearch = isStrongYouTubeMatch(video, metadataScore);
   const discussesTopic =
-    parsed?.discussesTopic ?? (llmScore >= 40 || semanticScore >= 52 || metadataScore >= 58);
+    parsed?.discussesTopic ??
+    (llmScore >= 35 ||
+      semanticScore >= 48 ||
+      metadataScore >= 55 ||
+      keywordScore >= 60 ||
+      strongSearch);
 
   const finalScore = combineScores(
     llmScore,
     semanticScore,
     metadataScore,
-    discussionLevel
+    discussionLevel,
+    video.searchScore ?? 0
   );
 
   const analysis: VideoAnalysis = {
@@ -144,15 +172,25 @@ export function rankVideos(
   allCandidates: VideoCandidate[] = []
 ) {
   const rankedVideos = analyses
-    .filter(({ analysis }) => {
-      if (analysis.relevanceScore < 42) return false;
+    .filter(({ video, analysis }) => {
+      const semantic = analysis.semanticScore ?? 0;
+      const metadata = analysis.metadataScore ?? 0;
+      const strongSearch = isStrongYouTubeMatch(video, metadata);
+
+      if (analysis.relevanceScore < 35 && !analysis.discussesTopic) return false;
+
+      if (analysis.relevanceScore >= 38) return true;
+      if (strongSearch && analysis.discussesTopic) return true;
+      if (strongSearch && metadata >= 50) return true;
+
       if (analysis.discussionLevel === "substantial" || analysis.discussionLevel === "brief") {
-        return analysis.discussesTopic || (analysis.semanticScore ?? 0) >= 50;
+        return analysis.discussesTopic || semantic >= 45;
       }
+
       return (
         analysis.discussesTopic &&
-        analysis.relevanceScore >= 48 &&
-        (analysis.semanticScore ?? 0) >= 45
+        analysis.relevanceScore >= 40 &&
+        (semantic >= 40 || metadata >= 55)
       );
     })
     .sort((a, b) => b.analysis.relevanceScore - a.analysis.relevanceScore)

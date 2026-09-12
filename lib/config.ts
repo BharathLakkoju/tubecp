@@ -1,3 +1,5 @@
+import { DEFAULT_EMBEDDING_MODEL, DEFAULT_LLM_MODEL } from "./openrouter-models";
+
 function required(name: string, value: string | undefined): string {
   if (!value) {
     throw new Error(`Missing required environment variable: ${name}`);
@@ -9,8 +11,8 @@ export const config = {
   youtubeApiKey: process.env.YOUTUBE_API_KEY ?? "",
   openrouterApiKey: process.env.OPENROUTER_API_KEY ?? "",
   openrouterBaseUrl: process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1",
-  llmModel: process.env.LLM_MODEL ?? "openai/gpt-4o-mini",
-  embeddingModel: process.env.EMBEDDING_MODEL ?? "openai/text-embedding-3-small",
+  llmModel: process.env.LLM_MODEL ?? DEFAULT_LLM_MODEL,
+  embeddingModel: process.env.EMBEDDING_MODEL ?? DEFAULT_EMBEDDING_MODEL,
   licenseKey: process.env.LICENSE_KEY ?? "",
 };
 

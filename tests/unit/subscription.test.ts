@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertUsageAvailable,
   checkAndIncrementUsage,
   FeatureGateError,
+  getUserSubscription,
   setUserPlan,
   UsageLimitError,
 } from "@/lib/billing/subscription";
@@ -16,6 +18,17 @@ describe("subscription usage", () => {
     const sub = await checkAndIncrementUsage(userId, "research");
     expect(sub.researchUsedToday).toBe(1);
     expect(sub.plan).toBe("free");
+  });
+
+  it("assertUsageAvailable checks quota without consuming it", async () => {
+    const userId = uid("research_peek");
+    await assertUsageAvailable(userId, "research");
+    const sub = await getUserSubscription(userId);
+    expect(sub.researchUsedToday).toBe(0);
+
+    await checkAndIncrementUsage(userId, "research");
+    const charged = await getUserSubscription(userId);
+    expect(charged.researchUsedToday).toBe(1);
   });
 
   it("blocks KB build on free tier", async () => {

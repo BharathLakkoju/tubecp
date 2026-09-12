@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { expandQueries } from "@/lib/services/query-expansion";
 import { getCachedExpandedQueries, hashTopic } from "@/lib/store";
 import { requireUserId, apiError } from "@/lib/auth";
-import { checkAndIncrementUsage } from "@/lib/billing/subscription";
+import { assertUsageAvailable } from "@/lib/billing/subscription";
 import { rateLimitApi } from "@/lib/ratelimit";
 
 export const maxDuration = 30;
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "topic is required" }, { status: 400 });
     }
 
-    await checkAndIncrementUsage(userId, "research");
+    await assertUsageAvailable(userId, "research");
 
     const topicHash = hashTopic(topic.toLowerCase().trim());
     const cached = await getCachedExpandedQueries(topicHash);
