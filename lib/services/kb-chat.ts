@@ -62,6 +62,15 @@ export async function appendKbChatMessages(
   return next;
 }
 
+export async function deleteKbChatData(kbId: string): Promise<void> {
+  const redis = getRedis();
+  if (redis) {
+    await redis.del(chatKey(kbId));
+    return;
+  }
+  memory.delete(chatKey(kbId));
+}
+
 export async function ensureKbWelcomeMessage(kbId: string): Promise<ChatMessage[]> {
   const existing = await getKbChatMessages(kbId);
   if (existing.length > 0) return existing;

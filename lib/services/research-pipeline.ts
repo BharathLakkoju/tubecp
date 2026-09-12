@@ -25,10 +25,10 @@ export async function runResearchPipeline(
   const onProgress = options?.onProgress ?? (() => {});
 
   onProgress({ stage: "expanding", message: "Generating search queries...", progress: 5 });
-  const queries = await expandQueries(topic);
+  const queries = await expandQueries(topic, { maxQueries: limits.search.maxExpandedQueries });
 
   onProgress({ stage: "searching", message: "Searching YouTube...", progress: 12 });
-  const allCandidates = await searchYouTubeMultiple(queries, undefined, 25);
+  const allCandidates = await searchYouTubeMultiple(queries, undefined, limits.search);
 
   if (allCandidates.length === 0) {
     return { topic, queriesUsed: queries, videosSearched: 0, allVideos: [], rankedVideos: [] };

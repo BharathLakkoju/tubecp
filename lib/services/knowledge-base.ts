@@ -1,5 +1,10 @@
 import { v4 as uuidv4 } from "uuid";
-import { getTranscript, getTranscriptDurationMinutes } from "./transcript";
+import { hasMeaningfulEmbeddingContent } from "../embedding-input";
+import {
+  getTranscript,
+  getTranscriptDurationMinutes,
+  TranscriptUnavailableError,
+} from "./transcript";
 import { generateEmbeddings } from "./llm";
 import {
   saveChunk,
@@ -8,7 +13,11 @@ import {
   registerVideoChunks,
   getKnowledgeBase,
   updateKnowledgeBase,
+  deleteKnowledgeBaseRecord,
+  deleteChunksForKnowledgeBase,
+  removeUserKnowledgeBase,
 } from "../store";
+import { deleteKbChatData } from "./kb-chat";
 import type { TranscriptChunk, KnowledgeBaseRecord, RankedVideo } from "../types";
 
 const WORDS_PER_CHUNK = 200;
@@ -75,11 +84,17 @@ export async function createKnowledgeBase(
   return kb;
 }
 
+export interface IndexVideoResult {
+  kb: KnowledgeBaseRecord;
+  skipped: boolean;
+  skipReason?: string;
+}
+
 export async function indexVideoInKnowledgeBase(
   kbId: string,
   video: RankedVideo,
   persistent = false
-): Promise<KnowledgeBaseRecord> {
+): Promise<IndexVideoResult> {
   const kb = await getKnowledgeBase(kbId);
   if (!kb) throw new Error(`Knowledge base not found: ${kbId}`);
 
@@ -101,10 +116,34 @@ export async function indexVideoInKnowledgeBase(
     );
 
     if (!updated) throw new Error("Failed to update knowledge base");
-    return updated;
+    return { kb: updated, skipped: false };
   }
 
-  const transcript = await getTranscript(video.videoId);
+  let transcript;
+  try {
+    transcript = await getTranscript(video.videoId);
+  } catch (err) {
+    if (err instanceof TranscriptUnavailableError) {
+      const updated = await updateKnowledgeBase(
+        kbId,
+        (current) => ({
+          ...current,
+          videoIds: current.videoIds.filter((id) => id !== video.videoId),
+        }),
+        persistent
+      );
+
+      if (!updated) throw new Error("Failed to update knowledge base");
+
+      return {
+        kb: updated,
+        skipped: true,
+        skipReason: `"${video.title}" skipped — ${err.message}.`,
+      };
+    }
+
+    throw err;
+  }
   const minutes = getTranscriptDurationMinutes(transcript);
   const chunks = chunkTranscript(
     transcript.segments,
@@ -123,16 +162,31 @@ export async function indexVideoInKnowledgeBase(
       persistent
     );
     if (!updated) throw new Error("Failed to update knowledge base");
-    return updated;
+    return { kb: updated, skipped: false };
   }
 
-  const embeddings = await generateEmbeddings(chunks.map((c) => c.text));
+  const embeddableChunks = chunks.filter((chunk) => hasMeaningfulEmbeddingContent(chunk.text));
+
+  if (embeddableChunks.length === 0) {
+    const updated = await updateKnowledgeBase(
+      kbId,
+      (current) => ({
+        ...current,
+        videosIndexed: current.videosIndexed + 1,
+      }),
+      persistent
+    );
+    if (!updated) throw new Error("Failed to update knowledge base");
+    return { kb: updated, skipped: false };
+  }
+
+  const embeddings = await generateEmbeddings(embeddableChunks.map((c) => c.text));
   const chunkIds: string[] = [];
 
-  for (let i = 0; i < chunks.length; i++) {
-    chunks[i].embedding = embeddings[i];
-    await saveChunk(chunks[i]);
-    chunkIds.push(chunks[i].id);
+  for (let i = 0; i < embeddableChunks.length; i++) {
+    embeddableChunks[i].embedding = embeddings[i];
+    await saveChunk(embeddableChunks[i]);
+    chunkIds.push(embeddableChunks[i].id);
   }
 
   await registerVideoChunks(video.videoId, chunkIds);
@@ -150,7 +204,7 @@ export async function indexVideoInKnowledgeBase(
   );
 
   if (!updated) throw new Error("Failed to update knowledge base");
-  return updated;
+  return { kb: updated, skipped: false };
 }
 
 export async function finalizeKnowledgeBase(
@@ -167,4 +221,19 @@ export async function finalizeKnowledgeBase(
 
   await saveKnowledgeBase(updated, persistent);
   return updated;
+}
+
+export async function deleteKnowledgeBase(kbId: string, userId: string): Promise<void> {
+  const kb = await getKnowledgeBase(kbId);
+  if (!kb) {
+    throw new Error(`Knowledge base not found: ${kbId}`);
+  }
+  if (kb.userId !== userId) {
+    throw new Error("You do not have access to this knowledge base");
+  }
+
+  await deleteChunksForKnowledgeBase(kb.videoIds, kb.chunkIds);
+  await deleteKbChatData(kbId);
+  await deleteKnowledgeBaseRecord(kbId);
+  await removeUserKnowledgeBase(userId, kbId);
 }

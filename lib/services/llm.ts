@@ -1,4 +1,5 @@
 import { assertOpenRouterKey, config } from "../config";
+import { prepareEmbeddingInput } from "../embedding-input";
 
 const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
 
@@ -153,7 +154,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   const data = await withRetry(() =>
     openRouterPost<{ data?: Array<{ embedding: number[] }> }>("/embeddings", {
       model: config.embeddingModel,
-      input: text.slice(0, 8000),
+      input: prepareEmbeddingInput(text),
     })
   );
 
@@ -167,10 +168,15 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
 
+  const input = texts.map(prepareEmbeddingInput);
+  if (input.some((value) => value.trim().length === 0)) {
+    throw new Error("Embedding input cannot be empty");
+  }
+
   const data = await withRetry(() =>
     openRouterPost<{ data?: Array<{ embedding: number[] }> }>("/embeddings", {
       model: config.embeddingModel,
-      input: texts.map((t) => t.slice(0, 8000)),
+      input,
     })
   );
 

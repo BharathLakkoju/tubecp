@@ -7,6 +7,7 @@ import { cn } from "@/lib/cn";
 import MarkdownContent from "@/components/MarkdownContent";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import MobileNavToggle from "@/components/MobileNavToggle";
+import KbDeleteButton from "@/components/KbDeleteButton";
 
 function formatTimestamp(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -53,6 +54,7 @@ export default function ChatPanel({ topic, kb, messages, stream, onSend }: Props
                 {kb.videosIndexed} videos · {kb.chunksIndexed} chunks · ~{kb.totalMinutes} min
               </p>
             </div>
+            <KbDeleteButton kbId={kb.kbId} topic={kb.topic} redirectOnDelete />
           </div>
         </div>
 

@@ -2,11 +2,33 @@ import { YoutubeTranscript } from "youtube-transcript";
 import type { Transcript, TranscriptSegment } from "../types";
 import { getCachedTranscript, cacheTranscript } from "../store";
 
+export class TranscriptUnavailableError extends Error {
+  readonly videoId: string;
+
+  constructor(videoId: string, cause?: unknown) {
+    const detail = cause instanceof Error ? cause.message : String(cause ?? "");
+    const reason = detail.includes("disabled")
+      ? "transcripts are disabled on this video"
+      : detail.includes("not available")
+        ? "no transcript is available for this video"
+        : "the transcript could not be fetched";
+
+    super(reason);
+    this.name = "TranscriptUnavailableError";
+    this.videoId = videoId;
+  }
+}
+
 export async function getTranscript(videoId: string): Promise<Transcript> {
   const cached = await getCachedTranscript(videoId);
   if (cached) return cached;
 
-  const raw = await YoutubeTranscript.fetchTranscript(videoId);
+  let raw;
+  try {
+    raw = await YoutubeTranscript.fetchTranscript(videoId);
+  } catch (err) {
+    throw new TranscriptUnavailableError(videoId, err);
+  }
   const segments: TranscriptSegment[] = raw.map((seg) => ({
     start: seg.offset / 1000,
     duration: seg.duration / 1000,

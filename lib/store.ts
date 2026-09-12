@@ -28,6 +28,15 @@ async function set(key: string, value: unknown, ttlSeconds?: number): Promise<vo
   memory.set(key, value);
 }
 
+async function del(key: string): Promise<void> {
+  const redis = getRedis();
+  if (redis) {
+    await redis.del(key);
+    return;
+  }
+  memory.delete(key);
+}
+
 export function hashTopic(topic: string): string {
   let hash = 0;
   for (let i = 0; i < topic.length; i++) {
@@ -158,6 +167,39 @@ export async function addUserKnowledgeBase(userId: string, kbId: string): Promis
   const existing = (await get<string[]>(key)) ?? [];
   if (!existing.includes(kbId)) {
     await set(key, [kbId, ...existing].slice(0, 100));
+  }
+}
+
+export async function removeUserKnowledgeBase(userId: string, kbId: string): Promise<void> {
+  const key = `user-kbs:${userId}`;
+  const existing = (await get<string[]>(key)) ?? [];
+  await set(key, existing.filter((id) => id !== kbId));
+}
+
+export async function deleteKnowledgeBaseRecord(kbId: string): Promise<void> {
+  await del(`kb:${kbId}`);
+}
+
+export async function deleteChunksForKnowledgeBase(
+  videoIds: string[],
+  chunkIds: string[]
+): Promise<void> {
+  const chunkSet = new Set(chunkIds);
+
+  for (const videoId of videoIds) {
+    const ids = await get<string[]>(`video-chunks:${videoId}`);
+    if (!ids) continue;
+
+    const next = ids.filter((id) => !chunkSet.has(id));
+    if (next.length === 0) {
+      await del(`video-chunks:${videoId}`);
+    } else {
+      await set(`video-chunks:${videoId}`, next);
+    }
+  }
+
+  for (const chunkId of chunkIds) {
+    await del(`chunk:${chunkId}`);
   }
 }
 

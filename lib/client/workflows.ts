@@ -109,30 +109,69 @@ export async function runResearch(
   return research;
 }
 
+export interface SkippedKbVideo {
+  videoId: string;
+  title: string;
+  reason: string;
+}
+
+export interface BuildKnowledgeBaseResult {
+  kb: KnowledgeBase;
+  skippedVideos: SkippedKbVideo[];
+}
+
 export async function buildKnowledgeBase(
   topic: string,
   rankedVideos: ResearchResult["rankedVideos"],
   onProgress?: ProgressCallback
-): Promise<KnowledgeBase> {
-  onProgress?.("Creating knowledge base...", 5);
+): Promise<BuildKnowledgeBaseResult> {
+  onProgress?.("Preparing knowledge base", 5);
   const { kbId } = await postJson<{ kbId: string }>("/api/knowledge-base/create", {
     topic,
     rankedVideos,
   });
 
+  const skippedVideos: SkippedKbVideo[] = [];
+
   for (let i = 0; i < rankedVideos.length; i++) {
     const video = rankedVideos[i];
     onProgress?.(
-      `Indexing "${video.title.slice(0, 50)}..." (${i + 1}/${rankedVideos.length})`,
+      `${video.title.slice(0, 72)}${video.title.length > 72 ? "…" : ""} · ${i + 1}/${rankedVideos.length}`,
       10 + Math.round((i / rankedVideos.length) * 85)
     );
 
-    await postJson("/api/knowledge-base/index-video", { kbId, video });
+    const result = await postJson<{
+      kb: KnowledgeBase;
+      skipped?: boolean;
+      skipReason?: string;
+      videoId?: string;
+      videoTitle?: string;
+    }>("/api/knowledge-base/index-video", { kbId, video });
+
+    if (result.skipped) {
+      const reason =
+        result.skipReason ??
+        `"${video.title}" skipped — transcript unavailable for this video.`;
+      skippedVideos.push({
+        videoId: result.videoId ?? video.videoId,
+        title: result.videoTitle ?? video.title,
+        reason,
+      });
+      onProgress?.(reason, 10 + Math.round((i / rankedVideos.length) * 85));
+    }
   }
 
-  onProgress?.("Finalizing knowledge base...", 98);
+  onProgress?.("Wrapping up and saving your knowledge base", 98);
   const { kb } = await postJson<{ kb: KnowledgeBase }>("/api/knowledge-base/finalize", { kbId });
 
-  onProgress?.("Knowledge base ready!", 100);
-  return kb;
+  if (skippedVideos.length > 0) {
+    onProgress?.(
+      `Knowledge base ready (${skippedVideos.length} video${skippedVideos.length === 1 ? "" : "s"} skipped — no transcript).`,
+      100
+    );
+  } else {
+    onProgress?.("Knowledge base ready!", 100);
+  }
+
+  return { kb, skippedVideos };
 }

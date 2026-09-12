@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { expandQueries } from "@/lib/services/query-expansion";
-import { getCachedExpandedQueries, hashTopic } from "@/lib/store";
 import { requireUserId, apiError } from "@/lib/auth";
-import { assertUsageAvailable } from "@/lib/billing/subscription";
+import { assertUsageAvailable, getUserSubscription } from "@/lib/billing/subscription";
+import { getResearchPipelineLimits } from "@/lib/research-limits";
 import { rateLimitApi } from "@/lib/ratelimit";
 
 export const maxDuration = 30;
@@ -19,14 +19,10 @@ export async function POST(req: NextRequest) {
 
     await assertUsageAvailable(userId, "research");
 
-    const topicHash = hashTopic(topic.toLowerCase().trim());
-    const cached = await getCachedExpandedQueries(topicHash);
+    const sub = await getUserSubscription(userId);
+    const limits = getResearchPipelineLimits(sub.plan);
+    const queries = await expandQueries(topic, { maxQueries: limits.search.maxExpandedQueries });
 
-    if (cached?.length) {
-      return NextResponse.json({ queries: cached, cached: true });
-    }
-
-    const queries = await expandQueries(topic);
     return NextResponse.json({ queries, cached: false });
   } catch (err) {
     return apiError(err);

@@ -27,18 +27,6 @@ export async function loadKbChatMessages(kbId: string): Promise<ChatMessage[]> {
   return (data.messages ?? []) as ChatMessage[];
 }
 
-export async function saveKbChatMessages(kbId: string, messages: ChatMessage[]): Promise<void> {
-  const res = await fetch(`/api/knowledge-base/${kbId}/messages`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages }),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error ?? "Failed to save chat history");
-  }
-}
-
 export async function streamKbChatMessage(
   kbId: string,
   message: string,

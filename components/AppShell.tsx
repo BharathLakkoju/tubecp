@@ -13,15 +13,10 @@ import { AppShellProvider } from "@/lib/contexts/AppShellContext";
 import AnimatedCollapse from "@/components/AnimatedCollapse";
 import Wordmark from "@/components/Wordmark";
 import AppAccountMenu from "@/components/AppAccountMenu";
+import KbSidebarItem from "@/components/KbSidebarItem";
 import { useKnowledgeBases } from "@/lib/hooks/useKnowledgeBases";
 import { useSubscription } from "@/lib/hooks/useSubscription";
 import { cn } from "@/lib/cn";
-
-function kbTitle(topic: string): string {
-  const trimmed = topic.trim();
-  if (trimmed.length <= 36) return trimmed;
-  return `${trimmed.slice(0, 33)}…`;
-}
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -130,23 +125,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                   {!kbsLoading && knowledgeBases.length === 0 && (
                     <li className="app-sidebar-kb-empty">No knowledge bases yet</li>
                   )}
-                  {knowledgeBases.map((kb) => {
-                    const active = activeKbId === kb.kbId;
-                    return (
-                      <li key={kb.kbId}>
-                        <Link
-                          href={`/app/kb/${kb.kbId}`}
-                          className={cn(
-                            "app-sidebar-kb-link",
-                            active && "app-sidebar-kb-link-active"
-                          )}
-                          title={kb.topic}
-                        >
-                          <span className="app-sidebar-kb-link-text">{kbTitle(kb.topic)}</span>
-                        </Link>
-                      </li>
-                    );
-                  })}
+                  {knowledgeBases.map((kb) => (
+                    <KbSidebarItem
+                      key={kb.kbId}
+                      kb={kb}
+                      active={activeKbId === kb.kbId}
+                    />
+                  ))}
                 </ul>
               </AnimatedCollapse>
             </div>

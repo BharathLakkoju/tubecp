@@ -3,7 +3,6 @@ import { searchYouTubeMultiple } from "@/lib/services/youtube-search";
 import { preRankCandidates } from "@/lib/services/relevance";
 import { selectCandidatesForAnalysis } from "@/lib/services/research-scoring";
 import { cacheQueries, hashTopic } from "@/lib/store";
-import { PRIMARY_SEARCH_RESULTS } from "@/lib/constants/research";
 import { getResearchPipelineLimits } from "@/lib/research-limits";
 import { getUserSubscription } from "@/lib/billing/subscription";
 import { requireUserId, apiError } from "@/lib/auth";
@@ -30,7 +29,7 @@ export async function POST(req: NextRequest) {
     const sub = await getUserSubscription(userId);
     const limits = getResearchPipelineLimits(sub.plan);
 
-    const allCandidates = await searchYouTubeMultiple(queries, dateRange, PRIMARY_SEARCH_RESULTS);
+    const allCandidates = await searchYouTubeMultiple(queries, dateRange, limits.search);
     const preRanked =
       allCandidates.length <= limits.preRankLimit
         ? allCandidates

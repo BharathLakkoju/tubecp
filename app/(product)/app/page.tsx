@@ -19,23 +19,29 @@ import HeroSection from "@/components/HeroSection";
 import SearchBox from "@/components/SearchBox";
 import ResearchResults from "@/components/ResearchResults";
 import ResearchLiveView from "@/components/ResearchLiveView";
-import ProgressBar from "@/components/ProgressBar";
+import KbBuildProgress from "@/components/KbBuildProgress";
 import ResearchProgress from "@/components/ResearchProgress";
 import UpgradePrompt from "@/components/UpgradePrompt";
 import UsageIndicator from "@/components/UsageIndicator";
 import MobileNavToggle from "@/components/MobileNavToggle";
+import { useKnowledgeBases } from "@/lib/hooks/useKnowledgeBases";
 
 export default function AppPage() {
   const router = useRouter();
   const sub = useSubscription();
-  const [phase, setPhase] = useState<"search" | "results" | "building">("search");
+  const { refresh: refreshKnowledgeBases } = useKnowledgeBases();
+  const [phase, setPhase] = useState<"search" | "results" | "building">(
+    "search",
+  );
   const [research, setResearch] = useState<ResearchResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [activeTopic, setActiveTopic] = useState("");
   const [progressMsg, setProgressMsg] = useState("");
   const [progressPct, setProgressPct] = useState(0);
-  const [researchStage, setResearchStage] = useState<ResearchStage>("expanding");
-  const [liveResearch, setLiveResearch] = useState<ResearchLiveState>(emptyLiveResearch);
+  const [researchStage, setResearchStage] =
+    useState<ResearchStage>("expanding");
+  const [liveResearch, setLiveResearch] =
+    useState<ResearchLiveState>(emptyLiveResearch);
   const [error, setError] = useState("");
   const [upgraded, setUpgraded] = useState(false);
 
@@ -95,15 +101,31 @@ export default function AppPage() {
     setProgressPct(0);
 
     try {
-      const result = await buildKnowledgeBase(
+      const { kb, skippedVideos } = await buildKnowledgeBase(
         research.topic,
         research.rankedVideos,
         (msg, pct) => {
           setProgressMsg(msg);
           if (pct !== undefined) setProgressPct(pct);
-        }
+        },
       );
-      router.push(`/app/kb/${result.kbId}`);
+
+      if (kb.status === "failed") {
+        throw new Error(
+          "No videos could be indexed. Every selected video was missing a transcript or failed to index.",
+        );
+      }
+
+      if (skippedVideos.length > 0) {
+        sessionStorage.setItem(
+          `kb-build-notice:${kb.kbId}`,
+          JSON.stringify(skippedVideos),
+        );
+      }
+
+      await refreshKnowledgeBases();
+      router.refresh();
+      router.push(`/app/kb/${kb.kbId}`);
     } catch (err) {
       setError(parseClientError(err));
       setPhase("results");
@@ -134,7 +156,9 @@ export default function AppPage() {
             title="Sign in to start researching"
             subtitle="Search YouTube by topic, rank relevant videos, and build chattable knowledge bases with cited sources."
           >
-            <Link href="/sign-in" className="btn-primary">sign in to continue →</Link>
+            <Link href="/sign-in" className="btn-primary">
+              sign in to continue →
+            </Link>
           </HeroSection>
         </AppSignedOut>
 
@@ -153,7 +177,9 @@ export default function AppPage() {
                 >
                   <SearchBox onSearch={handleSearch} loading={loading} />
                   {error && (
-                    <p className="mt-4 font-mono text-[13px] text-accent">{error}</p>
+                    <p className="mt-4 font-mono text-[13px] text-accent">
+                      {error}
+                    </p>
                   )}
                 </HeroSection>
                 {!sub.loading && (
@@ -166,62 +192,83 @@ export default function AppPage() {
               </>
             )}
 
-            {(phase === "results" || phase === "building") && (loading || research) && (
-              <div>
-                <div className="mb-6 border-b border-border pb-4">
-                  <h2 className="font-mono text-base font-semibold break-words text-text">
-                    research: {research?.topic ?? activeTopic}
-                  </h2>
-                  {research && !loading && phase === "results" && (
-                    <p className="mt-1.5 font-mono text-xs text-text-muted">
-                      {research.allVideos.length} scraped · {research.rankedVideos.length} semantically relevant
+            {(phase === "results" || phase === "building") &&
+              (loading || research) && (
+                <div>
+                  <div className="mb-6 border-b border-border pb-4">
+                    <h2 className="font-mono text-base font-semibold break-words text-text">
+                      research: {research?.topic ?? activeTopic}
+                    </h2>
+                    {research && !loading && phase === "results" && (
+                      <p className="mt-1.5 font-mono text-xs text-text-muted">
+                        {research.allVideos.length} scraped ·{" "}
+                        {research.rankedVideos.length} semantically relevant
+                      </p>
+                    )}
+                  </div>
+
+                  {loading && phase === "results" && (
+                    <ResearchProgress
+                      topic={activeTopic}
+                      stage={researchStage}
+                      detail={progressMsg}
+                      progress={progressPct}
+                    />
+                  )}
+
+                  <ResearchLiveView live={liveResearch} />
+
+                  {research && (phase === "building" || !loading) && (
+                    <section className="mt-8 border-t border-border pt-8">
+                      <h3 className="mb-6 font-mono text-[13px] font-semibold text-text">
+                        Final results
+                      </h3>
+                      <ResearchResults
+                        research={research}
+                        showCopyLinks={sub.plan === "free"}
+                      />
+                    </section>
+                  )}
+
+                  {phase === "building" && loading && (
+                    <KbBuildProgress
+                      detail={progressMsg}
+                      progress={progressPct}
+                      active={loading}
+                    />
+                  )}
+
+                  {phase === "results" &&
+                    !loading &&
+                    research &&
+                    research.rankedVideos.length > 0 &&
+                    (sub.canBuildKb ? (
+                      <div className="mt-8 border-t border-border pt-6">
+                        <p className="mb-4 font-mono text-[13px] text-text-muted">
+                          Build a knowledge base from these{" "}
+                          {research.rankedVideos.length} videos?
+                        </p>
+                        <button
+                          className="btn-primary max-sm:w-full"
+                          onClick={handleBuildKB}
+                        >
+                          build knowledge base →
+                        </button>
+                      </div>
+                    ) : (
+                      <UpgradePrompt
+                        title="Unlock knowledge base + chat"
+                        description="Free tier includes ranked video lists. Upgrade to Pro to transcribe videos, build a knowledge base, and chat with cited sources."
+                      />
+                    ))}
+
+                  {error && (
+                    <p className="mt-4 font-mono text-[13px] text-accent">
+                      {error}
                     </p>
                   )}
                 </div>
-
-                {loading && phase === "results" && (
-                  <ResearchProgress
-                    topic={activeTopic}
-                    stage={researchStage}
-                    detail={progressMsg}
-                    progress={progressPct}
-                  />
-                )}
-
-                <ResearchLiveView live={liveResearch} />
-
-                {research && (phase === "building" || !loading) && (
-                  <section className="mt-8 border-t border-border pt-8">
-                    <h3 className="mb-6 font-mono text-[13px] font-semibold text-text">Final results</h3>
-                    <ResearchResults research={research} showCopyLinks={sub.plan === "free"} />
-                  </section>
-                )}
-
-                {phase === "building" && loading && (
-                  <ProgressBar message={progressMsg} progress={progressPct} />
-                )}
-
-                {phase === "results" && !loading && research && research.rankedVideos.length > 0 && (
-                  sub.canBuildKb ? (
-                    <div className="mt-8 border-t border-border pt-6">
-                      <p className="mb-4 font-mono text-[13px] text-text-muted">
-                        Build a knowledge base from these {research.rankedVideos.length} videos?
-                      </p>
-                      <button className="btn-primary max-sm:w-full" onClick={handleBuildKB}>
-                        build knowledge base →
-                      </button>
-                    </div>
-                  ) : (
-                    <UpgradePrompt
-                      title="Unlock knowledge base + chat"
-                      description="Free tier includes ranked video lists. Upgrade to Pro to transcribe videos, build a knowledge base, and chat with cited sources."
-                    />
-                  )
-                )}
-
-                {error && <p className="mt-4 font-mono text-[13px] text-accent">{error}</p>}
-              </div>
-            )}
+              )}
           </PhasePanel>
         </AppSignedIn>
       </div>

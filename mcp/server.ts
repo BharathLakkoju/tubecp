@@ -103,10 +103,20 @@ server.tool(
       };
     }
     const kb = await createKnowledgeBase(topic, rankedVideos, "mcp-user", true);
+    const skippedVideos: Array<{ videoId: string; title: string; reason: string }> = [];
+
     for (const video of rankedVideos) {
-      await indexVideoInKnowledgeBase(kb.kbId, video);
+      const result = await indexVideoInKnowledgeBase(kb.kbId, video, true);
+      if (result.skipped) {
+        skippedVideos.push({
+          videoId: video.videoId,
+          title: video.title,
+          reason: result.skipReason ?? "Transcript unavailable",
+        });
+      }
     }
-    const ready = await finalizeKnowledgeBase(kb.kbId);
+
+    const ready = await finalizeKnowledgeBase(kb.kbId, true);
     return {
       content: [
         {
@@ -117,6 +127,7 @@ server.tool(
               videosIndexed: ready.videosIndexed,
               chunksIndexed: ready.chunksIndexed,
               status: ready.status,
+              skippedVideos,
             },
             null,
             2

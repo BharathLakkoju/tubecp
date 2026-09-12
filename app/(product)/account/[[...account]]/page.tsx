@@ -10,7 +10,9 @@ export default function AccountPage() {
             <div className="app-inline-header-row">
               <MobileNavToggle />
               <div className="app-inline-header-text">
-                <h1 className="font-mono text-lg font-semibold text-text">Account</h1>
+                <h1 className="font-mono text-lg font-semibold text-text">
+                  Account
+                </h1>
                 <p className="mt-2 font-mono text-[13px] text-text-muted">
                   Authentication is bypassed in E2E test mode.
                 </p>
@@ -29,7 +31,9 @@ export default function AccountPage() {
           <div className="app-inline-header-row">
             <MobileNavToggle />
             <div className="app-inline-header-text">
-              <h1 className="font-mono text-lg font-semibold text-text">Account</h1>
+              <h1 className="font-mono text-lg font-semibold text-text">
+                Account
+              </h1>
               <p className="mt-2 font-mono text-[13px] text-text-muted">
                 Profile and password settings.
               </p>

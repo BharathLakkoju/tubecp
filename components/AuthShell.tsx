@@ -1,17 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import {
-  Children,
-  createContext,
-  isValidElement,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { SessionProvider, signOut, useSession } from "next-auth/react";
-import type { PlanId } from "@/lib/plans";
 import type { SubscriptionState } from "@/lib/hooks/useSubscription";
+import {
+  GUEST_SUBSCRIPTION_STATE,
+  subscriptionStateFromRecord,
+} from "@/lib/subscription-state";
 
 const BypassContext = createContext(false);
 
@@ -19,54 +15,28 @@ export function useBypass(): boolean {
   return useContext(BypassContext);
 }
 
-const SubscriptionContext = createContext<SubscriptionState | null>(null);
-
-const E2E_SUBSCRIPTION: SubscriptionState = {
-  plan: "free",
-  planName: "Free",
-  kbBuildsUsed: 0,
-  kbBuildsLimit: 0,
-  chatUsed: 0,
-  chatLimit: 0,
-  researchUsedToday: 0,
-  researchLimit: 10,
-  canBuildKb: false,
-  canChat: false,
-  loading: false,
-};
+export const SubscriptionContext = createContext<SubscriptionState | null>(null);
 
 function SessionSubscriptionProvider({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession();
   const [state, setState] = useState<SubscriptionState>({
-    ...E2E_SUBSCRIPTION,
+    ...GUEST_SUBSCRIPTION_STATE,
     loading: true,
   });
 
   useEffect(() => {
     if (!session?.user) {
-      setState((s) => ({ ...s, loading: false }));
+      setState(GUEST_SUBSCRIPTION_STATE);
       return;
     }
 
     fetch("/api/user/subscription")
       .then((r) => r.json())
       .then((data) => {
-        if (!data.plan) return;
-        setState({
-          plan: data.subscription.plan as PlanId,
-          planName: data.plan.name,
-          kbBuildsUsed: data.usage.kbBuildsUsed,
-          kbBuildsLimit: data.limits.kbBuildsPerMonth,
-          chatUsed: data.usage.chatMessagesUsed,
-          chatLimit: data.limits.chatMessagesPerMonth,
-          researchUsedToday: data.usage.researchUsedToday,
-          researchLimit: data.limits.researchPerDay,
-          canBuildKb: data.limits.kbBuildsPerMonth > 0,
-          canChat: data.limits.chatMessagesPerMonth > 0,
-          loading: false,
-        });
+        if (!data.subscription) return;
+        setState(subscriptionStateFromRecord(data.subscription));
       })
-      .catch(() => setState((s) => ({ ...s, loading: false })));
+      .catch(() => setState(GUEST_SUBSCRIPTION_STATE));
   }, [session?.user]);
 
   return (
@@ -84,7 +54,7 @@ export function AuthProvider({
   if (e2eBypass) {
     return (
       <BypassContext.Provider value={true}>
-        <SubscriptionContext.Provider value={E2E_SUBSCRIPTION}>
+        <SubscriptionContext.Provider value={GUEST_SUBSCRIPTION_STATE}>
           {children}
         </SubscriptionContext.Provider>
       </BypassContext.Provider>
@@ -126,29 +96,6 @@ export function AppSignedIn({ children }: { children: React.ReactNode }) {
   if (status === "loading") return null;
   if (!session?.user) return null;
   return <>{children}</>;
-}
-
-/** @deprecated Prefer `<Link href="/sign-in">` — always navigates to the sign-in page. */
-export function AppSignInButton({
-  children,
-  mode: _mode,
-}: {
-  children: React.ReactNode;
-  mode?: "modal" | "redirect";
-}) {
-  const bypass = useBypass();
-  if (bypass) return <>{children}</>;
-
-  const child = Children.only(children);
-  if (isValidElement<{ className?: string; children?: React.ReactNode }>(child)) {
-    return (
-      <Link href="/sign-in" className={child.props.className}>
-        {child.props.children}
-      </Link>
-    );
-  }
-
-  return <Link href="/sign-in">{children}</Link>;
 }
 
 function userInitial(user: { name?: string | null; email?: string | null }): string {

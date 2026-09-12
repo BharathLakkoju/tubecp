@@ -9,7 +9,9 @@ export default function BillingPage() {
           <div className="app-inline-header-row">
             <MobileNavToggle />
             <div className="app-inline-header-text">
-              <h1 className="font-sans text-lg font-semibold text-text">Billing &amp; plans</h1>
+              <h1 className="font-sans text-lg font-semibold text-text">
+                Billing &amp; plans
+              </h1>
               <p className="mt-2 font-sans text-sm text-text-muted">
                 Your current plan, renewal date, and subscription options.
               </p>

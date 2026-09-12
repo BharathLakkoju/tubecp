@@ -5,6 +5,7 @@ import {
   MAX_SECONDARY_QUERIES,
   SECONDARY_SEARCH_RESULTS,
 } from "../constants/research";
+import type { ResearchSearchLimits } from "../research-limits";
 import type { DateRange, VideoCandidate } from "../types";
 
 function parseDuration(iso?: string): string | undefined {
@@ -115,9 +116,13 @@ function mergeSearchResults(
 export async function searchYouTubeMultiple(
   queries: string[],
   dateRange?: DateRange,
-  maxPerQuery = PRIMARY_SEARCH_RESULTS
+  searchLimits?: Partial<ResearchSearchLimits>
 ): Promise<VideoCandidate[]> {
   if (queries.length === 0) return [];
+
+  const primaryResultsLimit = searchLimits?.primarySearchResults ?? PRIMARY_SEARCH_RESULTS;
+  const secondaryResultsLimit = searchLimits?.secondarySearchResults ?? SECONDARY_SEARCH_RESULTS;
+  const maxSecondaryQueries = searchLimits?.maxSecondaryQueries ?? MAX_SECONDARY_QUERIES;
 
   const [primary, ...secondary] = queries;
   const scoreMap = new Map<string, ScoredCandidate>();
@@ -128,17 +133,17 @@ export async function searchYouTubeMultiple(
 
   const primaryResults = await searchYouTube(primary, {
     ...searchOpts,
-    maxResults: maxPerQuery,
+    maxResults: primaryResultsLimit,
   });
   mergeSearchResults(scoreMap, primaryResults, true, 1);
 
-  const secondaryQueries = secondary.slice(0, MAX_SECONDARY_QUERIES);
+  const secondaryQueries = secondary.slice(0, maxSecondaryQueries);
   if (secondaryQueries.length > 0) {
     const secondaryBatches = await Promise.all(
       secondaryQueries.map((query) =>
         searchYouTube(query, {
           ...searchOpts,
-          maxResults: SECONDARY_SEARCH_RESULTS,
+          maxResults: secondaryResultsLimit,
         })
       )
     );

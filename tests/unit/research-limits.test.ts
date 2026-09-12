@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getResearchPipelineLimits } from "@/lib/research-limits";
+import { getResearchPipelineLimits, maxSearchFetchCeiling } from "@/lib/research-limits";
 import { selectCandidatesForAnalysis } from "@/lib/services/research-scoring";
 import { mockVideo } from "../fixtures/research";
 
@@ -20,8 +20,27 @@ describe("getResearchPipelineLimits", () => {
   it("raises ceilings for researcher without going infinite", () => {
     const limits = getResearchPipelineLimits("researcher");
     expect(limits.maxResults).toBe(60);
-    expect(limits.analyzeLimit).toBe(60);
+    expect(limits.analyzeLimit).toBe(65);
     expect(limits.analyzeAllWorthy).toBe(true);
+    expect(maxSearchFetchCeiling(limits)).toBeGreaterThanOrEqual(60);
+  });
+
+  it("keeps pro search settings unchanged", () => {
+    const limits = getResearchPipelineLimits("pro");
+    expect(limits.search).toEqual({
+      primarySearchResults: 25,
+      secondarySearchResults: 10,
+      maxSecondaryQueries: 3,
+      maxExpandedQueries: 5,
+    });
+    expect(maxSearchFetchCeiling(limits)).toBe(55);
+  });
+
+  it("uses broader search on researcher tier", () => {
+    const limits = getResearchPipelineLimits("researcher");
+    expect(limits.search.maxSecondaryQueries).toBe(6);
+    expect(limits.search.maxExpandedQueries).toBe(8);
+    expect(maxSearchFetchCeiling(limits)).toBe(102);
   });
 });
 

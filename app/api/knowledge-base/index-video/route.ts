@@ -28,8 +28,14 @@ export async function POST(req: NextRequest) {
     const sub = await getUserSubscription(userId);
     const persistent = getPlan(sub.plan).persistentKbs;
 
-    const kb = await indexVideoInKnowledgeBase(kbId, video, persistent);
-    return NextResponse.json({ kb });
+    const result = await indexVideoInKnowledgeBase(kbId, video, persistent);
+    return NextResponse.json({
+      kb: result.kb,
+      skipped: result.skipped,
+      skipReason: result.skipReason,
+      videoId: video.videoId,
+      videoTitle: video.title,
+    });
   } catch (err) {
     return apiError(err);
   }
