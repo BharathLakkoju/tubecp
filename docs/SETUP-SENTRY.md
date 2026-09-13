@@ -55,7 +55,7 @@ NEXT_PUBLIC_SENTRY_DSN=https://your-key@o123456.ingest.us.sentry.io/7890123
 This project already includes:
 
 - `instrumentation.ts` — loads Sentry on server/edge start
-- `instrumentation-client.ts` — client-side error capture (Web Vitals disabled to avoid CLS reporter crashes)
+- `instrumentation-client.ts` — client-side error capture (performance/Web Vitals disabled; errors tunnel via `/api/monitoring` to avoid ad blockers)
 - `sentry.server.config.ts` — server-side error capture
 - `sentry.edge.config.ts` — edge runtime capture
 - `app/global-error.tsx` — captures React render crashes
