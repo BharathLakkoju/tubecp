@@ -36,6 +36,10 @@ describe("requireUserId", () => {
 });
 
 describe("apiError", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("maps AuthError to 401", async () => {
     const res = apiError(new AuthError("Sign in required"));
     expect(res.status).toBe(401);
@@ -62,6 +66,7 @@ describe("apiError", () => {
   });
 
   it("maps unknown errors to 500 with detail in development", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
     const originalNodeEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = "development";
     const res = apiError(new Error("boom"));
@@ -73,6 +78,7 @@ describe("apiError", () => {
   });
 
   it("omits error detail outside development", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
     const originalNodeEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = "production";
     const res = apiError(new Error("boom"));

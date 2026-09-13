@@ -9,6 +9,7 @@ import { changePolarSubscriptionProduct } from "@/lib/billing/polar-subscription
 import { getUserSubscription, setUserPlan } from "@/lib/billing/subscription";
 import type { PlanId } from "@/lib/plans";
 import { getPlan } from "@/lib/plans";
+import { formatDisplayDate } from "@/lib/format-display-date";
 
 export async function POST(req: NextRequest) {
   try {
@@ -86,7 +87,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const appliesAt = polarResult?.pendingSubscriptionUpdate?.appliesAt?.toISOString();
+    const appliesAt = polarResult?.pendingUpdate?.appliesAt?.toISOString();
 
     return NextResponse.json({
       ok: true,
@@ -94,11 +95,7 @@ export async function POST(req: NextRequest) {
       plan: targetPlanId,
       appliesAt,
       message: appliesAt
-        ? `Your plan will change to ${targetPlan.name} on ${new Date(appliesAt).toLocaleDateString(undefined, {
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          })}. You keep ${getPlan(sub.plan).name} until then.`
+        ? `Your plan will change to ${targetPlan.name} on ${formatDisplayDate(appliesAt)}. You keep ${getPlan(sub.plan).name} until then.`
         : `Your plan will change to ${targetPlan.name} at the end of your current billing period.`,
     });
   } catch (err) {
