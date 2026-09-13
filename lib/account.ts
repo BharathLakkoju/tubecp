@@ -1,6 +1,7 @@
 import { revokePolarSubscription } from "@/lib/billing/polar-subscription";
 import { getUserSubscription } from "@/lib/billing/subscription";
 import { createDbPool } from "@/lib/db";
+import { revokeAllMcpApiKeys } from "@/lib/mcp/api-keys";
 import { deleteKnowledgeBase } from "@/lib/services/knowledge-base";
 import { exportKnowledgeBaseSummary } from "@/lib/services/kb-export";
 import { getUserApiUsage } from "@/lib/usage/api-cost";
@@ -55,6 +56,8 @@ export async function deleteUserAccount(userId: string): Promise<void> {
   for (const kb of knowledgeBases) {
     await deleteKnowledgeBase(kb.kbId, userId);
   }
+
+  await revokeAllMcpApiKeys(userId);
 
   const pool = createDbPool();
   await pool.query(`DELETE FROM users WHERE id = $1`, [userId]);

@@ -1,6 +1,7 @@
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { createMcpServer } from "@/mcp/create-server";
 import { authenticateMcpRequest } from "@/lib/mcp/auth";
+import { mcpUnauthorizedResponse } from "@/lib/mcp/unauthorized-response";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -8,9 +9,7 @@ export const maxDuration = 120;
 async function handleMcp(req: Request): Promise<Response> {
   const auth = await authenticateMcpRequest(req);
   if (!auth) {
-    return Response.json({ error: "Unauthorized — provide Authorization: Bearer <MCP API key>" }, {
-      status: 401,
-    });
+    return mcpUnauthorizedResponse();
   }
 
   const transport = new WebStandardStreamableHTTPServerTransport({

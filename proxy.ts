@@ -1,30 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { isE2eAuthBypass } from "@/lib/e2e";
-
-const PUBLIC_PREFIXES = [
-  "/",
-  "/pricing",
-  "/terms",
-  "/privacy",
-  "/refund",
-  "/sign-in",
-  "/sign-up",
-  "/forgot-password",
-  "/reset-password",
-  "/api/health",
-  "/api/webhook/polar",
-  "/api/auth",
-  // Checkout performs its own auth redirect to sign-in with callbackUrl.
-  "/api/checkout",
-];
-
-function isPublicRoute(pathname: string): boolean {
-  if (pathname === "/") return true;
-  return PUBLIC_PREFIXES.some(
-    (route) => route !== "/" && (pathname === route || pathname.startsWith(`${route}/`))
-  );
-}
+import { isPublicRoute } from "@/lib/public-routes";
 
 export async function proxy(request: NextRequest) {
   if (isE2eAuthBypass()) {
