@@ -8,6 +8,7 @@ const PUBLIC_PREFIXES = [
   "/sign-up",
   "/forgot-password",
   "/reset-password",
+  "/verify-email",
   "/docs",
   "/api/health",
   "/api/mcp",

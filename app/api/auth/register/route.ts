@@ -4,6 +4,7 @@ import { ensureUserSubscription } from "@/lib/billing/subscription";
 import { createDbPool } from "@/lib/db";
 import { EmailDeliveryError } from "@/lib/email";
 import { sendEmailVerification } from "@/lib/email-verification";
+import { RateLimitError, rateLimitApi } from "@/lib/ratelimit";
 import { createUserWithPassword, getUserByEmail, normalizeEmail } from "@/lib/users";
 
 export async function POST(request: Request) {
@@ -17,6 +18,15 @@ export async function POST(request: Request) {
 
   const { name, email, password } = parsed.data;
   const normalizedEmail = normalizeEmail(email);
+
+  try {
+    await rateLimitApi(normalizedEmail, "auth-register", 5);
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return NextResponse.json({ error: err.message, code: err.code }, { status: 429 });
+    }
+    throw err;
+  }
 
   const existing = await getUserByEmail(normalizedEmail);
   if (existing) {

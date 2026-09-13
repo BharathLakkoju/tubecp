@@ -91,11 +91,38 @@ function defaultSub(userId: string): UserSubscription {
   };
 }
 
+export function isSubscriptionUsable(sub: UserSubscription): boolean {
+  if (sub.status === "active") {
+    return true;
+  }
+
+  if ((sub.status === "canceled" || sub.status === "past_due") && sub.periodEnd) {
+    return new Date(sub.periodEnd) > new Date();
+  }
+
+  return sub.plan === "free";
+}
+
 function normalizeSub(sub: UserSubscription): UserSubscription {
   const today = todayKey();
   if (sub.researchDay !== today) {
     sub.researchUsedToday = 0;
     sub.researchDay = today;
+  }
+
+  if (
+    sub.status === "canceled" &&
+    sub.periodEnd &&
+    new Date(sub.periodEnd) <= new Date() &&
+    sub.plan !== "free"
+  ) {
+    sub.plan = "free";
+    sub.status = "active";
+    sub.polarSubscriptionId = undefined;
+    sub.periodStart = monthStart();
+    sub.periodEnd = monthEnd();
+    sub.kbBuildsUsed = 0;
+    sub.chatMessagesUsed = 0;
   }
 
   const currentMonth = monthStart();
@@ -215,7 +242,7 @@ export async function setUserPlan(
     periodEnd?: string;
   }
 ): Promise<UserSubscription> {
-  const sub = await getUserSubscription(userId);
+  const sub = await loadUserSubscription(userId);
   sub.plan = plan;
   sub.status = opts?.status ?? "active";
   sub.periodStart = opts?.periodStart ?? monthStart();
@@ -234,8 +261,38 @@ export async function setUserPlan(
   return sub;
 }
 
+/** Marks subscription canceled but keeps paid access until period end. */
+export async function markSubscriptionCanceling(
+  userId: string,
+  opts?: { periodEnd?: string }
+): Promise<UserSubscription> {
+  const sub = await loadUserSubscription(userId);
+  if (sub.plan === "free") {
+    return sub;
+  }
+
+  sub.status = "canceled";
+  if (opts?.periodEnd) {
+    sub.periodEnd = opts.periodEnd;
+  }
+  sub.updatedAt = new Date().toISOString();
+  await persistSubscription(sub);
+  return sub;
+}
+
+/** Immediately downgrades to free (revocation or period ended). */
 export async function cancelUserSubscription(userId: string): Promise<UserSubscription> {
-  return setUserPlan(userId, "free", { status: "canceled" });
+  const sub = await loadUserSubscription(userId);
+  sub.plan = "free";
+  sub.status = "canceled";
+  sub.polarSubscriptionId = undefined;
+  sub.periodStart = monthStart();
+  sub.periodEnd = monthEnd();
+  sub.kbBuildsUsed = 0;
+  sub.chatMessagesUsed = 0;
+  sub.updatedAt = new Date().toISOString();
+  await persistSubscription(sub);
+  return sub;
 }
 
 export type UsageType = "research" | "kb_build" | "chat";
@@ -276,7 +333,7 @@ function assertUsageWithinLimit(sub: UserSubscription, type: UsageType): void {
 
   const plan = getPlan(sub.plan);
 
-  if (sub.status !== "active" && sub.plan !== "free") {
+  if (!isSubscriptionUsable(sub)) {
     throw new FeatureGateError("Your subscription is not active. Please update billing.");
   }
 
@@ -335,7 +392,7 @@ export async function checkAndIncrementUsage(
     return sub;
   }
 
-  if (workspace?.plan === "team") {
+  if (workspace && sub.plan === "team") {
     await incrementWorkspaceUsage(workspace.id, type);
     const refreshed = await getUserWorkspace(userId);
     return applyWorkspaceSubscription(await loadUserSubscription(userId), refreshed);

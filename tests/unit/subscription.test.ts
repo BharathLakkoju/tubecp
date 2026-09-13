@@ -4,6 +4,8 @@ import {
   checkAndIncrementUsage,
   FeatureGateError,
   getUserSubscription,
+  isSubscriptionUsable,
+  markSubscriptionCanceling,
   setUserPlan,
   UsageLimitError,
 } from "@/lib/billing/subscription";
@@ -72,5 +74,18 @@ describe("subscription usage", () => {
     const sub = await setUserPlan(userId, "free", { status: "canceled" });
     expect(sub.plan).toBe("free");
     expect(sub.status).toBe("canceled");
+  });
+
+  it("keeps paid access until period end when canceling", async () => {
+    const userId = uid("cancel_period");
+    const periodEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    await setUserPlan(userId, "pro", { periodEnd });
+
+    const canceled = await markSubscriptionCanceling(userId, { periodEnd });
+    expect(canceled.status).toBe("canceled");
+    expect(canceled.plan).toBe("pro");
+    expect(isSubscriptionUsable(canceled)).toBe(true);
+
+    await expect(checkAndIncrementUsage(userId, "kb_build")).resolves.toBeDefined();
   });
 });

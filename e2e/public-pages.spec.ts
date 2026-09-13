@@ -66,6 +66,12 @@ test.describe("Public pages", () => {
     await expect(page.getByRole("button", { name: /continue with github/i })).toBeVisible();
   });
 
+  test("verify-email page loads without sign-in redirect", async ({ page }) => {
+    await page.goto("/verify-email?token=test");
+    await expect(page).toHaveURL(/\/verify-email/);
+    await expect(page.getByRole("heading", { name: /verify email/i })).toBeVisible();
+  });
+
   test("sign-up page loads", async ({ page }) => {
     await page.goto("/sign-up");
     await expect(page.getByRole("heading", { name: /create your account/i })).toBeVisible();

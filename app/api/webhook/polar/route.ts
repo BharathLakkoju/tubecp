@@ -1,9 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Webhooks } from "@polar-sh/nextjs";
-import { setUserPlan, cancelUserSubscription } from "@/lib/billing/subscription";
+import {
+  setUserPlan,
+  cancelUserSubscription,
+  markSubscriptionCanceling,
+} from "@/lib/billing/subscription";
 import type { PlanId } from "@/lib/plans";
+import { planIdFromPolarProductId } from "@/lib/plans";
 
 const webhookSecret = process.env.POLAR_WEBHOOK_SECRET;
+
+function resolvePlanFromWebhook(data: {
+  metadata?: Record<string, unknown> | null;
+  productId?: string | null;
+}): PlanId {
+  const fromMeta = data.metadata?.plan;
+  if (fromMeta === "pro" || fromMeta === "researcher" || fromMeta === "team") {
+    return fromMeta;
+  }
+  return planIdFromPolarProductId(data.productId ?? undefined) ?? "pro";
+}
 
 function periodDates(data: {
   currentPeriodStart?: Date | string | null;
@@ -24,7 +40,7 @@ const polarWebhook = webhookSecret
       onSubscriptionActive: async (payload) => {
         const data = payload.data;
         const userId = data.metadata?.userId as string | undefined;
-        const plan = (data.metadata?.plan as PlanId) ?? "pro";
+        const plan = resolvePlanFromWebhook(data);
         const { periodStart, periodEnd } = periodDates(data);
 
         if (userId) {
@@ -45,22 +61,37 @@ const polarWebhook = webhookSecret
         const { periodStart, periodEnd } = periodDates(data);
 
         if (data.status === "active") {
-          const plan = (data.metadata?.plan as PlanId) ?? "pro";
+          const plan = resolvePlanFromWebhook(data);
           await setUserPlan(userId, plan, {
             polarSubscriptionId: data.id,
             status: "active",
             periodStart,
             periodEnd,
           });
+          return;
         }
 
-        if (data.status === "canceled" || data.status === "past_due") {
-          await cancelUserSubscription(userId);
+        if (data.status === "canceled") {
+          await markSubscriptionCanceling(userId, { periodEnd });
+          return;
+        }
+
+        if (data.status === "past_due") {
+          const plan = resolvePlanFromWebhook(data);
+          await setUserPlan(userId, plan, {
+            polarSubscriptionId: data.id,
+            status: "past_due",
+            periodStart,
+            periodEnd,
+          });
         }
       },
       onSubscriptionCanceled: async (payload) => {
-        const userId = payload.data.metadata?.userId as string | undefined;
-        if (userId) await cancelUserSubscription(userId);
+        const data = payload.data;
+        const userId = data.metadata?.userId as string | undefined;
+        if (!userId) return;
+        const { periodEnd } = periodDates(data);
+        await markSubscriptionCanceling(userId, { periodEnd });
       },
       onSubscriptionRevoked: async (payload) => {
         const userId = payload.data.metadata?.userId as string | undefined;

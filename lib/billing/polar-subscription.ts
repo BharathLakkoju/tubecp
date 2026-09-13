@@ -55,3 +55,42 @@ export async function cancelPolarSubscriptionAtPeriodEnd(
     },
   });
 }
+
+export type PolarPlanChangeMode = "upgrade" | "downgrade_at_period_end";
+
+/** Change subscription product — upgrades prorate immediately; downgrades apply next period. */
+export async function changePolarSubscriptionProduct(
+  polarSubscriptionId: string,
+  productId: string,
+  mode: PolarPlanChangeMode
+) {
+  if (!isPolarBillingConfigured()) {
+    if (isProduction()) {
+      throw new PolarSubscriptionError("Billing is not configured. Please contact support.");
+    }
+    return null;
+  }
+
+  const polar = getPolarClient();
+
+  try {
+    return await polar.subscriptions.update({
+      id: polarSubscriptionId,
+      subscriptionUpdate: {
+        productId,
+        prorationBehavior: mode === "upgrade" ? "prorate" : "next_period",
+      },
+    });
+  } catch (err) {
+    if (err instanceof ResourceNotFound) {
+      throw new PolarSubscriptionError(
+        "Your billing subscription could not be found. Please contact support."
+      );
+    }
+
+    console.error("Failed to change Polar subscription product:", err);
+    throw new PolarSubscriptionError(
+      "Could not update your subscription. Please try again or contact support."
+    );
+  }
+}

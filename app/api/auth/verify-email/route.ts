@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyEmailWithToken } from "@/lib/email-verification";
+import { rateLimitByIp, RateLimitError } from "@/lib/ratelimit";
 
 export async function POST(request: NextRequest) {
+  try {
+    await rateLimitByIp(request, "auth-verify-email", 20);
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return NextResponse.json({ error: err.message, code: err.code }, { status: 429 });
+    }
+    throw err;
+  }
+
   const body = await request.json().catch(() => null);
   const token = typeof body?.token === "string" ? body.token : "";
 

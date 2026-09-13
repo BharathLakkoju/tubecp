@@ -18,7 +18,7 @@ export default function GlobalError({
     <html lang="en" data-color-scheme="light">
       <head>
         <link
-          href="https://fonts.googleapis.com/css2?family=DM+Sans&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Work+Sans:ital,wght@0,100..900;1,100..900&display=swap"
           rel="stylesheet"
         />
         <style>{`

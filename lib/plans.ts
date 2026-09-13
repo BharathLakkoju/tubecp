@@ -12,6 +12,8 @@ export interface PlanLimits {
   polarProductId?: string;
 }
 
+const PLAN_ORDER: PlanId[] = ["free", "pro", "researcher", "team"];
+
 export const PLANS: Record<PlanId, PlanLimits> = {
   free: {
     id: "free",
@@ -30,7 +32,6 @@ export const PLANS: Record<PlanId, PlanLimits> = {
     chatMessagesPerMonth: 200,
     researchPerDay: 50,
     persistentKbs: true,
-    polarProductId: process.env.POLAR_PRODUCT_ID_PRO,
   },
   researcher: {
     id: "researcher",
@@ -40,7 +41,6 @@ export const PLANS: Record<PlanId, PlanLimits> = {
     chatMessagesPerMonth: 600,
     researchPerDay: 100,
     persistentKbs: true,
-    polarProductId: process.env.POLAR_PRODUCT_ID_RESEARCHER,
   },
   team: {
     id: "team",
@@ -51,13 +51,39 @@ export const PLANS: Record<PlanId, PlanLimits> = {
     researchPerDay: 200,
     persistentKbs: true,
     seatLimit: 5,
-    polarProductId: process.env.POLAR_PRODUCT_ID_TEAM,
   },
 };
 
+/** Read Polar product IDs at call time so Vercel runtime env vars apply. */
+export function resolvePolarProductId(planId: PlanId): string | undefined {
+  switch (planId) {
+    case "pro":
+      return process.env.POLAR_PRODUCT_ID_PRO?.trim() || undefined;
+    case "researcher":
+      return process.env.POLAR_PRODUCT_ID_RESEARCHER?.trim() || undefined;
+    case "team":
+      return process.env.POLAR_PRODUCT_ID_TEAM?.trim() || undefined;
+    default:
+      return undefined;
+  }
+}
+
+/** Map a Polar product ID back to a plan (for webhooks after product changes). */
+export function planIdFromPolarProductId(productId: string | undefined): PlanId | undefined {
+  if (!productId?.trim()) return undefined;
+  const id = productId.trim();
+  if (id === resolvePolarProductId("pro")) return "pro";
+  if (id === resolvePolarProductId("researcher")) return "researcher";
+  if (id === resolvePolarProductId("team")) return "team";
+  return undefined;
+}
+
 export function getPlan(planId: string | undefined): PlanLimits {
   if (planId === "pro" || planId === "researcher" || planId === "team") {
-    return PLANS[planId];
+    return {
+      ...PLANS[planId],
+      polarProductId: resolvePolarProductId(planId),
+    };
   }
   return PLANS.free;
 }
@@ -76,13 +102,13 @@ export function isPaidPlanConfigured(plan: PlanLimits): boolean {
 
 /** Plans shown on marketing/pricing surfaces (hides paid tiers without Polar product IDs). */
 export function getPricingPlans(): PlanLimits[] {
-  return [PLANS.free, PLANS.pro, PLANS.researcher].filter(isPaidPlanConfigured);
+  return PLAN_ORDER.map((id) => getPlan(id)).filter(isPaidPlanConfigured);
 }
 
 export function getPolarProductStatus(): Record<"pro" | "researcher" | "team", boolean> {
   return {
-    pro: Boolean(PLANS.pro.polarProductId?.trim()),
-    researcher: Boolean(PLANS.researcher.polarProductId?.trim()),
-    team: Boolean(PLANS.team.polarProductId?.trim()),
+    pro: Boolean(resolvePolarProductId("pro")),
+    researcher: Boolean(resolvePolarProductId("researcher")),
+    team: Boolean(resolvePolarProductId("team")),
   };
 }

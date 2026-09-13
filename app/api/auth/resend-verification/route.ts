@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { EmailDeliveryError } from "@/lib/email";
 import { sendEmailVerification } from "@/lib/email-verification";
+import { RateLimitError, rateLimitApi } from "@/lib/ratelimit";
 import { getUserByEmail, hasPasswordAuth, normalizeEmail } from "@/lib/users";
 
 const schema = z.object({
@@ -17,6 +18,16 @@ export async function POST(request: Request) {
   }
 
   const email = normalizeEmail(parsed.data.email);
+
+  try {
+    await rateLimitApi(email, "auth-resend-verification", 3);
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      return NextResponse.json({ error: err.message, code: err.code }, { status: 429 });
+    }
+    throw err;
+  }
+
   const user = await getUserByEmail(email);
 
   if (!user || !hasPasswordAuth(user)) {

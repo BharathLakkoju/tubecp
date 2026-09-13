@@ -3,7 +3,7 @@ import { requireUserId, AuthError } from "@/lib/auth";
 import { checkoutPathForPlan, isPaidPlan } from "@/lib/billing/checkout-flow";
 import { getPolarClient, getAppUrl } from "@/lib/polar";
 import type { PlanId } from "@/lib/plans";
-import { PLANS } from "@/lib/plans";
+import { getPlan } from "@/lib/plans";
 
 export async function GET(req: NextRequest) {
   const planParam = (req.nextUrl.searchParams.get("plan") ?? "pro") as PlanId;
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
     throw err;
   }
 
-  const plan = PLANS[planParam] ?? PLANS.pro;
+  const plan = isPaidPlan(planParam) ? getPlan(planParam) : getPlan("pro");
   const productId = plan.polarProductId;
 
   if (!productId) {

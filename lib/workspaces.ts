@@ -2,7 +2,11 @@ import { createDbPool } from "@/lib/db";
 import { isMissingRelationError } from "@/lib/db/postgres-errors";
 import { isE2eAuthBypass } from "@/lib/e2e";
 import { getPlan, type PlanId } from "@/lib/plans";
-import type { UserSubscription } from "@/lib/billing/subscription";
+import {
+  getUserSubscription,
+  isSubscriptionUsable,
+  type UserSubscription,
+} from "@/lib/billing/subscription";
 
 export type WorkspaceRole = "owner" | "admin" | "member";
 
@@ -92,11 +96,22 @@ export async function getUserWorkspace(userId: string): Promise<Workspace | null
   }
 }
 
+async function assertTeamSubscription(userId: string): Promise<void> {
+  const sub = await getUserSubscription(userId);
+  if (sub.plan !== "team" || !isSubscriptionUsable(sub)) {
+    throw new Error(
+      "Team workspace requires an active Team subscription. Upgrade at /pricing?plan=team."
+    );
+  }
+}
+
 export async function createWorkspace(userId: string, name: string): Promise<Workspace> {
   const trimmed = name.trim();
   if (!trimmed) {
     throw new Error("Workspace name is required");
   }
+
+  await assertTeamSubscription(userId);
 
   const existing = await getUserWorkspace(userId);
   if (existing) {
@@ -263,18 +278,17 @@ export async function incrementWorkspaceUsage(
   );
 }
 
-/** Apply workspace pooled limits when the user belongs to a team workspace. */
+/** Pool workspace usage counters for users on an active Team plan. */
 export function applyWorkspaceSubscription(
   sub: UserSubscription,
   workspace: Workspace | null
 ): UserSubscription {
-  if (!workspace || workspace.plan !== "team") {
+  if (!workspace || sub.plan !== "team" || !isSubscriptionUsable(sub)) {
     return sub;
   }
 
   return {
     ...sub,
-    plan: "team",
     kbBuildsUsed: workspace.kbBuildsUsed,
     chatMessagesUsed: workspace.chatMessagesUsed,
     researchUsedToday: workspace.researchUsedToday,

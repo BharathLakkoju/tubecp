@@ -77,7 +77,8 @@ export default function WorkspacePanel() {
       <div className="border border-border bg-surface p-5">
         <h3 className="font-mono text-sm font-semibold text-text">Team workspace</h3>
         <p className="mt-2 font-mono text-[13px] text-text-muted">
-          Create a shared workspace with pooled research, KB builds, and chat limits for up to 5 seats.
+          Requires an active Team subscription. Create a shared workspace with pooled limits for up to
+          5 seats.
         </p>
         <label className="mt-4 block font-mono text-xs text-text-muted">
           Workspace name

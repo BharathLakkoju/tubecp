@@ -11,11 +11,25 @@ import {
 } from "@/lib/services/knowledge-base";
 import { chatWithKnowledgeBase } from "@/lib/services/chat";
 import { isLicenseValid } from "@/lib/config";
+import {
+  mcpAssertKbAccess,
+  mcpConsumeUsage,
+  mcpGetUserPlan,
+  McpEnforcementError,
+  requireBillableMcpUser,
+} from "@/lib/mcp/enforcement";
 
 export type McpToolContext = {
   userId: string;
   licenseKey?: string;
 };
+
+function toolError(message: string) {
+  return {
+    content: [{ type: "text" as const, text: JSON.stringify({ error: message }) }],
+    isError: true,
+  };
+}
 
 export function registerMcpTools(server: McpServer, ctx: McpToolContext): void {
   const licenseKey = ctx.licenseKey;
@@ -30,13 +44,19 @@ export function registerMcpTools(server: McpServer, ctx: McpToolContext): void {
       publishedBefore: z.string().optional(),
     },
     async ({ query, maxResults, publishedAfter, publishedBefore }) => {
-      const videos = await searchYouTube(query, {
-        maxResults,
-        publishedAfter,
-        publishedBefore,
-        usageUserId: ctx.userId,
-      });
-      return { content: [{ type: "text", text: JSON.stringify({ videos }, null, 2) }] };
+      try {
+        requireBillableMcpUser(ctx.userId);
+        const videos = await searchYouTube(query, {
+          maxResults,
+          publishedAfter,
+          publishedBefore,
+          usageUserId: ctx.userId,
+        });
+        return { content: [{ type: "text", text: JSON.stringify({ videos }, null, 2) }] };
+      } catch (err) {
+        if (err instanceof McpEnforcementError) return toolError(err.message);
+        throw err;
+      }
     }
   );
 
@@ -45,8 +65,14 @@ export function registerMcpTools(server: McpServer, ctx: McpToolContext): void {
     "Get the transcript/captions for a YouTube video",
     { videoId: z.string() },
     async ({ videoId }) => {
-      const transcript = await getTranscript(videoId);
-      return { content: [{ type: "text", text: JSON.stringify(transcript, null, 2) }] };
+      try {
+        requireBillableMcpUser(ctx.userId);
+        const transcript = await getTranscript(videoId);
+        return { content: [{ type: "text", text: JSON.stringify(transcript, null, 2) }] };
+      } catch (err) {
+        if (err instanceof McpEnforcementError) return toolError(err.message);
+        throw err;
+      }
     }
   );
 
@@ -55,15 +81,21 @@ export function registerMcpTools(server: McpServer, ctx: McpToolContext): void {
     "Determine whether a video meaningfully discusses a topic",
     { videoId: z.string(), topic: z.string() },
     async ({ videoId, topic }) => {
-      const video = {
-        videoId,
-        title: videoId,
-        channel: "Unknown",
-        url: `https://www.youtube.com/watch?v=${videoId}`,
-        publishedAt: "",
-      };
-      const analysis = await analyzeVideo(video, topic);
-      return { content: [{ type: "text", text: JSON.stringify(analysis, null, 2) }] };
+      try {
+        requireBillableMcpUser(ctx.userId);
+        const video = {
+          videoId,
+          title: videoId,
+          channel: "Unknown",
+          url: `https://www.youtube.com/watch?v=${videoId}`,
+          publishedAt: "",
+        };
+        const analysis = await analyzeVideo(video, topic);
+        return { content: [{ type: "text", text: JSON.stringify(analysis, null, 2) }] };
+      } catch (err) {
+        if (err instanceof McpEnforcementError) return toolError(err.message);
+        throw err;
+      }
     }
   );
 
@@ -75,11 +107,21 @@ export function registerMcpTools(server: McpServer, ctx: McpToolContext): void {
       maxVideos: z.number().optional(),
     },
     async ({ topic, maxVideos }) => {
-      const result = await runResearchPipeline(topic, {
-        planId: "pro",
-        maxVideos,
-      });
-      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      try {
+        const planId = await mcpGetUserPlan(ctx.userId);
+        await mcpConsumeUsage(ctx.userId, "research");
+        const result = await runResearchPipeline(topic, {
+          planId,
+          maxVideos,
+        });
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+      } catch (err) {
+        if (err instanceof McpEnforcementError) return toolError(err.message);
+        if (err instanceof Error && "code" in err) {
+          return toolError(err.message);
+        }
+        throw err;
+      }
     }
   );
 
@@ -102,50 +144,59 @@ export function registerMcpTools(server: McpServer, ctx: McpToolContext): void {
       licenseKey: z.string().optional(),
     },
     async ({ topic, rankedVideos, licenseKey: toolLicenseKey }) => {
-      const key = toolLicenseKey ?? licenseKey;
-      if (!isLicenseValid(key)) {
-        return {
-          content: [{ type: "text", text: JSON.stringify({ error: "Invalid license key" }) }],
-          isError: true,
-        };
-      }
-      const videos = rankedVideos.map((video) => ({
-        ...video,
-        thumbnailUrl: `https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`,
-      }));
-      const kb = await createKnowledgeBase(topic, videos, ctx.userId, true);
-      const skippedVideos: Array<{ videoId: string; title: string; reason: string }> = [];
-
-      for (const video of videos) {
-        const result = await indexVideoInKnowledgeBase(kb.kbId, video, true);
-        if (result.skipped) {
-          skippedVideos.push({
-            videoId: video.videoId,
-            title: video.title,
-            reason: result.skipReason ?? "Transcript unavailable",
-          });
+      try {
+        const key = toolLicenseKey ?? licenseKey;
+        if (!isLicenseValid(key)) {
+          return toolError("Invalid license key");
         }
-      }
 
-      const ready = await finalizeKnowledgeBase(kb.kbId, true);
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              {
-                kbId: ready.kbId,
-                videosIndexed: ready.videosIndexed,
-                chunksIndexed: ready.chunksIndexed,
-                status: ready.status,
-                skippedVideos,
-              },
-              null,
-              2
-            ),
-          },
-        ],
-      };
+        requireBillableMcpUser(ctx.userId);
+        await mcpConsumeUsage(ctx.userId, "kb_build");
+
+        const videos = rankedVideos.map((video) => ({
+          ...video,
+          thumbnailUrl: `https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`,
+        }));
+        const kb = await createKnowledgeBase(topic, videos, ctx.userId, true);
+        const skippedVideos: Array<{ videoId: string; title: string; reason: string }> = [];
+
+        for (const video of videos) {
+          const result = await indexVideoInKnowledgeBase(kb.kbId, video, true);
+          if (result.skipped) {
+            skippedVideos.push({
+              videoId: video.videoId,
+              title: video.title,
+              reason: result.skipReason ?? "Transcript unavailable",
+            });
+          }
+        }
+
+        const ready = await finalizeKnowledgeBase(kb.kbId, true);
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  kbId: ready.kbId,
+                  videosIndexed: ready.videosIndexed,
+                  chunksIndexed: ready.chunksIndexed,
+                  status: ready.status,
+                  skippedVideos,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      } catch (err) {
+        if (err instanceof McpEnforcementError) return toolError(err.message);
+        if (err instanceof Error && "code" in err) {
+          return toolError(err.message);
+        }
+        throw err;
+      }
     }
   );
 
@@ -158,15 +209,24 @@ export function registerMcpTools(server: McpServer, ctx: McpToolContext): void {
       licenseKey: z.string().optional(),
     },
     async ({ kbId, message, licenseKey: toolLicenseKey }) => {
-      const key = toolLicenseKey ?? licenseKey;
-      if (!isLicenseValid(key)) {
-        return {
-          content: [{ type: "text", text: JSON.stringify({ error: "Invalid license key" }) }],
-          isError: true,
-        };
+      try {
+        const key = toolLicenseKey ?? licenseKey;
+        if (!isLicenseValid(key)) {
+          return toolError("Invalid license key");
+        }
+
+        await mcpAssertKbAccess(kbId, ctx.userId);
+        await mcpConsumeUsage(ctx.userId, "chat");
+
+        const response = await chatWithKnowledgeBase(kbId, message);
+        return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
+      } catch (err) {
+        if (err instanceof McpEnforcementError) return toolError(err.message);
+        if (err instanceof Error && "code" in err) {
+          return toolError(err.message);
+        }
+        throw err;
       }
-      const response = await chatWithKnowledgeBase(kbId, message);
-      return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
     }
   );
 }

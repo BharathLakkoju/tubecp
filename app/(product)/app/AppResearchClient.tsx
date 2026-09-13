@@ -24,6 +24,7 @@ const ResearchMatchedLinks = dynamic(() => import("@/components/ResearchMatchedL
 const KbBuildProgress = dynamic(() => import("@/components/KbBuildProgress"));
 const UpgradePrompt = dynamic(() => import("@/components/UpgradePrompt"));
 const FreeTierTeaser = dynamic(() => import("@/components/FreeTierTeaser"));
+const UpgradeSuccessBanner = dynamic(() => import("@/components/UpgradeSuccessBanner"));
 
 function emptyLiveResearch(): ResearchLiveState {
   return {
@@ -158,11 +159,7 @@ export default function AppResearchClient({
           <MobileNavToggle />
         </div>
 
-        {showUpgradedBanner && (
-          <div className="motion-fade-up mb-6 border border-border bg-surface px-4 py-3 text-center font-mono text-[13px] text-success">
-            upgrade successful — you can now build knowledge bases and chat.
-          </div>
-        )}
+        {showUpgradedBanner && <UpgradeSuccessBanner />}
 
         <PhasePanel phase={panelKey}>
           {phase === "search" && (
