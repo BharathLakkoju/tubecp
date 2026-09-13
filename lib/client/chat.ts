@@ -6,6 +6,9 @@ export type ChatStreamEvent =
   | { type: "done"; sources: ChatSource[]; gaps?: string }
   | { type: "error"; message: string };
 
+export const RESEARCH_RETRY_MESSAGE =
+  "Something went wrong. please try again after some time.";
+
 export function parseClientError(err: unknown): string {
   const msg = String(err);
   if (msg.includes("FEATURE_GATE") || msg.includes("Pro plan")) {
@@ -16,6 +19,14 @@ export function parseClientError(err: unknown): string {
   }
   if (msg.includes("Sign in")) {
     return "Please sign in to continue.";
+  }
+  if (
+    msg.includes("Internal server error") ||
+    msg.includes("RESEARCH_FAILED") ||
+    msg.includes("OpenRouter") ||
+    msg.includes("Request failed: 5")
+  ) {
+    return RESEARCH_RETRY_MESSAGE;
   }
   return msg.replace("Error: ", "");
 }

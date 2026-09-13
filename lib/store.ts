@@ -3,6 +3,17 @@ import { getRedis, hasRedis } from "./store/redis";
 
 const memory = new Map<string, unknown>();
 const RESEARCH_RESULT_TTL_SECONDS = 48 * 60 * 60;
+/** Upstash Redis limits each request to 10MB — batch mget to stay under. */
+const MGET_BATCH_SIZE = 24;
+
+export type ChunkContent = Pick<
+  TranscriptChunk,
+  "id" | "videoId" | "title" | "channel" | "timestamp" | "text"
+>;
+
+function chunkContentKey(chunkId: string): string {
+  return `chunk-content:${chunkId}`;
+}
 
 export function hasKv(): boolean {
   return hasRedis();
@@ -21,8 +32,15 @@ async function mget<T>(keys: string[]): Promise<(T | null)[]> {
 
   const redis = getRedis();
   if (redis) {
-    const values = await redis.mget<(T | null)[]>(...keys);
-    return values.map((value) => value ?? null);
+    const results: (T | null)[] = [];
+
+    for (let i = 0; i < keys.length; i += MGET_BATCH_SIZE) {
+      const batch = keys.slice(i, i + MGET_BATCH_SIZE);
+      const values = await redis.mget<(T | null)[]>(...batch);
+      results.push(...values.map((value) => value ?? null));
+    }
+
+    return results;
   }
 
   return keys.map((key) => (memory.get(key) as T) ?? null);
@@ -117,7 +135,11 @@ export async function cacheAnalysis(
 }
 
 export async function saveChunk(chunk: TranscriptChunk): Promise<void> {
-  await set(`chunk:${chunk.id}`, chunk);
+  const { embedding: _embedding, ...content } = chunk;
+  await Promise.all([
+    set(`chunk:${chunk.id}`, chunk),
+    set(chunkContentKey(chunk.id), content),
+  ]);
 }
 
 export async function getChunksForVideos(videoIds: string[]): Promise<TranscriptChunk[]> {
@@ -138,6 +160,39 @@ export async function getChunksByIds(chunkIds: string[]): Promise<TranscriptChun
   const keys = chunkIds.map((id) => `chunk:${id}`);
   const chunks = await mget<TranscriptChunk>(keys);
   return chunks.filter((chunk): chunk is TranscriptChunk => chunk !== null);
+}
+
+/** Text-only chunk payload for RAG context — avoids loading embeddings from Redis. */
+export async function getChunkContentsByIds(chunkIds: string[]): Promise<ChunkContent[]> {
+  if (chunkIds.length === 0) return [];
+
+  const contentKeys = chunkIds.map((id) => chunkContentKey(id));
+  const contents = await mget<ChunkContent>(contentKeys);
+  const resolved: ChunkContent[] = [];
+  const missingIds: string[] = [];
+
+  for (let i = 0; i < chunkIds.length; i++) {
+    const content = contents[i];
+    if (content) {
+      resolved.push(content);
+      continue;
+    }
+    missingIds.push(chunkIds[i]);
+  }
+
+  if (missingIds.length > 0) {
+    const legacyChunks = await getChunksByIds(missingIds);
+    for (const chunk of legacyChunks) {
+      const { embedding: _embedding, ...content } = chunk;
+      resolved.push(content);
+      await set(chunkContentKey(chunk.id), content);
+    }
+  }
+
+  const order = new Map(chunkIds.map((id, index) => [id, index]));
+  return resolved.sort(
+    (a, b) => (order.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (order.get(b.id) ?? Number.MAX_SAFE_INTEGER)
+  );
 }
 
 export function researchResultCacheKey(planId: string, topic: string): string {
@@ -238,6 +293,7 @@ export async function deleteChunksForKnowledgeBase(
 
   for (const chunkId of chunkIds) {
     await del(`chunk:${chunkId}`);
+    await del(chunkContentKey(chunkId));
   }
 }
 

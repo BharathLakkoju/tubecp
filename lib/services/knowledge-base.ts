@@ -9,7 +9,6 @@ import { generateEmbeddings } from "./llm";
 import {
   saveChunk,
   saveKnowledgeBase,
-  getChunksByIds,
   getChunksForVideos,
   registerVideoChunks,
   getKnowledgeBase,
@@ -18,11 +17,7 @@ import {
   deleteChunksForKnowledgeBase,
   removeUserKnowledgeBase,
 } from "../store";
-import {
-  addToKbVectorIndex,
-  deleteKbVectorIndex,
-  setKbVectorIndex,
-} from "../store/vector-index";
+import { addToKbVectorIndex, deleteKbVectorIndex } from "../store/vector-index";
 import { deleteKbChatData } from "./kb-chat";
 import type { TranscriptChunk, KnowledgeBaseRecord, RankedVideo } from "../types";
 
@@ -229,14 +224,7 @@ export async function finalizeKnowledgeBase(
   const kb = await getKnowledgeBase(kbId);
   if (!kb) throw new Error(`Knowledge base not found: ${kbId}`);
 
-  const chunks = await getChunksByIds(kb.chunkIds);
-  await setKbVectorIndex(
-    kbId,
-    chunks
-      .filter((chunk) => chunk.embedding)
-      .map((chunk) => ({ id: chunk.id, embedding: chunk.embedding! }))
-  );
-
+  // Vector index is built incrementally during indexing — avoid reloading all chunks here.
   const updated: KnowledgeBaseRecord = {
     ...kb,
     status: kb.chunkIds.length > 0 ? "ready" : "failed",

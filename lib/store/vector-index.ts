@@ -147,9 +147,24 @@ export async function addToKbVectorIndex(
 ): Promise<void> {
   if (entries.length === 0) return;
 
-  const merged = mergeEntries(await readFlatIndex(kbId), entries);
-  await writeFlatIndex(kbId, merged);
+  // Bucket index only — flat index does not scale past Upstash's 10MB request limit.
   await writeBucketIndex(kbId, addToBucketMap(await readBucketIndex(kbId), entries));
+}
+
+function flattenBucketIndex(buckets: Map<number, KbVectorEntry[]>): KbVectorEntry[] {
+  const entries: KbVectorEntry[] = [];
+  const seen = new Set<string>();
+
+  for (const bucketEntries of buckets.values()) {
+    for (const entry of bucketEntries) {
+      if (!seen.has(entry.id)) {
+        entries.push(entry);
+        seen.add(entry.id);
+      }
+    }
+  }
+
+  return entries;
 }
 
 export async function searchKbVectorIndex(
@@ -157,14 +172,19 @@ export async function searchKbVectorIndex(
   queryEmbedding: number[],
   topK: number
 ): Promise<Array<{ id: string; score: number }>> {
-  const entries = await readFlatIndex(kbId);
+  const buckets = await readBucketIndex(kbId);
+  let entries = flattenBucketIndex(buckets);
+
+  if (entries.length === 0) {
+    entries = await readFlatIndex(kbId);
+  }
+
   if (entries.length === 0) return [];
 
   if (entries.length <= IVF_FULL_SCAN_THRESHOLD) {
     return scoreEntries(entries, queryEmbedding, topK);
   }
 
-  const buckets = await readBucketIndex(kbId);
   const probes = probeBuckets(queryEmbedding);
   const candidates: KbVectorEntry[] = [];
   const seen = new Set<string>();

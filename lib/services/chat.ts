@@ -1,6 +1,7 @@
 import { isE2eStubMode, streamStubKnowledgeBaseChat } from "@/lib/e2e-stub";
-import { generateText, generateTextStream, generateEmbedding, cosineSimilarity } from "./llm";
-import { getKnowledgeBase, getChunksByIds } from "../store";
+import { generateText, generateTextStream, generateEmbedding } from "./llm";
+import { searchChunksByEmbedding } from "./chunk-search";
+import { getKnowledgeBase, getChunkContentsByIds, type ChunkContent } from "../store";
 import { searchKbVectorIndex } from "../store/vector-index";
 import { formatTimestamp, timestampUrl } from "./transcript";
 import type { ChatResponse, ChatSource } from "../types";
@@ -76,29 +77,25 @@ export async function* streamKnowledgeBaseChat(
   yield { type: "status", message: "Finding relevant resources..." };
 
   const queryEmbedding = await generateEmbedding(message);
-  let scored: Array<{ chunk: Awaited<ReturnType<typeof getChunksByIds>>[number]; score: number }>;
+  let scored: Array<{ chunk: ChunkContent; score: number }>;
 
   const vectorHits = await searchKbVectorIndex(kbId, queryEmbedding, 12);
   if (vectorHits.length > 0) {
-    const chunks = await getChunksByIds(vectorHits.map((hit) => hit.id));
+    const chunks = await getChunkContentsByIds(vectorHits.map((hit) => hit.id));
     scored = vectorHits
       .map((hit) => {
         const chunk = chunks.find((candidate) => candidate.id === hit.id);
         return chunk ? { chunk, score: hit.score } : null;
       })
       .filter(
-        (entry): entry is { chunk: (typeof chunks)[number]; score: number } => entry !== null
+        (entry): entry is { chunk: ChunkContent; score: number } => entry !== null
       );
   } else {
-    const chunks = await getChunksByIds(kb.chunkIds);
-    scored = chunks
-      .filter((chunk) => chunk.embedding)
-      .map((chunk) => ({
-        chunk,
-        score: cosineSimilarity(queryEmbedding, chunk.embedding!),
-      }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 12);
+    const fallback = await searchChunksByEmbedding(kb.chunkIds, queryEmbedding, 12);
+    scored = fallback.map(({ chunk, score }) => {
+      const { embedding: _embedding, ...content } = chunk;
+      return { chunk: content, score };
+    });
   }
 
   const topScore = scored[0]?.score ?? 0;

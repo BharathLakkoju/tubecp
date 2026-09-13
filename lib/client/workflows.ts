@@ -211,6 +211,7 @@ async function analyzeAndRank(
 
   let analyzedCount = existingAnalyses.length;
   const analyses = [...existingAnalyses];
+  const completedInFlight: Array<{ video: VideoCandidate; analysis: VideoAnalysis }> = [];
 
   const newAnalyses = await mapWithConcurrency(pending, ANALYSIS_CONCURRENCY, async (video) => {
     analyzedCount += 1;
@@ -220,14 +221,44 @@ async function analyzeAndRank(
       "analyzing"
     );
 
-    return postJson<{ video: VideoCandidate; analysis: VideoAnalysis }>("/api/research/analyze", {
-      video,
-      topic,
-      researchSessionId,
-    });
+    try {
+      const result = await postJson<{ video: VideoCandidate; analysis: VideoAnalysis }>(
+        "/api/research/analyze",
+        {
+          video,
+          topic,
+          researchSessionId,
+        }
+      );
+
+      completedInFlight.push(result);
+      const completed = [...analyses, ...completedInFlight];
+      onProgress?.(
+        `analyzed ${completed.length}/${candidates.length} videos`,
+        20 + Math.round((analyzedCount / candidates.length) * 65),
+        "analyzing",
+        {
+          analyzedVideos: completed.map(({ video: item }) => toVideoSummary(item)),
+          analyzedScores: Object.fromEntries(
+            completed.map(({ video: item, analysis }) => [item.videoId, analysis.relevanceScore])
+          ),
+        }
+      );
+
+      return result;
+    } catch {
+      return null;
+    }
   });
 
-  analyses.push(...newAnalyses);
+  const successful = newAnalyses.filter(
+    (entry): entry is { video: VideoCandidate; analysis: VideoAnalysis } => entry !== null
+  );
+  analyses.push(...successful);
+
+  if (analyses.length === 0) {
+    throw new Error("RESEARCH_FAILED");
+  }
 
   return rankOnly(topic, researchSessionId, queries, analyses, allCandidates, videosSearched, onProgress);
 }

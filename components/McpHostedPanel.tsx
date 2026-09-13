@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import CopyButton from "@/components/CopyButton";
 
 export default function McpHostedPanel() {
   const [endpoint, setEndpoint] = useState<string | null>(null);
@@ -35,9 +36,10 @@ export default function McpHostedPanel() {
           Paste this into your client&apos;s connector URL field.
         </p>
         {endpoint ? (
-          <code className="block break-all border border-border bg-bg p-2 font-mono text-[12px] text-text">
-            {endpoint}
-          </code>
+          <div className="copy-field">
+            <code className="copy-field-value">{endpoint}</code>
+            <CopyButton variant="icon" text={endpoint} label="Copy MCP URL" />
+          </div>
         ) : (
           <p className="font-mono text-[12px] text-text-muted">Loading endpoint…</p>
         )}
@@ -55,9 +57,17 @@ export default function McpHostedPanel() {
 
       <div className="mt-4 border border-border bg-bg p-4">
         <p className="font-mono text-[12px] font-semibold text-text">Claude Code or Cursor (CLI)</p>
-        <pre className="mt-2 overflow-x-auto border border-border bg-bg p-3 text-[11px] text-text">
+        <div className="copy-field mt-2">
+          <pre className="copy-field-value overflow-x-auto p-3 text-[11px] text-text">
 {`claude mcp add tubecp --transport http ${endpoint ?? "https://tubecp.vercel.app/api/mcp"}`}
-        </pre>
+          </pre>
+          <CopyButton
+            variant="icon"
+            text={`claude mcp add tubecp --transport http ${endpoint ?? "https://tubecp.vercel.app/api/mcp"}`}
+            label="Copy CLI command"
+            className="copy-field-action-top"
+          />
+        </div>
         <p className="mt-2 font-mono text-[11px] text-text-muted">
           The CLI completes OAuth automatically after you add the server.
         </p>

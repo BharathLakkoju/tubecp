@@ -20,6 +20,7 @@ const PhasePanel = dynamic(() => import("@/components/PhasePanel"), {
 const ResearchProgress = dynamic(() => import("@/components/ResearchProgress"));
 const ResearchLiveView = dynamic(() => import("@/components/ResearchLiveView"));
 const ResearchResults = dynamic(() => import("@/components/ResearchResults"));
+const ResearchMatchedLinks = dynamic(() => import("@/components/ResearchMatchedLinks"));
 const KbBuildProgress = dynamic(() => import("@/components/KbBuildProgress"));
 const UpgradePrompt = dynamic(() => import("@/components/UpgradePrompt"));
 const FreeTierTeaser = dynamic(() => import("@/components/FreeTierTeaser"));
@@ -75,11 +76,14 @@ export default function AppResearchClient({
     }
     setPhase("results");
 
+    let progressed = false;
+
     try {
       const { runResearch } = await import("@/lib/client/workflows");
       const { research: result, researchSessionId } = await runResearch(
         searchTopic,
         (msg, pct, stage, live) => {
+          progressed = true;
           setProgressMsg(msg);
           if (pct !== undefined) setProgressPct(pct);
           if (stage) setResearchStage(stage);
@@ -92,7 +96,9 @@ export default function AppResearchClient({
       setProgressMsg("");
     } catch (err) {
       setError(parseClientError(err));
-      setPhase("search");
+      if (!progressed) {
+        setPhase("search");
+      }
     } finally {
       setLoading(false);
     }
@@ -222,7 +228,7 @@ export default function AppResearchClient({
                   <h3 className="mb-6 font-mono text-[13px] font-semibold text-text">
                     Final results
                   </h3>
-                  <ResearchResults research={research} showCopyLinks={sub.plan === "free"} />
+                  <ResearchResults research={research} />
                   {sub.plan === "free" && <FreeTierTeaser research={research} />}
                 </section>
               )}
@@ -234,26 +240,30 @@ export default function AppResearchClient({
               {phase === "results" &&
                 !loading &&
                 research &&
-                research.rankedVideos.length > 0 &&
-                (sub.canBuildKb ? (
+                research.rankedVideos.length > 0 && (
                   <div className="mt-8 border-t border-border pt-6">
-                    <p className="mb-4 font-mono text-[13px] text-text-muted">
-                      Build a knowledge base from these {research.rankedVideos.length} videos?
-                    </p>
-                    <button
-                      type="button"
-                      className="btn-primary max-sm:w-full"
-                      onClick={handleBuildKB}
-                    >
-                      build knowledge base →
-                    </button>
+                    <ResearchMatchedLinks videos={research.rankedVideos} />
+                    {sub.canBuildKb ? (
+                      <div className="mt-8 border-t border-border pt-6">
+                        <p className="mb-4 font-mono text-[13px] text-text-muted">
+                          Build a knowledge base from these {research.rankedVideos.length} videos?
+                        </p>
+                        <button
+                          type="button"
+                          className="btn-primary max-sm:w-full"
+                          onClick={handleBuildKB}
+                        >
+                          build knowledge base →
+                        </button>
+                      </div>
+                    ) : (
+                      <UpgradePrompt
+                        title="Unlock knowledge base + chat"
+                        description="Free tier includes ranked video lists. Upgrade to Pro to transcribe videos, build a knowledge base, and chat with cited sources."
+                      />
+                    )}
                   </div>
-                ) : (
-                  <UpgradePrompt
-                    title="Unlock knowledge base + chat"
-                    description="Free tier includes ranked video lists. Upgrade to Pro to transcribe videos, build a knowledge base, and chat with cited sources."
-                  />
-                ))}
+                )}
 
               {error && <p className="mt-4 font-mono text-[13px] text-accent">{error}</p>}
             </div>

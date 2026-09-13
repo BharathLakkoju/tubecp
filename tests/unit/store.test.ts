@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   cacheResearchResult,
   getCachedResearchResult,
+  getChunkContentsByIds,
   getChunksByIds,
   hashTopic,
   researchResultCacheKey,
@@ -46,6 +47,28 @@ describe("getChunksByIds", () => {
     const chunks = await getChunksByIds(["chunk-1", "chunk-2"]);
     expect(chunks).toHaveLength(2);
     expect(chunks.map((chunk) => chunk.id)).toEqual(["chunk-1", "chunk-2"]);
+  });
+});
+
+describe("getChunkContentsByIds", () => {
+  it("loads text-only chunk payloads without embeddings", async () => {
+    await saveChunk({
+      id: "content-1",
+      videoId: "v1",
+      title: "One",
+      channel: "Channel",
+      timestamp: 0,
+      text: "hello",
+      embedding: [0.1, 0.2],
+    });
+
+    const contents = await getChunkContentsByIds(["content-1"]);
+    expect(contents).toHaveLength(1);
+    expect(contents[0]).toMatchObject({
+      id: "content-1",
+      text: "hello",
+    });
+    expect(contents[0]).not.toHaveProperty("embedding");
   });
 });
 

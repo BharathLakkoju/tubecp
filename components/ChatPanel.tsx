@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import type { KnowledgeBase, ChatMessage } from "@/lib/types";
 import type { KbChatStreamState } from "@/lib/hooks/useKbChatStream";
 import { cn } from "@/lib/cn";
+import CopyButton from "@/components/CopyButton";
 import MarkdownContent from "@/components/MarkdownContent";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import MobileNavToggle from "@/components/MobileNavToggle";
@@ -68,16 +69,26 @@ export default function ChatPanel({ topic, kb, messages, stream, onSend }: Props
             key={i}
             className={cn("chat-message", msg.role === "user" ? "chat-message-user" : "chat-message-assistant")}
           >
-            <div className="chat-message-bubble">
-              {msg.role === "assistant" ? (
-                <MarkdownContent content={msg.content} />
-              ) : (
-                msg.content.split("\n").map((line, j) => (
-                  <p key={j} className="mb-1.5 last:mb-0">
-                    {line}
-                  </p>
-                ))
+            <div className="chat-message-bubble-wrap">
+              {msg.role === "assistant" && (
+                <CopyButton
+                  variant="icon"
+                  text={msg.content}
+                  label="Copy response"
+                  className="chat-message-copy"
+                />
               )}
+              <div className="chat-message-bubble">
+                {msg.role === "assistant" ? (
+                  <MarkdownContent content={msg.content} />
+                ) : (
+                  msg.content.split("\n").map((line, j) => (
+                    <p key={j} className="mb-1.5 last:mb-0">
+                      {line}
+                    </p>
+                  ))
+                )}
+              </div>
             </div>
 
             {msg.sources && msg.sources.length > 0 && (
@@ -108,20 +119,30 @@ export default function ChatPanel({ topic, kb, messages, stream, onSend }: Props
 
         {stream && (
           <div className="chat-message chat-message-assistant">
-            <div className="chat-message-bubble">
-              {showStreamStatus ? (
-                <div className="chat-stream-status">
-                  <LoadingSpinner size="sm" />
-                  <span className="chat-stream-status-text">{stream.status}</span>
-                </div>
-              ) : (
-                <div className="chat-stream-markdown">
-                  <MarkdownContent content={stream.content} />
-                  {stream.isRevealing && (
-                    <span className="chat-stream-cursor" aria-hidden="true" />
-                  )}
-                </div>
+            <div className="chat-message-bubble-wrap">
+              {stream.content && (
+                <CopyButton
+                  variant="icon"
+                  text={stream.content}
+                  label="Copy response"
+                  className="chat-message-copy"
+                />
               )}
+              <div className="chat-message-bubble">
+                {showStreamStatus ? (
+                  <div className="chat-stream-status">
+                    <LoadingSpinner size="sm" />
+                    <span className="chat-stream-status-text">{stream.status}</span>
+                  </div>
+                ) : (
+                  <div className="chat-stream-markdown">
+                    <MarkdownContent content={stream.content} />
+                    {stream.isRevealing && (
+                      <span className="chat-stream-cursor" aria-hidden="true" />
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
