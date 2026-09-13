@@ -1,13 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { createContext, useContext, useEffect, useState } from "react";
-import { SessionProvider, signOut, useSession } from "next-auth/react";
+import { createContext, useContext } from "react";
+import { signOut, useSession } from "next-auth/react";
+import type { Session } from "next-auth";
 import type { SubscriptionState } from "@/lib/hooks/useSubscription";
-import {
-  GUEST_SUBSCRIPTION_STATE,
-  subscriptionStateFromRecord,
-} from "@/lib/subscription-state";
+import { GUEST_SUBSCRIPTION_STATE } from "@/lib/subscription-state";
 
 const BypassContext = createContext(false);
 
@@ -17,31 +15,21 @@ export function useBypass(): boolean {
 
 export const SubscriptionContext = createContext<SubscriptionState | null>(null);
 
-function SessionSubscriptionProvider({ children }: { children: React.ReactNode }) {
-  const { data: session } = useSession();
-  const [state, setState] = useState<SubscriptionState>({
-    ...GUEST_SUBSCRIPTION_STATE,
-    loading: true,
-  });
+export const ProductSessionContext = createContext<Session | null>(null);
 
-  useEffect(() => {
-    if (!session?.user) {
-      setState(GUEST_SUBSCRIPTION_STATE);
-      return;
-    }
+export function useAuthSession() {
+  const productSession = useContext(ProductSessionContext);
+  const clientSession = useSession();
 
-    fetch("/api/user/subscription")
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.subscription) return;
-        setState(subscriptionStateFromRecord(data.subscription));
-      })
-      .catch(() => setState(GUEST_SUBSCRIPTION_STATE));
-  }, [session?.user]);
+  if (productSession) {
+    return {
+      data: productSession,
+      status: productSession.user ? "authenticated" as const : "unauthenticated" as const,
+      update: clientSession.update,
+    };
+  }
 
-  return (
-    <SubscriptionContext.Provider value={state}>{children}</SubscriptionContext.Provider>
-  );
+  return clientSession;
 }
 
 export function AuthProvider({
@@ -63,9 +51,9 @@ export function AuthProvider({
 
   return (
     <BypassContext.Provider value={false}>
-      <SessionProvider>
-        <SessionSubscriptionProvider>{children}</SessionSubscriptionProvider>
-      </SessionProvider>
+      <SubscriptionContext.Provider value={GUEST_SUBSCRIPTION_STATE}>
+        {children}
+      </SubscriptionContext.Provider>
     </BypassContext.Provider>
   );
 }
@@ -80,7 +68,7 @@ export function useSubscriptionContext(): SubscriptionState {
 
 export function AppSignedOut({ children }: { children: React.ReactNode }) {
   const bypass = useBypass();
-  const { data: session, status } = useSession();
+  const { data: session, status } = useAuthSession();
 
   if (bypass) return <>{children}</>;
   if (status === "loading") return null;
@@ -90,7 +78,7 @@ export function AppSignedOut({ children }: { children: React.ReactNode }) {
 
 export function AppSignedIn({ children }: { children: React.ReactNode }) {
   const bypass = useBypass();
-  const { data: session, status } = useSession();
+  const { data: session, status } = useAuthSession();
 
   if (bypass) return null;
   if (status === "loading") return null;
@@ -105,7 +93,7 @@ function userInitial(user: { name?: string | null; email?: string | null }): str
 
 export function AppUserButton() {
   const bypass = useBypass();
-  const { data: session } = useSession();
+  const { data: session } = useAuthSession();
 
   if (bypass) return null;
   if (!session?.user) return null;
@@ -115,6 +103,7 @@ export function AppUserButton() {
   return (
     <Link
       href="/account"
+      prefetch={false}
       className="inline-flex size-8.5 shrink-0 items-center justify-center overflow-hidden border border-border bg-surface no-underline transition-[border-color] duration-150 hover:border-text-muted"
       aria-label="Account settings"
     >

@@ -7,6 +7,8 @@ export const metadata: Metadata = {
   description: `Privacy Policy for ${PRODUCT_NAME}.`,
 };
 
+export const dynamic = "force-static";
+
 export default function PrivacyPage() {
   return (
     <LegalPage title="Privacy Policy" lastUpdated={LEGAL_LAST_UPDATED}>

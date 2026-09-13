@@ -7,6 +7,8 @@ export const metadata: Metadata = {
   description: `Subscription cancellation policy for ${PRODUCT_NAME} paid plans.`,
 };
 
+export const dynamic = "force-static";
+
 export default function CancellationPage() {
   return (
     <LegalPage title="Cancellation Policy" lastUpdated={LEGAL_LAST_UPDATED}>

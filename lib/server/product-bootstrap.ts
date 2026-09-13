@@ -1,3 +1,5 @@
+import { cache } from "react";
+import type { Session } from "next-auth";
 import { auth } from "@/auth";
 import { getUserSubscription } from "@/lib/billing/subscription";
 import { isE2eAuthBypass } from "@/lib/e2e";
@@ -11,13 +13,15 @@ import {
 } from "@/lib/subscription-state";
 
 export interface ProductBootstrap {
+  session: Session | null;
   subscription: SubscriptionState;
   knowledgeBases: KnowledgeBase[];
 }
 
-export async function getProductBootstrap(): Promise<ProductBootstrap> {
+export const getProductBootstrap = cache(async function getProductBootstrap(): Promise<ProductBootstrap> {
   if (isE2eAuthBypass()) {
     return {
+      session: null,
       subscription: GUEST_SUBSCRIPTION_STATE,
       knowledgeBases: [],
     };
@@ -28,6 +32,7 @@ export async function getProductBootstrap(): Promise<ProductBootstrap> {
 
   if (!userId) {
     return {
+      session,
       subscription: GUEST_SUBSCRIPTION_STATE,
       knowledgeBases: [],
     };
@@ -39,7 +44,8 @@ export async function getProductBootstrap(): Promise<ProductBootstrap> {
   ]);
 
   return {
+    session,
     subscription: subscriptionStateFromRecord(sub),
     knowledgeBases: records.map(toKnowledgeBaseSummary),
   };
-}
+});

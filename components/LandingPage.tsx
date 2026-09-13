@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import PageShell from "@/components/PageShell";
+import MarketingLayout from "@/components/MarketingLayout";
 import SiteNav from "@/components/SiteNav";
 import HeroSection from "@/components/HeroSection";
 import FadeIn from "@/components/FadeIn";
@@ -49,7 +49,7 @@ const STEPS = [
 
 export default function LandingPage() {
   return (
-    <PageShell showThemeSwitcher={false}>
+    <MarketingLayout showThemeSwitcher={false}>
       <div className="flex min-h-dvh flex-col">
         <SiteNav variant="landing" />
 
@@ -137,6 +137,6 @@ export default function LandingPage() {
           </ScrollReveal>
         </main>
       </div>
-    </PageShell>
+    </MarketingLayout>
   );
 }

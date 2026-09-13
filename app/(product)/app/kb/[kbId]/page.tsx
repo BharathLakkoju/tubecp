@@ -1,9 +1,8 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
 import { assertKbAccess } from "@/lib/kb-access";
 import { getPlan } from "@/lib/plans";
 import { toKnowledgeBaseSummary } from "@/lib/knowledge-bases";
-import { getUserSubscription } from "@/lib/billing/subscription";
+import { getProductBootstrap } from "@/lib/server/product-bootstrap";
 import { ensureKbWelcomeMessage } from "@/lib/services/kb-chat";
 import UpgradePrompt from "@/components/UpgradePrompt";
 import KbChatClient from "./KbChatClient";
@@ -13,19 +12,20 @@ export default async function KnowledgeBaseChatPage({
 }: {
   params: Promise<{ kbId: string }>;
 }) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const bootstrap = await getProductBootstrap();
+  const userId = bootstrap.session?.user?.id;
+
+  if (!userId) {
     redirect("/sign-in");
   }
 
   const { kbId } = await params;
-  const [sub, kb, messages] = await Promise.all([
-    getUserSubscription(session.user.id),
-    assertKbAccess(kbId, session.user.id),
+  const [kb, messages] = await Promise.all([
+    assertKbAccess(kbId, userId),
     ensureKbWelcomeMessage(kbId),
   ]);
 
-  const plan = getPlan(sub.plan);
+  const plan = getPlan(bootstrap.subscription.plan);
   if (plan.chatMessagesPerMonth <= 0) {
     return (
       <div className="app-panel">

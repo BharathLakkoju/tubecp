@@ -1,4 +1,4 @@
-import PageShell from "@/components/PageShell";
+import MarketingLayout from "@/components/MarketingLayout";
 import SiteNav from "@/components/SiteNav";
 import AuthFormShell from "@/components/AuthFormShell";
 import { SignInForm } from "@/components/AuthForms";
@@ -22,7 +22,7 @@ export default async function SignInPage({
 
   if (process.env.E2E_AUTH_BYPASS === "true") {
     return (
-      <PageShell showThemeSwitcher={false}>
+      <MarketingLayout showThemeSwitcher={false}>
         <div data-testid="e2e-sign-in" className="flex min-h-dvh flex-col">
           <SiteNav variant="landing" />
           <div className="page-container flex-1">
@@ -34,12 +34,12 @@ export default async function SignInPage({
             </AuthFormShell>
           </div>
         </div>
-      </PageShell>
+      </MarketingLayout>
     );
   }
 
   return (
-    <PageShell showThemeSwitcher={false}>
+    <MarketingLayout showThemeSwitcher={false}>
       <div className="flex min-h-dvh flex-col">
         <SiteNav variant="landing" />
         <div className="page-container flex-1">
@@ -55,6 +55,6 @@ export default async function SignInPage({
           </AuthFormShell>
         </div>
       </div>
-    </PageShell>
+    </MarketingLayout>
   );
 }

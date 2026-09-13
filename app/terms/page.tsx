@@ -7,6 +7,8 @@ export const metadata: Metadata = {
   description: `Terms of Service for ${PRODUCT_NAME}.`,
 };
 
+export const dynamic = "force-static";
+
 export default function TermsPage() {
   return (
     <LegalPage title="Terms of Service" lastUpdated={LEGAL_LAST_UPDATED}>

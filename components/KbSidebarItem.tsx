@@ -56,12 +56,13 @@ export default function KbSidebarItem({ kb, active }: Props) {
     <>
       <li className={cn("app-sidebar-kb-item", menuOpen && "app-sidebar-kb-item-menu-open")}>
         <div className="app-sidebar-kb-row">
-          <Link
-            href={`/app/kb/${kb.kbId}`}
-            className={cn("app-sidebar-kb-link", active && "app-sidebar-kb-link-active")}
-            title={kb.topic}
-            onClick={closeMenu}
-          >
+        <Link
+          href={`/app/kb/${kb.kbId}`}
+          prefetch={false}
+          className={cn("app-sidebar-kb-link", active && "app-sidebar-kb-link-active")}
+          title={kb.topic}
+          onClick={closeMenu}
+        >
             <span className="app-sidebar-kb-link-text">{kb.topic}</span>
           </Link>
 

@@ -1,11 +1,11 @@
-import PageShell from "@/components/PageShell";
+import MarketingLayout from "@/components/MarketingLayout";
 import SiteNav from "@/components/SiteNav";
 import AuthFormShell from "@/components/AuthFormShell";
 import { ForgotPasswordForm } from "@/components/AuthForms";
 
 export default function ForgotPasswordPage() {
   return (
-    <PageShell showThemeSwitcher={false}>
+    <MarketingLayout showThemeSwitcher={false}>
       <div className="flex min-h-dvh flex-col">
         <SiteNav variant="landing" />
         <div className="page-container flex-1">
@@ -17,6 +17,6 @@ export default function ForgotPasswordPage() {
           </AuthFormShell>
         </div>
       </div>
-    </PageShell>
+    </MarketingLayout>
   );
 }

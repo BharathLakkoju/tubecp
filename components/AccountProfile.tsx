@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useSession } from "next-auth/react";
+import { useAuthSession } from "@/components/AuthShell";
 import LoadingSpinner from "@/components/LoadingSpinner";
 
 type PasswordState = "pending" | "available" | "unavailable";
 
 export default function AccountProfile() {
-  const { data: session, status, update } = useSession();
+  const { data: session, status, update } = useAuthSession();
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);

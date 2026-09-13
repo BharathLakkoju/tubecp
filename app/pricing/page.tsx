@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { PLANS } from "@/lib/plans";
-import PageShell from "@/components/PageShell";
+import MarketingLayout from "@/components/MarketingLayout";
 import SiteNav from "@/components/SiteNav";
 import HeroSection from "@/components/HeroSection";
 import FadeIn from "@/components/FadeIn";
@@ -20,7 +20,7 @@ export default async function PricingPage({
   const plans = [PLANS.free, PLANS.pro, PLANS.researcher];
 
   return (
-    <PageShell showThemeSwitcher={false}>
+    <MarketingLayout showThemeSwitcher={false}>
       <div className="flex min-h-dvh flex-col">
         <SiteNav variant="landing" />
         <div className="page-container flex-1">
@@ -130,6 +130,6 @@ export default async function PricingPage({
         </p>
         </div>
       </div>
-    </PageShell>
+    </MarketingLayout>
   );
 }

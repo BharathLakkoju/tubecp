@@ -1,4 +1,4 @@
-import PageShell from "@/components/PageShell";
+import MarketingLayout from "@/components/MarketingLayout";
 import SiteNav from "@/components/SiteNav";
 import FadeIn from "@/components/FadeIn";
 import HeroSection from "@/components/HeroSection";
@@ -11,7 +11,7 @@ interface Props {
 
 export default function LegalPage({ title, lastUpdated, children }: Props) {
   return (
-    <PageShell showThemeSwitcher={false}>
+    <MarketingLayout showThemeSwitcher={false}>
       <div className="flex min-h-dvh flex-col">
         <SiteNav variant="landing" />
         <article className="page-container flex-1">
@@ -31,6 +31,6 @@ export default function LegalPage({ title, lastUpdated, children }: Props) {
           </FadeIn>
         </article>
       </div>
-    </PageShell>
+    </MarketingLayout>
   );
 }

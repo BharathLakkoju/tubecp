@@ -2,8 +2,6 @@ import AppShell from "@/components/AppShell";
 import ProductBootstrap from "@/components/ProductBootstrap";
 import { getProductBootstrap } from "@/lib/server/product-bootstrap";
 
-export const dynamic = "force-dynamic";
-
 export default async function ProductLayout({
   children,
 }: {
@@ -13,6 +11,7 @@ export default async function ProductLayout({
 
   return (
     <ProductBootstrap
+      session={bootstrap.session}
       subscription={bootstrap.subscription}
       knowledgeBases={bootstrap.knowledgeBases}
     >

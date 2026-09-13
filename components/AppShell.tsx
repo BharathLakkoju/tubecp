@@ -80,6 +80,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <div className="app-sidebar-top">
           <Link
             href="/app"
+            prefetch={false}
             className={cn(
               "app-sidebar-new",
               pathname === "/app" && !activeKbId && "app-sidebar-new-active"

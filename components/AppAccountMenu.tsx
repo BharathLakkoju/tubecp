@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useSession, signOut } from "next-auth/react";
+import { signOut } from "next-auth/react";
+import { useAuthSession } from "@/components/AuthShell";
 import {
   CaretDown,
   CreditCard,
@@ -48,7 +49,7 @@ function displayName(user: { name?: string | null; email?: string | null }): str
 }
 
 export default function AppAccountMenu() {
-  const { data: session } = useSession();
+  const { data: session } = useAuthSession();
   const sub = useSubscription();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -78,6 +79,7 @@ export default function AppAccountMenu() {
   return (
     <div className="app-account-menu" ref={rootRef}>
       <AnimatedCollapse open={open} innerClassName="app-account-drawer-inner">
+        {open && (
         <nav className="app-account-drawer" aria-label="Account menu">
           {MENU_ITEMS.map((item, i) => {
             if (item.type === "divider") {
@@ -123,6 +125,7 @@ export default function AppAccountMenu() {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={false}
                 className={cn("app-menu-item", animClass)}
                 style={{ animationDelay: `${delay}ms` }}
                 onClick={() => setOpen(false)}
@@ -133,6 +136,7 @@ export default function AppAccountMenu() {
             );
           })}
         </nav>
+        )}
       </AnimatedCollapse>
 
       <button
