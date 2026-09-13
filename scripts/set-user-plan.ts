@@ -14,7 +14,7 @@ import { setUserPlan } from "../lib/billing/subscription";
 const userId = process.argv[2];
 const plan = process.argv[3] as PlanId | undefined;
 
-const validPlans: PlanId[] = ["free", "pro", "researcher"];
+const validPlans: PlanId[] = ["free", "pro", "researcher", "team"];
 
 if (!userId || !plan || !validPlans.includes(plan)) {
   console.error("Usage: npx tsx scripts/set-user-plan.ts <user-id> <free|pro|researcher>");

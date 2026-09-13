@@ -8,10 +8,18 @@ describe("isLicenseValid", () => {
     process.env.LICENSE_KEY = original;
   });
 
-  it("allows all when LICENSE_KEY is unset", () => {
+  it("allows all when LICENSE_KEY is unset in non-production", () => {
     process.env.LICENSE_KEY = "";
     expect(isLicenseValid()).toBe(true);
     expect(isLicenseValid("anything")).toBe(true);
+  });
+
+  it("rejects when LICENSE_KEY is unset in production", () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    process.env.LICENSE_KEY = "";
+    expect(isLicenseValid()).toBe(false);
+    process.env.NODE_ENV = originalNodeEnv;
   });
 
   it("requires matching key when LICENSE_KEY is set", () => {

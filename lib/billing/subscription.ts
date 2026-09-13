@@ -2,6 +2,12 @@ import type { PlanId } from "@/lib/plans";
 import { getPlan } from "@/lib/plans";
 import { createDbPool } from "@/lib/db";
 import { isE2eAuthBypass } from "@/lib/e2e";
+import { isProduction } from "@/lib/env";
+import {
+  applyWorkspaceSubscription,
+  getUserWorkspace,
+  incrementWorkspaceUsage,
+} from "@/lib/workspaces";
 
 export interface UserSubscription {
   userId: string;
@@ -170,7 +176,7 @@ export async function ensureUserSubscription(userId: string): Promise<UserSubscr
   return memorySubs.get(key)!;
 }
 
-export async function getUserSubscription(userId: string): Promise<UserSubscription> {
+async function loadUserSubscription(userId: string): Promise<UserSubscription> {
   if (usePostgres()) {
     let sub = await readSubscriptionFromDb(userId);
     if (!sub) {
@@ -190,6 +196,12 @@ export async function getUserSubscription(userId: string): Promise<UserSubscript
   }
   memorySubs.set(userId, sub);
   return sub;
+}
+
+export async function getUserSubscription(userId: string): Promise<UserSubscription> {
+  const sub = await loadUserSubscription(userId);
+  const workspace = await getUserWorkspace(userId);
+  return applyWorkspaceSubscription(sub, workspace);
 }
 
 export async function setUserPlan(
@@ -245,6 +257,7 @@ export class FeatureGateError extends Error {
 }
 
 function usageLimitsBypassed(): boolean {
+  if (isProduction()) return false;
   return process.env.DEV_BYPASS_USAGE_LIMITS === "true";
 }
 
@@ -314,28 +327,37 @@ export async function checkAndIncrementUsage(
   userId: string,
   type: UsageType
 ): Promise<UserSubscription> {
-  const sub = await getUserSubscription(userId);
+  const workspace = await getUserWorkspace(userId);
+  const sub = applyWorkspaceSubscription(await loadUserSubscription(userId), workspace);
   assertUsageWithinLimit(sub, type);
 
   if (usageLimitsBypassed()) {
     return sub;
   }
 
+  if (workspace?.plan === "team") {
+    await incrementWorkspaceUsage(workspace.id, type);
+    const refreshed = await getUserWorkspace(userId);
+    return applyWorkspaceSubscription(await loadUserSubscription(userId), refreshed);
+  }
+
+  const personal = await loadUserSubscription(userId);
+
   if (type === "research") {
-    sub.researchUsedToday += 1;
+    personal.researchUsedToday += 1;
   }
 
   if (type === "kb_build") {
-    sub.kbBuildsUsed += 1;
+    personal.kbBuildsUsed += 1;
   }
 
   if (type === "chat") {
-    sub.chatMessagesUsed += 1;
+    personal.chatMessagesUsed += 1;
   }
 
-  sub.updatedAt = new Date().toISOString();
-  await persistSubscription(sub);
-  return sub;
+  personal.updatedAt = new Date().toISOString();
+  await persistSubscription(personal);
+  return personal;
 }
 
 export async function resetMonthlyUsageIfNeeded(userId: string): Promise<void> {

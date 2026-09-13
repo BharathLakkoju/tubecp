@@ -1,3 +1,4 @@
+import { mapWithConcurrency } from "../concurrency";
 import { expandQueries } from "./query-expansion";
 import { searchYouTubeMultiple } from "./youtube-search";
 import { analyzeVideo, rankVideos, preRankCandidates } from "./relevance";
@@ -25,7 +26,7 @@ export async function runResearchPipeline(
   const onProgress = options?.onProgress ?? (() => {});
 
   onProgress({ stage: "expanding", message: "Generating search queries...", progress: 5 });
-  const queries = await expandQueries(topic, { maxQueries: limits.search.maxExpandedQueries });
+  const { queries } = await expandQueries(topic, { maxQueries: limits.search.maxExpandedQueries });
 
   onProgress({ stage: "searching", message: "Searching YouTube...", progress: 12 });
   const allCandidates = await searchYouTubeMultiple(queries, undefined, limits.search);
@@ -46,18 +47,18 @@ export async function runResearchPipeline(
       : await preRankCandidates(topic, allCandidates, limits.preRankLimit);
 
   const toAnalyze = selectCandidatesForAnalysis(topic, preRanked, limits);
-  const analyses: Array<{ video: VideoCandidate; analysis: VideoAnalysis }> = [];
+  let analyzedCount = 0;
 
-  for (let i = 0; i < toAnalyze.length; i++) {
-    const video = toAnalyze[i];
+  const analyses = await mapWithConcurrency(toAnalyze, 4, async (video) => {
+    analyzedCount += 1;
     onProgress({
       stage: "analyzing",
-      message: `Analyzing "${video.title.slice(0, 50)}..." (${i + 1}/${toAnalyze.length})`,
-      progress: 25 + Math.round((i / toAnalyze.length) * 65),
+      message: `Analyzing "${video.title.slice(0, 50)}..." (${analyzedCount}/${toAnalyze.length})`,
+      progress: 25 + Math.round((analyzedCount / toAnalyze.length) * 65),
     });
     const analysis = await analyzeVideo(video, topic);
-    analyses.push({ video, analysis });
-  }
+    return { video, analysis };
+  });
 
   onProgress({ stage: "ranking", message: "Ranking videos by relevance...", progress: 95 });
 

@@ -15,15 +15,19 @@ test.describe("Public pages", () => {
     await expect(page.getByRole("link", { name: /sign in to continue/i })).toBeVisible();
   });
 
-  test("pricing page shows all plans", async ({ page }) => {
+  test("pricing page shows configured plans", async ({ page }) => {
     await page.goto("/pricing");
-    await expect(page.getByRole("heading", { name: /pricing/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /credit-based pricing/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Free" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Pro" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Researcher" })).toBeVisible();
-    await expect(page.getByRole("link", { name: /upgrade to pro/i })).toBeVisible();
-    await expect(page.getByText(/terms of service/i)).toBeVisible();
-    await expect(page.getByRole("navigation", { name: "Legal" })).toBeVisible();
+    const proHeading = page.getByRole("heading", { name: "Pro" });
+    const researcherHeading = page.getByRole("heading", { name: "Researcher" });
+    if (await proHeading.count()) {
+      await expect(page.getByRole("link", { name: /upgrade to pro/i })).toBeVisible();
+    }
+    if (await researcherHeading.count()) {
+      await expect(page.getByRole("link", { name: /upgrade to researcher/i })).toBeVisible();
+    }
+    await expect(page.getByText(/paid plans renew monthly/i)).toBeVisible();
   });
 
   test("legal pages load", async ({ page }) => {
@@ -32,11 +36,11 @@ test.describe("Public pages", () => {
 
     await page.goto("/privacy");
     await expect(page.getByRole("heading", { name: "Privacy Policy" })).toBeVisible();
-    await expect(page.getByText(/Neon/i)).toBeVisible();
-    await expect(page.getByText(/Upstash/i)).toBeVisible();
-    await expect(page.getByText(/OpenRouter/i)).toBeVisible();
-    await expect(page.getByText(/YouTube/i)).toBeVisible();
-    await expect(page.getByText(/Sentry/i)).toBeVisible();
+    await expect(page.getByText(/Neon PostgreSQL/i).first()).toBeVisible();
+    await expect(page.getByText(/Upstash Redis/i).first()).toBeVisible();
+    await expect(page.getByText(/OpenRouter/i).first()).toBeVisible();
+    await expect(page.getByText(/YouTube Data API/i).first()).toBeVisible();
+    await expect(page.getByText(/Sentry/i).first()).toBeVisible();
 
     await page.goto("/refund");
     await expect(page.getByRole("heading", { name: "Cancellation Policy" })).toBeVisible();
@@ -47,8 +51,9 @@ test.describe("Public pages", () => {
   test("sign-in page loads", async ({ page }) => {
     await page.goto("/sign-in");
 
-    if (process.env.E2E_AUTH_BYPASS === "true") {
-      await expect(page.getByTestId("e2e-sign-in")).toBeVisible();
+    const e2eBypass = page.getByTestId("e2e-sign-in");
+    if (await e2eBypass.count()) {
+      await expect(e2eBypass).toBeVisible();
       await expect(page.getByRole("heading", { name: /sign in/i })).toBeVisible();
       return;
     }
@@ -70,11 +75,13 @@ test.describe("Public pages", () => {
     await expect(page.getByRole("button", { name: /create account/i })).toBeVisible();
   });
 
-  test("health API returns ok", async ({ request }) => {
+  test("health API returns status and checks", async ({ request }) => {
     const res = await request.get("/api/health");
     expect(res.ok()).toBeTruthy();
     const body = await res.json();
-    expect(body.status).toBe("ok");
+    expect(["ok", "degraded"]).toContain(body.status);
     expect(body.platform).toBe("vercel-serverless");
+    expect(typeof body.checks.youtubeKey).toBe("boolean");
+    expect(typeof body.checks.databaseUrl).toBe("boolean");
   });
 });

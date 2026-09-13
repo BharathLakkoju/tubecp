@@ -10,6 +10,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { runResearchPipeline } from "../lib/services/research-pipeline.js";
+import { writeEvalBenchmark, type EvalBenchmarkSnapshot } from "../lib/eval/benchmark.js";
 
 interface EvalTopic {
   id: string;
@@ -113,6 +114,26 @@ async function main() {
   const rate = Math.round((passed / results.length) * 100);
   console.log(`\n${"=".repeat(60)}`);
   console.log(`SUMMARY: ${passed}/${results.length} topics passed (${rate}%)`);
+
+  const snapshot: EvalBenchmarkSnapshot = {
+    version: "1.0",
+    updatedAt: new Date().toISOString().slice(0, 10),
+    passRate: rate,
+    topicsPassed: passed,
+    topicsTotal: results.length,
+    topics: results.map((result) => {
+      const topic = topics.find((item) => item.id === result.id)!;
+      return {
+        ...topic,
+        passed: result.passed,
+        ranked: result.ranked,
+        passing: result.passing,
+      };
+    }),
+  };
+  writeEvalBenchmark(snapshot);
+  console.log("Wrote eval/results.json for public benchmark.");
+
   if (rate < 90) {
     process.exit(1);
   }

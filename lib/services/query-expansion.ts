@@ -44,21 +44,35 @@ function finalizeQueries(topic: string, queries: string[], maxQueries: number): 
 
 const EXPAND_CACHE_VERSION = "v3";
 
+export function expandQueriesCacheKey(topic: string, maxQueries: number): string {
+  return hashTopic(`${EXPAND_CACHE_VERSION}:${maxQueries}:${topic.toLowerCase().trim()}`);
+}
+
+export async function peekExpandedQueries(
+  topic: string,
+  maxQueries: number
+): Promise<string[] | null> {
+  const topicHash = expandQueriesCacheKey(topic, maxQueries);
+  const cached = await getCachedExpandedQueries(topicHash);
+  if (!cached?.length) return null;
+  return dedupeQueries(topic, cached, maxQueries);
+}
+
 export async function expandQueries(
   topic: string,
-  options?: { maxQueries?: number }
-): Promise<string[]> {
+  options?: { maxQueries?: number; usageUserId?: string }
+): Promise<{ queries: string[]; cached: boolean }> {
   const maxQueries = options?.maxQueries ?? 5;
-  const topicHash = hashTopic(
-    `${EXPAND_CACHE_VERSION}:${maxQueries}:${topic.toLowerCase().trim()}`
-  );
+  const topicHash = expandQueriesCacheKey(topic, maxQueries);
   const cached = await getCachedExpandedQueries(topicHash);
-  if (cached?.length) return dedupeQueries(topic, cached, maxQueries);
+  if (cached?.length) {
+    return { queries: dedupeQueries(topic, cached, maxQueries), cached: true };
+  }
 
   const response = await generateText(
     buildSystemPrompt(maxQueries),
     `Today's year: ${CURRENT_YEAR}\nResearch topic: "${topic}"`,
-    { temperature: 0.1, maxTokens: 450 }
+    { temperature: 0.1, maxTokens: 450, usageUserId: options?.usageUserId }
   );
 
   let queries: string[] = [];
@@ -78,5 +92,5 @@ export async function expandQueries(
   const unique = finalizeQueries(topic, queries.length >= 2 ? queries : [], maxQueries);
 
   await cacheExpandedQueries(topicHash, unique);
-  return unique;
+  return { queries: unique, cached: false };
 }

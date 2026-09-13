@@ -7,6 +7,7 @@ import HeroSection from "@/components/HeroSection";
 import FadeIn from "@/components/FadeIn";
 import ScrollReveal from "@/components/ScrollReveal";
 import Stagger, { StaggerItem } from "@/components/Stagger";
+import EvalBenchmarkSection from "@/components/EvalBenchmarkSection";
 
 const FEATURES = [
   {
@@ -116,6 +117,10 @@ export default function LandingPage() {
                 ))}
               </Stagger>
             </section>
+          </ScrollReveal>
+
+          <ScrollReveal delay={0.06}>
+            <EvalBenchmarkSection />
           </ScrollReveal>
 
           <ScrollReveal delay={0.08}>

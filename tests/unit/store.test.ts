@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { hashTopic } from "@/lib/store";
+import {
+  cacheResearchResult,
+  getCachedResearchResult,
+  getChunksByIds,
+  hashTopic,
+  researchResultCacheKey,
+  saveChunk,
+} from "@/lib/store";
+import type { ResearchResult } from "@/lib/types";
 
 describe("hashTopic", () => {
   it("returns stable hash for same topic", () => {
@@ -13,5 +21,48 @@ describe("hashTopic", () => {
 
   it("differs for different topics", () => {
     expect(hashTopic("topic a")).not.toBe(hashTopic("topic b"));
+  });
+});
+
+describe("getChunksByIds", () => {
+  it("batch-loads chunks by id", async () => {
+    await saveChunk({
+      id: "chunk-1",
+      videoId: "v1",
+      title: "One",
+      channel: "Channel",
+      timestamp: 0,
+      text: "hello",
+    });
+    await saveChunk({
+      id: "chunk-2",
+      videoId: "v1",
+      title: "One",
+      channel: "Channel",
+      timestamp: 10,
+      text: "world",
+    });
+
+    const chunks = await getChunksByIds(["chunk-1", "chunk-2"]);
+    expect(chunks).toHaveLength(2);
+    expect(chunks.map((chunk) => chunk.id)).toEqual(["chunk-1", "chunk-2"]);
+  });
+});
+
+describe("research result cache", () => {
+  it("stores and retrieves completed research", async () => {
+    const key = researchResultCacheKey("free", "ai agents");
+    const result: ResearchResult = {
+      topic: "ai agents",
+      queriesUsed: ["ai agents tutorial"],
+      videosSearched: 3,
+      allVideos: [],
+      rankedVideos: [],
+    };
+
+    await cacheResearchResult(key, result);
+    const cached = await getCachedResearchResult(key);
+    expect(cached?.topic).toBe("ai agents");
+    expect(cached?.queriesUsed).toEqual(["ai agents tutorial"]);
   });
 });

@@ -61,6 +61,18 @@ const LIMITS: Record<PlanId, ResearchPipelineLimits> = {
     maxResults: 60,
     analyzeAllWorthy: true,
   },
+  team: {
+    search: {
+      primarySearchResults: 30,
+      secondarySearchResults: 12,
+      maxSecondaryQueries: 6,
+      maxExpandedQueries: 8,
+    },
+    preRankLimit: 90,
+    analyzeLimit: 65,
+    maxResults: 60,
+    analyzeAllWorthy: true,
+  },
 };
 
 export function getResearchPipelineLimits(planId: string | undefined): ResearchPipelineLimits {

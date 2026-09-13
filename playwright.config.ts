@@ -32,6 +32,8 @@ export default defineConfig({
           ...process.env,
           PORT,
           E2E_AUTH_BYPASS: "true",
+          E2E_STUB_APIS: "true",
+          ADMIN_USER_IDS: "1",
           POLAR_WEBHOOK_SECRET: process.env.POLAR_WEBHOOK_SECRET ?? "whsec_e2e_test_secret",
           YOUTUBE_API_KEY: process.env.YOUTUBE_API_KEY ?? "test-youtube",
           OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ?? "test-openrouter",

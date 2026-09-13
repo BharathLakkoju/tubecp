@@ -21,7 +21,11 @@ vi.mock("@/lib/ratelimit", () => ({
 
 vi.mock("@/lib/billing/subscription", () => ({
   getUserSubscription: vi.fn().mockResolvedValue({ plan: "free" }),
-  checkAndIncrementUsage: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/lib/research-session", () => ({
+  assertResearchSession: vi.fn().mockResolvedValue(undefined),
+  saveResearchCheckpoint: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { requireUserId, AuthError } from "@/lib/auth";
@@ -70,6 +74,7 @@ describe("POST /api/research/rank", () => {
         queriesUsed: ["AI SaaS revenue"],
         videosSearched: 10,
         analyses,
+        researchSessionId: "session_test",
       }),
     });
 

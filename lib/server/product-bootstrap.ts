@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import type { Session } from "next-auth";
 import { auth } from "@/auth";
 import { getUserSubscription } from "@/lib/billing/subscription";
@@ -17,6 +18,18 @@ export interface ProductBootstrap {
   subscription: SubscriptionState;
   knowledgeBases: KnowledgeBase[];
 }
+
+const getCachedUserSubscription = unstable_cache(
+  async (userId: string) => getUserSubscription(userId),
+  ["product-user-subscription"],
+  { revalidate: 30 }
+);
+
+const getCachedUserKnowledgeBases = unstable_cache(
+  async (userId: string) => listUserKnowledgeBaseRecords(userId),
+  ["product-user-knowledge-bases"],
+  { revalidate: 30 }
+);
 
 export const getProductBootstrap = cache(async function getProductBootstrap(): Promise<ProductBootstrap> {
   if (isE2eAuthBypass()) {
@@ -39,8 +52,8 @@ export const getProductBootstrap = cache(async function getProductBootstrap(): P
   }
 
   const [sub, records] = await Promise.all([
-    getUserSubscription(userId),
-    listUserKnowledgeBaseRecords(userId),
+    getCachedUserSubscription(userId),
+    getCachedUserKnowledgeBases(userId),
   ]);
 
   return {

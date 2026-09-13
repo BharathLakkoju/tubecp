@@ -131,13 +131,36 @@ export function SignInForm({ providers, callbackUrl }: AuthFormProps) {
     setLoading(false);
 
     if (result?.error) {
-      setError("Invalid email or password");
+      setError(
+        "Invalid email or password. If you signed up with email, verify your inbox first."
+      );
       return;
     }
 
     if (result?.url) {
       window.location.href = result.url;
     }
+  };
+
+  const resendVerification = async () => {
+    if (!email.trim()) {
+      setError("Enter your email above, then try resending verification.");
+      return;
+    }
+    setError(null);
+    setLoading(true);
+    const res = await fetch("/api/auth/resend-verification", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    setLoading(false);
+    if (!res.ok) {
+      setError("Could not resend verification email.");
+      return;
+    }
+    setError(null);
+    alert("If an unverified account exists for that email, a new verification link was sent.");
   };
 
   const showOAuth = providers.length > 0;
@@ -170,6 +193,15 @@ export function SignInForm({ providers, callbackUrl }: AuthFormProps) {
         </label>
         <p className="auth-footer !mt-0 !border-0 !pt-0 text-left">
           <Link href="/forgot-password">Forgot password?</Link>
+          {" · "}
+          <button
+            type="button"
+            className="text-text underline-offset-2 hover:underline"
+            onClick={resendVerification}
+            disabled={loading}
+          >
+            Resend verification
+          </button>
           <span className="block mt-1 text-[11px] text-text-muted">
             Email and password accounts only
           </span>
@@ -204,11 +236,13 @@ export function SignUpForm({ providers, callbackUrl }: AuthFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setMessage(null);
     setLoading(true);
 
     const registerRes = await fetch("/api/auth/register", {
@@ -219,29 +253,17 @@ export function SignUpForm({ providers, callbackUrl }: AuthFormProps) {
 
     const registerData = await registerRes.json().catch(() => ({}));
 
+    setLoading(false);
+
     if (!registerRes.ok) {
-      setLoading(false);
       setError(registerData.error ?? "Sign up failed");
       return;
     }
 
-    const result = await signIn("credentials", {
-      email,
-      password,
-      callbackUrl,
-      redirect: false,
-    });
-
-    setLoading(false);
-
-    if (result?.error) {
-      setError("Account created, but sign-in failed. Try signing in manually.");
-      return;
-    }
-
-    if (result?.url) {
-      window.location.href = result.url;
-    }
+    setMessage(
+      registerData.message ??
+        "Check your email to verify your account, then sign in."
+    );
   };
 
   const showOAuth = providers.length > 0;
@@ -249,6 +271,15 @@ export function SignUpForm({ providers, callbackUrl }: AuthFormProps) {
   return (
     <div className="auth-form">
       {error && <AuthError message={error} />}
+      {message && (
+        <p className="border border-border bg-surface px-4 py-3 font-mono text-[13px] text-text-muted">
+          {message}{" "}
+          <Link href={authLinkWithCallback("/sign-in", callbackUrl)} className="text-text underline-offset-2 hover:underline">
+            Sign in
+          </Link>{" "}
+          after verifying.
+        </p>
+      )}
       <form className="auth-form" onSubmit={handleSubmit}>
         <label className="auth-field">
           <span className="auth-label">Name</span>

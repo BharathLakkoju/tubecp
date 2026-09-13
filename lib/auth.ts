@@ -2,7 +2,12 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { isE2eAuthBypass } from "@/lib/e2e";
+import { isDevelopment } from "@/lib/env";
+import { PolarSubscriptionError } from "@/lib/billing/polar-subscription";
+import { EmailDeliveryError } from "@/lib/email";
+import { AdminAccessError } from "@/lib/admin";
 import { KbAccessError } from "@/lib/kb-access";
+import { ResearchSessionError } from "@/lib/research-session";
 
 export async function requireUserId(): Promise<string> {
   if (isE2eAuthBypass()) {
@@ -38,6 +43,18 @@ export function apiError(err: unknown, fallback = "Internal server error") {
   if (err instanceof KbAccessError) {
     return NextResponse.json({ error: err.message, code: err.code }, { status: 403 });
   }
+  if (err instanceof ResearchSessionError) {
+    return NextResponse.json({ error: err.message, code: err.code }, { status: 400 });
+  }
+  if (err instanceof AdminAccessError) {
+    return NextResponse.json({ error: err.message, code: err.code }, { status: 403 });
+  }
+  if (err instanceof PolarSubscriptionError) {
+    return NextResponse.json({ error: err.message, code: err.code }, { status: 502 });
+  }
+  if (err instanceof EmailDeliveryError) {
+    return NextResponse.json({ error: err.message, code: err.code }, { status: 503 });
+  }
   if (err && typeof err === "object" && "code" in err) {
     const e = err as { code: string; message: string };
     if (e.code === "USAGE_LIMIT" || e.code === "FEATURE_GATE") {
@@ -48,5 +65,9 @@ export function apiError(err: unknown, fallback = "Internal server error") {
     }
   }
   console.error(err);
-  return NextResponse.json({ error: fallback, detail: String(err) }, { status: 500 });
+  const body: { error: string; detail?: string } = { error: fallback };
+  if (isDevelopment()) {
+    body.detail = String(err);
+  }
+  return NextResponse.json(body, { status: 500 });
 }

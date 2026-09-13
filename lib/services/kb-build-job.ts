@@ -1,0 +1,206 @@
+import { mapWithConcurrency } from "@/lib/concurrency";
+import { isE2eStubMode, stubKnowledgeBaseBuild } from "@/lib/e2e-stub";
+import {
+  createKnowledgeBase,
+  finalizeKnowledgeBase,
+  indexVideoInKnowledgeBase,
+} from "@/lib/services/knowledge-base";
+import { ensureKbWelcomeMessage } from "@/lib/services/kb-chat";
+import { addUserKnowledgeBase, getKnowledgeBase, updateKnowledgeBase } from "@/lib/store";
+import type { KbBuildJobState, KnowledgeBaseRecord, RankedVideo } from "@/lib/types";
+import type { BuildKnowledgeBaseResult, SkippedKbVideo } from "./kb-build";
+
+const INDEX_CONCURRENCY = 3;
+
+function initialBuildJob(totalVideos: number): KbBuildJobState {
+  const now = new Date().toISOString();
+  return {
+    totalVideos,
+    processedVideos: 0,
+    skippedCount: 0,
+    startedAt: now,
+    updatedAt: now,
+  };
+}
+
+async function updateBuildJob(
+  kbId: string,
+  persistent: boolean,
+  patch: Partial<KbBuildJobState>
+): Promise<void> {
+  await updateKnowledgeBase(
+    kbId,
+    (current) => {
+      const base: KbBuildJobState =
+        current.buildJob ?? initialBuildJob(current.rankedVideos?.length ?? 0);
+      const buildJob: KbBuildJobState = {
+        totalVideos: patch.totalVideos ?? base.totalVideos,
+        processedVideos: patch.processedVideos ?? base.processedVideos,
+        skippedCount: patch.skippedCount ?? base.skippedCount,
+        startedAt: patch.startedAt ?? base.startedAt,
+        currentVideoTitle: patch.currentVideoTitle ?? base.currentVideoTitle,
+        error: patch.error ?? base.error,
+        updatedAt: new Date().toISOString(),
+      };
+      return { ...current, buildJob };
+    },
+    persistent
+  );
+}
+
+export async function executeKnowledgeBaseBuild(
+  kbId: string,
+  rankedVideos: RankedVideo[],
+  persistent: boolean
+): Promise<BuildKnowledgeBaseResult> {
+  const skippedVideos: SkippedKbVideo[] = [];
+  let processed = 0;
+
+  const results = await mapWithConcurrency(
+    rankedVideos,
+    INDEX_CONCURRENCY,
+    async (video) => {
+      const result = await indexVideoInKnowledgeBase(kbId, video, persistent);
+      processed += 1;
+      await updateBuildJob(kbId, persistent, {
+        processedVideos: processed,
+        currentVideoTitle: video.title,
+      });
+      return result;
+    }
+  );
+
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
+    const video = rankedVideos[i];
+    if (result.skipped) {
+      skippedVideos.push({
+        videoId: video.videoId,
+        title: video.title,
+        reason: result.skipReason ?? "Transcript unavailable",
+      });
+    }
+  }
+
+  await updateBuildJob(kbId, persistent, {
+    processedVideos: rankedVideos.length,
+    skippedCount: skippedVideos.length,
+    currentVideoTitle: undefined,
+  });
+
+  const ready = await finalizeKnowledgeBase(kbId, persistent);
+  return { kb: ready, skippedVideos };
+}
+
+export async function startKnowledgeBaseBuild(
+  topic: string,
+  rankedVideos: RankedVideo[],
+  userId: string,
+  persistent: boolean
+): Promise<KnowledgeBaseRecord> {
+  if (isE2eStubMode()) {
+    const { kb } = await stubKnowledgeBaseBuild(topic, rankedVideos, userId, persistent);
+    return kb;
+  }
+
+  const kb = await createKnowledgeBase(topic, rankedVideos, userId, persistent);
+  kb.buildJob = initialBuildJob(rankedVideos.length);
+  await updateKnowledgeBase(kb.kbId, () => kb, persistent);
+  await addUserKnowledgeBase(userId, kb.kbId);
+  return kb;
+}
+
+export async function runKnowledgeBaseBuildJob(
+  kbId: string,
+  persistent: boolean
+): Promise<BuildKnowledgeBaseResult> {
+  const kb = await getKnowledgeBase(kbId);
+  if (!kb?.rankedVideos?.length) {
+    throw new Error(`Knowledge base not found or missing source videos: ${kbId}`);
+  }
+
+  try {
+    const result = await executeKnowledgeBaseBuild(kbId, kb.rankedVideos, persistent);
+
+    if (result.kb.status === "ready") {
+      await ensureKbWelcomeMessage(kbId);
+    }
+
+    await updateBuildJob(kbId, persistent, {
+      processedVideos: kb.rankedVideos.length,
+      skippedCount: result.skippedVideos.length,
+      currentVideoTitle: undefined,
+    });
+
+    return result;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Knowledge base build failed";
+    const base = kb.buildJob ?? initialBuildJob(kb.rankedVideos?.length ?? 0);
+    await updateKnowledgeBase(
+      kbId,
+      (current) => ({
+        ...current,
+        status: "failed",
+        buildJob: {
+          ...base,
+          error: message,
+          updatedAt: new Date().toISOString(),
+        },
+      }),
+      persistent
+    );
+    throw err;
+  }
+}
+
+export async function runKnowledgeBaseRetryJob(
+  kbId: string,
+  userId: string,
+  persistent: boolean
+): Promise<BuildKnowledgeBaseResult> {
+  const kb = await getKnowledgeBase(kbId);
+  if (!kb) throw new Error(`Knowledge base not found: ${kbId}`);
+  if (kb.userId !== userId) throw new Error("You do not have access to this knowledge base");
+  if (!kb.rankedVideos?.length) {
+    throw new Error("This knowledge base cannot be retried because source videos were not saved.");
+  }
+  if (kb.status !== "failed") {
+    throw new Error("Only failed knowledge bases can be retried.");
+  }
+
+  await updateKnowledgeBase(
+    kbId,
+    (current) => ({
+      ...current,
+      status: "building",
+      buildJob: initialBuildJob(current.rankedVideos?.length ?? 0),
+    }),
+    persistent
+  );
+
+  return runKnowledgeBaseBuildJob(kbId, persistent);
+}
+
+export function knowledgeBaseBuildStatus(kb: KnowledgeBaseRecord) {
+  const job = kb.buildJob;
+  const total = job?.totalVideos ?? kb.rankedVideos?.length ?? 0;
+  const processed = job?.processedVideos ?? 0;
+  const progress =
+    kb.status === "ready" || kb.status === "failed"
+      ? 100
+      : total > 0
+        ? Math.min(99, Math.round((processed / total) * 100))
+        : 0;
+
+  return {
+    kbId: kb.kbId,
+    status: kb.status,
+    progress,
+    totalVideos: total,
+    processedVideos: processed,
+    currentVideoTitle: job?.currentVideoTitle,
+    skippedCount: job?.skippedCount ?? 0,
+    error: job?.error,
+    updatedAt: job?.updatedAt ?? kb.createdAt,
+  };
+}

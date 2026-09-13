@@ -84,6 +84,16 @@ export interface TranscriptChunk {
   embedding?: number[];
 }
 
+export interface KbBuildJobState {
+  totalVideos: number;
+  processedVideos: number;
+  currentVideoTitle?: string;
+  skippedCount: number;
+  startedAt: string;
+  updatedAt: string;
+  error?: string;
+}
+
 export interface KnowledgeBase {
   kbId: string;
   topic: string;
@@ -93,11 +103,14 @@ export interface KnowledgeBase {
   totalMinutes: number;
   status: "building" | "ready" | "failed";
   createdAt: string;
+  buildJob?: KbBuildJobState;
 }
 
 export interface KnowledgeBaseRecord extends KnowledgeBase {
   chunkIds: string[];
   userId: string;
+  /** Original ranked videos kept for failed-build retry. */
+  rankedVideos?: RankedVideo[];
   chatMessages?: ChatMessage[];
 }
 

@@ -1,5 +1,13 @@
 import { assertOpenRouterKey, config } from "../config";
 import { prepareEmbeddingInput } from "../embedding-input";
+import {
+  recordOpenRouterChatUsage,
+  recordOpenRouterEmbeddingUsage,
+} from "../usage/api-cost";
+
+type LlmUsageOptions = {
+  usageUserId?: string;
+};
 
 const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
 
@@ -63,14 +71,19 @@ async function openRouterPost<T>(path: string, body: unknown): Promise<T> {
   return (await response.json()) as T;
 }
 
+function estimateTokens(...parts: string[]): number {
+  return parts.reduce((sum, part) => sum + Math.ceil(part.length / 4), 0);
+}
+
 export async function generateText(
   systemPrompt: string,
   userPrompt: string,
-  options?: { temperature?: number; maxTokens?: number }
+  options?: { temperature?: number; maxTokens?: number } & LlmUsageOptions
 ): Promise<string> {
   const data = await withRetry(() =>
     openRouterPost<{
       choices?: Array<{ message?: { content?: string } }>;
+      usage?: { total_tokens?: number; prompt_tokens?: number; completion_tokens?: number };
     }>("/chat/completions", {
       model: config.llmModel,
       temperature: options?.temperature ?? 0.3,
@@ -82,13 +95,19 @@ export async function generateText(
     })
   );
 
-  return data.choices?.[0]?.message?.content ?? "";
+  const content = data.choices?.[0]?.message?.content ?? "";
+  const tokens =
+    data.usage?.total_tokens ??
+    estimateTokens(systemPrompt, userPrompt, content);
+  await recordOpenRouterChatUsage(options?.usageUserId, tokens);
+
+  return content;
 }
 
 export async function* generateTextStream(
   systemPrompt: string,
   userPrompt: string,
-  options?: { temperature?: number; maxTokens?: number }
+  options?: { temperature?: number; maxTokens?: number } & LlmUsageOptions
 ): AsyncGenerator<string> {
   const url = `${config.openrouterBaseUrl.replace(/\/$/, "")}/chat/completions`;
   const response = await fetch(url, {
@@ -121,6 +140,7 @@ export async function* generateTextStream(
 
   const decoder = new TextDecoder();
   let buffer = "";
+  let streamedText = "";
 
   while (true) {
     const { done, value } = await reader.read();
@@ -142,15 +162,24 @@ export async function* generateTextStream(
           choices?: Array<{ delta?: { content?: string } }>;
         };
         const text = parsed.choices?.[0]?.delta?.content;
-        if (text) yield text;
+        if (text) {
+          streamedText += text;
+          yield text;
+        }
       } catch {
         // skip malformed SSE chunks
       }
     }
   }
+
+  const tokens = estimateTokens(systemPrompt, userPrompt, streamedText);
+  await recordOpenRouterChatUsage(options?.usageUserId, tokens);
 }
 
-export async function generateEmbedding(text: string): Promise<number[]> {
+export async function generateEmbedding(
+  text: string,
+  options?: LlmUsageOptions
+): Promise<number[]> {
   const data = await withRetry(() =>
     openRouterPost<{ data?: Array<{ embedding: number[] }> }>("/embeddings", {
       model: config.embeddingModel,
@@ -162,10 +191,15 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   if (!embedding) {
     throw new Error("OpenRouter returned no embedding data");
   }
+
+  await recordOpenRouterEmbeddingUsage(options?.usageUserId, 1);
   return embedding;
 }
 
-export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
+export async function generateEmbeddings(
+  texts: string[],
+  options?: LlmUsageOptions
+): Promise<number[][]> {
   if (texts.length === 0) return [];
 
   const input = texts.map(prepareEmbeddingInput);
@@ -186,6 +220,8 @@ export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
       `OpenRouter returned ${embeddings.length} embeddings for ${texts.length} inputs`
     );
   }
+
+  await recordOpenRouterEmbeddingUsage(options?.usageUserId, texts.length);
   return embeddings;
 }
 

@@ -1,5 +1,7 @@
 import { google } from "googleapis";
 import { assertYoutubeKey } from "../config";
+import { recordYouTubeQuotaUsage } from "../usage/api-cost";
+import { incrementYouTubeQuota } from "../usage/youtube-quota";
 import {
   PRIMARY_SEARCH_RESULTS,
   MAX_SECONDARY_QUERIES,
@@ -25,6 +27,7 @@ export async function searchYouTube(
     maxResults?: number;
     publishedAfter?: string;
     publishedBefore?: string;
+    usageUserId?: string;
   }
 ): Promise<VideoCandidate[]> {
   const youtube = google.youtube({ version: "v3", auth: assertYoutubeKey() });
@@ -40,6 +43,9 @@ export async function searchYouTube(
     publishedBefore: options?.publishedBefore,
   });
 
+  await incrementYouTubeQuota(100);
+  await recordYouTubeQuotaUsage(options?.usageUserId, 100);
+
   const items = response.data.items ?? [];
   const videoIds = items
     .map((item) => item.id?.videoId)
@@ -51,6 +57,9 @@ export async function searchYouTube(
     part: ["contentDetails", "snippet"],
     id: videoIds,
   });
+
+  await incrementYouTubeQuota(1);
+  await recordYouTubeQuotaUsage(options?.usageUserId, 1);
 
   const detailMap = new Map(
     (details.data.items ?? []).map((item) => [item.id!, item])
@@ -116,7 +125,8 @@ function mergeSearchResults(
 export async function searchYouTubeMultiple(
   queries: string[],
   dateRange?: DateRange,
-  searchLimits?: Partial<ResearchSearchLimits>
+  searchLimits?: Partial<ResearchSearchLimits>,
+  usageUserId?: string
 ): Promise<VideoCandidate[]> {
   if (queries.length === 0) return [];
 
@@ -134,6 +144,7 @@ export async function searchYouTubeMultiple(
   const primaryResults = await searchYouTube(primary, {
     ...searchOpts,
     maxResults: primaryResultsLimit,
+    usageUserId,
   });
   mergeSearchResults(scoreMap, primaryResults, true, 1);
 
@@ -144,6 +155,7 @@ export async function searchYouTubeMultiple(
         searchYouTube(query, {
           ...searchOpts,
           maxResults: secondaryResultsLimit,
+          usageUserId,
         })
       )
     );

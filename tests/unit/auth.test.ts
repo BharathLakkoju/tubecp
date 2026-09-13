@@ -61,8 +61,23 @@ describe("apiError", () => {
     expect(body.code).toBe("FEATURE_GATE");
   });
 
-  it("maps unknown errors to 500", async () => {
+  it("maps unknown errors to 500 with detail in development", async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "development";
     const res = apiError(new Error("boom"));
     expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toBe("Internal server error");
+    expect(body.detail).toBeDefined();
+    process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  it("omits error detail outside development", async () => {
+    const originalNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    const res = apiError(new Error("boom"));
+    const body = await res.json();
+    expect(body.detail).toBeUndefined();
+    process.env.NODE_ENV = originalNodeEnv;
   });
 });

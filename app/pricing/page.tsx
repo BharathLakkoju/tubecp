@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PLANS } from "@/lib/plans";
+import { getPricingPlans } from "@/lib/plans";
 import MarketingLayout from "@/components/MarketingLayout";
 import SiteNav from "@/components/SiteNav";
 import HeroSection from "@/components/HeroSection";
@@ -17,7 +17,7 @@ export default async function PricingPage({
 }) {
   const params = await searchParams;
   const checkoutCanceled = params.checkout === "canceled";
-  const plans = [PLANS.free, PLANS.pro, PLANS.researcher];
+  const plans = getPricingPlans();
 
   return (
     <MarketingLayout showThemeSwitcher={false}>
@@ -39,7 +39,7 @@ export default async function PricingPage({
         />
         </FadeIn>
 
-        <div className="mt-6 grid grid-cols-3 border border-border max-lg:grid-cols-1">
+        <div className="mt-6 grid grid-cols-4 border border-border max-xl:grid-cols-2 max-lg:grid-cols-1">
           {plans.map((plan, index) => (
             <div
               key={plan.id}
@@ -74,6 +74,11 @@ export default async function PricingPage({
                 <li className="border-t border-border py-2 font-mono text-xs text-text-muted">
                   {plan.persistentKbs ? "Persistent knowledge bases" : "Ranked lists only"}
                 </li>
+                {plan.seatLimit ? (
+                  <li className="border-t border-border py-2 font-mono text-xs text-text-muted">
+                    {plan.seatLimit} team seats · pooled usage
+                  </li>
+                ) : null}
               </ul>
               <div className="mt-auto flex flex-col gap-3">
                 {plan.id === "free" ? (

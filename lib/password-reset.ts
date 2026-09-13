@@ -34,12 +34,14 @@ export async function createPasswordResetToken(email: string): Promise<string | 
   return token;
 }
 
-export async function requestPasswordReset(email: string): Promise<void> {
+/** Returns true when a reset email was sent to an email/password account. */
+export async function requestPasswordReset(email: string): Promise<boolean> {
   const token = await createPasswordResetToken(email);
-  if (!token) return;
+  if (!token) return false;
 
   const resetUrl = `${getAppUrl()}/reset-password?token=${encodeURIComponent(token)}`;
   await sendPasswordResetEmail(normalizeEmail(email), resetUrl);
+  return true;
 }
 
 type ResetTokenRow = {

@@ -8,7 +8,7 @@ import { getConfiguredOAuthProviders } from "@/lib/auth-providers";
 import { signInSchema } from "@/lib/auth-schemas";
 import { createDbPool } from "@/lib/db";
 import { ensureUserSubscription } from "@/lib/billing/subscription";
-import { verifyUserPassword } from "@/lib/users";
+import { hasPasswordAuth, verifyUserPassword } from "@/lib/users";
 
 function buildProviders(): NextAuthConfig["providers"] {
   const providers: NextAuthConfig["providers"] = [
@@ -25,6 +25,7 @@ function buildProviders(): NextAuthConfig["providers"] {
 
         const user = await verifyUserPassword(parsed.data.email, parsed.data.password);
         if (!user) return null;
+        if (hasPasswordAuth(user) && !user.emailVerified) return null;
 
         return {
           id: String(user.id),

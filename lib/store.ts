@@ -1,7 +1,8 @@
-import type { Transcript, TranscriptChunk, KnowledgeBaseRecord } from "./types";
+import type { ResearchResult, Transcript, TranscriptChunk, KnowledgeBaseRecord } from "./types";
 import { getRedis, hasRedis } from "./store/redis";
 
 const memory = new Map<string, unknown>();
+const RESEARCH_RESULT_TTL_SECONDS = 48 * 60 * 60;
 
 export function hasKv(): boolean {
   return hasRedis();
@@ -13,6 +14,18 @@ async function get<T>(key: string): Promise<T | null> {
     return (await redis.get<T>(key)) ?? null;
   }
   return (memory.get(key) as T) ?? null;
+}
+
+async function mget<T>(keys: string[]): Promise<(T | null)[]> {
+  if (keys.length === 0) return [];
+
+  const redis = getRedis();
+  if (redis) {
+    const values = await redis.mget<(T | null)[]>(...keys);
+    return values.map((value) => value ?? null);
+  }
+
+  return keys.map((key) => (memory.get(key) as T) ?? null);
 }
 
 async function set(key: string, value: unknown, ttlSeconds?: number): Promise<void> {
@@ -108,25 +121,50 @@ export async function saveChunk(chunk: TranscriptChunk): Promise<void> {
 }
 
 export async function getChunksForVideos(videoIds: string[]): Promise<TranscriptChunk[]> {
-  const chunks: TranscriptChunk[] = [];
-  for (const videoId of videoIds) {
-    const ids = await get<string[]>(`video-chunks:${videoId}`);
-    if (!ids) continue;
-    for (const id of ids) {
-      const chunk = await get<TranscriptChunk>(`chunk:${id}`);
-      if (chunk) chunks.push(chunk);
-    }
-  }
-  return chunks;
+  if (videoIds.length === 0) return [];
+
+  const chunkListKeys = videoIds.map((videoId) => `video-chunks:${videoId}`);
+  const chunkLists = await mget<string[]>(chunkListKeys);
+  const chunkIds = [
+    ...new Set(chunkLists.flatMap((ids) => ids ?? [])),
+  ];
+
+  return getChunksByIds(chunkIds);
 }
 
 export async function getChunksByIds(chunkIds: string[]): Promise<TranscriptChunk[]> {
-  const chunks: TranscriptChunk[] = [];
-  for (const id of chunkIds) {
-    const chunk = await get<TranscriptChunk>(`chunk:${id}`);
-    if (chunk) chunks.push(chunk);
-  }
-  return chunks;
+  if (chunkIds.length === 0) return [];
+
+  const keys = chunkIds.map((id) => `chunk:${id}`);
+  const chunks = await mget<TranscriptChunk>(keys);
+  return chunks.filter((chunk): chunk is TranscriptChunk => chunk !== null);
+}
+
+export function researchResultCacheKey(planId: string, topic: string): string {
+  return `research-result:${planId}:${hashTopic(topic.toLowerCase().trim())}`;
+}
+
+export async function getCachedResearchResult(
+  cacheKey: string
+): Promise<ResearchResult | null> {
+  const cached = await get<{ result: ResearchResult; cachedAt: string }>(cacheKey);
+  if (!cached) return null;
+
+  const ageHours = (Date.now() - new Date(cached.cachedAt).getTime()) / (1000 * 60 * 60);
+  if (ageHours > 48) return null;
+
+  return cached.result;
+}
+
+export async function cacheResearchResult(
+  cacheKey: string,
+  result: ResearchResult
+): Promise<void> {
+  await set(
+    cacheKey,
+    { result, cachedAt: new Date().toISOString() },
+    RESEARCH_RESULT_TTL_SECONDS
+  );
 }
 
 export async function registerVideoChunks(videoId: string, chunkIds: string[]): Promise<void> {
@@ -211,14 +249,8 @@ export async function listUserKnowledgeBaseRecords(
   userId: string
 ): Promise<KnowledgeBaseRecord[]> {
   const ids = await getUserKnowledgeBases(userId);
-  const records: KnowledgeBaseRecord[] = [];
+  if (ids.length === 0) return [];
 
-  for (const kbId of ids) {
-    const kb = await getKnowledgeBase(kbId);
-    if (kb && kb.userId === userId) {
-      records.push(kb);
-    }
-  }
-
-  return records;
+  const records = await mget<KnowledgeBaseRecord>(ids.map((kbId) => `kb:${kbId}`));
+  return records.filter((kb): kb is KnowledgeBaseRecord => kb !== null && kb.userId === userId);
 }

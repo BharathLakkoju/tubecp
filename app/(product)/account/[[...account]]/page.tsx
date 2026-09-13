@@ -1,7 +1,12 @@
+import Link from "next/link";
+import { auth } from "@/auth";
 import AccountProfile from "@/components/AccountProfile";
 import MobileNavToggle from "@/components/MobileNavToggle";
+import { isAdminUserId } from "@/lib/admin";
 
-export default function AccountPage() {
+export default async function AccountPage() {
+  const session = await auth();
+  const showAdminLink = session?.user?.id ? isAdminUserId(session.user.id) : false;
   if (process.env.E2E_AUTH_BYPASS === "true") {
     return (
       <div className="app-panel" data-testid="e2e-account">
@@ -40,6 +45,13 @@ export default function AccountPage() {
             </div>
           </div>
         </header>
+        {showAdminLink && (
+          <p className="mb-6 font-mono text-[13px] text-text-muted">
+            <Link href="/admin/usage" className="text-accent underline-offset-2 hover:underline">
+              Operator usage dashboard →
+            </Link>
+          </p>
+        )}
         <AccountProfile />
       </div>
     </div>

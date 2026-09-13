@@ -34,6 +34,10 @@ service-account*.json
 Thumbs.db
 web/
 
+# TypeScript incremental build cache
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+
 # Test artifacts
 coverage/
 playwright-report/

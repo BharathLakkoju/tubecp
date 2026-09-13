@@ -1,9 +1,9 @@
 import type { PlanId } from "@/lib/plans";
 
-export type PaidPlanId = "pro" | "researcher";
+export type PaidPlanId = "pro" | "researcher" | "team";
 
 export function isPaidPlan(plan: string | undefined): plan is PaidPlanId {
-  return plan === "pro" || plan === "researcher";
+  return plan === "pro" || plan === "researcher" || plan === "team";
 }
 
 export function checkoutPathForPlan(plan: PaidPlanId): string {

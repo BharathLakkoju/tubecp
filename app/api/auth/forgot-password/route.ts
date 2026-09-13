@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { forgotPasswordSchema } from "@/lib/auth-schemas";
+import { EmailDeliveryError } from "@/lib/email";
 import { requestPasswordReset } from "@/lib/password-reset";
 import { RateLimitError, rateLimitApi } from "@/lib/ratelimit";
 
@@ -17,13 +18,22 @@ export async function POST(request: Request) {
 
   try {
     await rateLimitApi(parsed.data.email.toLowerCase(), "forgot-password", 5);
-    await requestPasswordReset(parsed.data.email);
+    const sent = await requestPasswordReset(parsed.data.email);
+    if (sent) {
+      return NextResponse.json({ ok: true, message: GENERIC_MESSAGE });
+    }
+    return NextResponse.json({ ok: true, message: GENERIC_MESSAGE });
   } catch (err) {
     if (err instanceof RateLimitError) {
       return NextResponse.json({ error: err.message }, { status: 429 });
     }
+    if (err instanceof EmailDeliveryError) {
+      return NextResponse.json({ error: err.message, code: err.code }, { status: 503 });
+    }
     console.error("Forgot password error:", err);
+    return NextResponse.json(
+      { error: "Unable to send password reset email right now." },
+      { status: 503 }
+    );
   }
-
-  return NextResponse.json({ ok: true, message: GENERIC_MESSAGE });
 }

@@ -22,6 +22,7 @@ const ResearchLiveView = dynamic(() => import("@/components/ResearchLiveView"));
 const ResearchResults = dynamic(() => import("@/components/ResearchResults"));
 const KbBuildProgress = dynamic(() => import("@/components/KbBuildProgress"));
 const UpgradePrompt = dynamic(() => import("@/components/UpgradePrompt"));
+const FreeTierTeaser = dynamic(() => import("@/components/FreeTierTeaser"));
 
 function emptyLiveResearch(): ResearchLiveState {
   return {
@@ -49,6 +50,7 @@ export default function AppResearchClient({
   const [researchStage, setResearchStage] = useState<ResearchStage>("expanding");
   const [liveResearch, setLiveResearch] = useState<ResearchLiveState>(emptyLiveResearch);
   const [error, setError] = useState("");
+  const [resumeSessionId, setResumeSessionId] = useState<string | null>(null);
 
   const mergeLiveResearch = (update: ResearchLiveUpdate) => {
     setLiveResearch((prev) => ({
@@ -59,7 +61,7 @@ export default function AppResearchClient({
     }));
   };
 
-  const handleSearch = async (searchTopic: string) => {
+  const handleSearch = async (searchTopic: string, options?: { resume?: boolean }) => {
     setLoading(true);
     setError("");
     setActiveTopic(searchTopic);
@@ -68,17 +70,25 @@ export default function AppResearchClient({
     setResearchStage("expanding");
     setLiveResearch(emptyLiveResearch());
     setResearch(null);
+    if (!options?.resume) {
+      setResumeSessionId(null);
+    }
     setPhase("results");
 
     try {
       const { runResearch } = await import("@/lib/client/workflows");
-      const result = await runResearch(searchTopic, (msg, pct, stage, live) => {
-        setProgressMsg(msg);
-        if (pct !== undefined) setProgressPct(pct);
-        if (stage) setResearchStage(stage);
-        if (live) mergeLiveResearch(live);
-      });
+      const { research: result, researchSessionId } = await runResearch(
+        searchTopic,
+        (msg, pct, stage, live) => {
+          setProgressMsg(msg);
+          if (pct !== undefined) setProgressPct(pct);
+          if (stage) setResearchStage(stage);
+          if (live) mergeLiveResearch(live);
+        },
+        options?.resume ? resumeSessionId ?? undefined : undefined
+      );
       setResearch(result);
+      setResumeSessionId(researchSessionId);
       setProgressMsg("");
     } catch (err) {
       setError(parseClientError(err));
@@ -164,6 +174,15 @@ export default function AppResearchClient({
                 {error && (
                   <p className="mt-4 font-mono text-[13px] text-accent">{error}</p>
                 )}
+                {error && resumeSessionId && activeTopic && (
+                  <button
+                    type="button"
+                    className="btn-ghost mt-4"
+                    onClick={() => handleSearch(activeTopic, { resume: true })}
+                  >
+                    resume research from checkpoint →
+                  </button>
+                )}
               </HeroSection>
               <UsageIndicator
                 used={sub.researchUsedToday}
@@ -204,6 +223,7 @@ export default function AppResearchClient({
                     Final results
                   </h3>
                   <ResearchResults research={research} showCopyLinks={sub.plan === "free"} />
+                  {sub.plan === "free" && <FreeTierTeaser research={research} />}
                 </section>
               )}
 

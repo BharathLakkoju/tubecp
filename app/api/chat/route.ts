@@ -4,6 +4,7 @@ import { appendKbChatMessages } from "@/lib/services/kb-chat";
 import { requireUserId, apiError } from "@/lib/auth";
 import { assertKbAccess } from "@/lib/kb-access";
 import { checkAndIncrementUsage } from "@/lib/billing/subscription";
+import { isE2eStubMode } from "@/lib/e2e-stub";
 import { rateLimitApi } from "@/lib/ratelimit";
 import type { ChatMessage, ChatSource } from "@/lib/types";
 
@@ -23,7 +24,9 @@ export async function POST(req: NextRequest) {
     }
 
     await assertKbAccess(kbId, userId);
-    await checkAndIncrementUsage(userId, "chat");
+    if (!isE2eStubMode()) {
+      await checkAndIncrementUsage(userId, "chat");
+    }
 
     const trimmed = message.trim();
     const encoder = new TextEncoder();

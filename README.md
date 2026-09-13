@@ -11,6 +11,7 @@ Turn any YouTube research topic into a **chattable knowledge base** — sourced,
 | **Free** | 10 researches/day → ranked video list with relevance scores |
 | **Pro ($9/mo)** | 10 KB builds/mo + 200 chat messages/mo + persistent KBs |
 | **Researcher ($19/mo)** | 30 KB builds/mo + 600 chats/mo |
+| **Team ($49/mo)** | 5 seats · 50 KB builds/mo + 2000 chats/mo · shared workspace |
 
 ## Quick start (local)
 
@@ -50,6 +51,8 @@ See `.env.example` for the full list. Required:
 
 Optional: `NEXT_PUBLIC_SENTRY_DSN` — see [docs/SETUP-SENTRY.md](docs/SETUP-SENTRY.md)
 
+Email (verification + password reset): set `RESEND_API_KEY` and `EMAIL_FROM` — see [docs/SETUP-RESEND.md](docs/SETUP-RESEND.md)
+
 ### 3. Connect services
 
 - **Upstash Redis:** Vercel → Storage → Marketplace → Upstash Redis
@@ -62,6 +65,22 @@ Optional: `NEXT_PUBLIC_SENTRY_DSN` — see [docs/SETUP-SENTRY.md](docs/SETUP-SEN
 1. Polar Dashboard → Products → Create
 2. **Pro** — $9/month subscription → copy product ID to `POLAR_PRODUCT_ID_PRO`
 3. **Researcher** — $19/month → copy to `POLAR_PRODUCT_ID_RESEARCHER`
+
+### 5. Validate and smoke-test production
+
+Before deploy (with production env loaded):
+
+```bash
+NODE_ENV=production npm run validate:deploy
+```
+
+After deploy:
+
+```bash
+npm run smoke:production -- --url https://your-app.vercel.app
+```
+
+`GET /api/health` reports config flags and returns `status: "ok"` when all required checks pass. Full checklist: [docs/OPS-DEPLOY.md](docs/OPS-DEPLOY.md).
 
 ## Infrastructure decisions
 
@@ -120,13 +139,18 @@ E2E tests use `E2E_AUTH_BYPASS=true` so they run without real OAuth credentials.
 | `GET /api/checkout?plan=pro` | Polar checkout |
 | `POST /api/webhook/polar` | Subscription sync |
 
-## MCP (local)
+## MCP (local + AI clients)
 
 ```bash
 npm run dev:mcp
 ```
 
-See `mcp/server.ts` — requires same env vars plus optional `LICENSE_KEY`.
+Connect **Cursor**, **Claude Desktop**, **Windsurf**, **Zed**, and other MCP hosts using:
+
+- **Hosted SaaS:** Account → Hosted MCP → generate API key → `https://your-app/api/mcp`
+- **Local stdio:** copy-paste config in [docs/MCP-CLIENT.md](docs/MCP-CLIENT.md) and `mcp/clients/tubecp.mcp.json`
+
+Requires `YOUTUBE_API_KEY`, `OPENROUTER_API_KEY`, and `LICENSE_KEY` in production.
 
 ## Project structure
 

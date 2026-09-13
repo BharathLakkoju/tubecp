@@ -16,6 +16,8 @@
     "seed:test-users": "tsx scripts/seed-test-users.ts",
     "db:migrate": "tsx scripts/migrate-app.ts",
     "auth:urls": "tsx scripts/print-auth-urls.ts",
+    "validate:deploy": "tsx scripts/validate-deploy.ts",
+    "smoke:production": "tsx scripts/smoke-production.ts",
     "test": "vitest run",
     "test:unit": "vitest run",
     "test:watch": "vitest",

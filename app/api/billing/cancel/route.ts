@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireUserId, apiError } from "@/lib/auth";
+import { cancelPolarSubscriptionAtPeriodEnd } from "@/lib/billing/polar-subscription";
 import { getUserSubscription } from "@/lib/billing/subscription";
-import { getPolarClient } from "@/lib/polar";
 
 export async function POST() {
   try {
@@ -22,13 +22,7 @@ export async function POST() {
       );
     }
 
-    const polar = getPolarClient();
-    await polar.subscriptions.update({
-      id: sub.polarSubscriptionId,
-      subscriptionUpdate: {
-        cancelAtPeriodEnd: true,
-      },
-    });
+    await cancelPolarSubscriptionAtPeriodEnd(sub.polarSubscriptionId);
 
     return NextResponse.json({
       ok: true,

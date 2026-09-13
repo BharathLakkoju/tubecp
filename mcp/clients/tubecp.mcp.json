@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "tubecp": {
+      "command": "npm",
+      "args": ["run", "dev:mcp"],
+      "cwd": "/ABSOLUTE/PATH/TO/youtube-mcp-agent",
+      "env": {
+        "YOUTUBE_API_KEY": "your-youtube-data-api-key",
+        "OPENROUTER_API_KEY": "your-openrouter-api-key",
+        "LICENSE_KEY": "your-tubecp-license-key-if-required"
+      }
+    }
+  }
+}

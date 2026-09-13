@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rankVideos } from "@/lib/services/relevance";
 import { requireUserId, apiError } from "@/lib/auth";
-import { checkAndIncrementUsage, getUserSubscription } from "@/lib/billing/subscription";
+import { getUserSubscription } from "@/lib/billing/subscription";
 import { getResearchPipelineLimits } from "@/lib/research-limits";
+import { assertResearchSession, saveResearchCheckpoint } from "@/lib/research-session";
 import { rateLimitApi } from "@/lib/ratelimit";
+import { cacheResearchResult, researchResultCacheKey } from "@/lib/store";
 import type { VideoAnalysis, VideoCandidate } from "@/lib/types";
 
 export const maxDuration = 10;
@@ -13,13 +15,15 @@ export async function POST(req: NextRequest) {
     const userId = await requireUserId();
     await rateLimitApi(userId, "research-rank", 20);
 
-    const { topic, queriesUsed, videosSearched, analyses, allCandidates } = (await req.json()) as {
-      topic?: string;
-      queriesUsed?: string[];
-      videosSearched?: number;
-      analyses?: Array<{ video: VideoCandidate; analysis: VideoAnalysis }>;
-      allCandidates?: VideoCandidate[];
-    };
+    const { topic, queriesUsed, videosSearched, analyses, allCandidates, researchSessionId } =
+      (await req.json()) as {
+        topic?: string;
+        queriesUsed?: string[];
+        videosSearched?: number;
+        analyses?: Array<{ video: VideoCandidate; analysis: VideoAnalysis }>;
+        allCandidates?: VideoCandidate[];
+        researchSessionId?: string;
+      };
 
     if (!topic || !queriesUsed || !analyses) {
       return NextResponse.json(
@@ -27,6 +31,8 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    await assertResearchSession(userId, researchSessionId);
 
     const sub = await getUserSubscription(userId);
     const limits = getResearchPipelineLimits(sub.plan);
@@ -40,7 +46,20 @@ export async function POST(req: NextRequest) {
       allCandidates ?? []
     );
 
-    await checkAndIncrementUsage(userId, "research");
+    await cacheResearchResult(researchResultCacheKey(sub.plan, topic), result);
+
+    if (researchSessionId) {
+      await saveResearchCheckpoint(researchSessionId, {
+        topic,
+        stage: "ranked",
+        queries: queriesUsed,
+        allCandidates,
+        videosSearched: videosSearched ?? analyses.length,
+        analyses,
+        result,
+        updatedAt: new Date().toISOString(),
+      });
+    }
 
     return NextResponse.json(result);
   } catch (err) {

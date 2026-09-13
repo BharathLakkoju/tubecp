@@ -1,25 +1,43 @@
-import { describe, expect, it } from "vitest";
-import { canBuildKb, canChat, getPlan, PLANS } from "@/lib/plans";
+import { afterEach, describe, expect, it } from "vitest";
+import { getPolarProductStatus, getPricingPlans, PLANS } from "@/lib/plans";
 
-describe("plans", () => {
-  it("returns free plan by default", () => {
-    expect(getPlan(undefined).id).toBe("free");
-    expect(getPlan("unknown").id).toBe("free");
+describe("getPricingPlans", () => {
+  const originalPro = process.env.POLAR_PRODUCT_ID_PRO;
+  const originalResearcher = process.env.POLAR_PRODUCT_ID_RESEARCHER;
+
+  afterEach(() => {
+    process.env.POLAR_PRODUCT_ID_PRO = originalPro;
+    process.env.POLAR_PRODUCT_ID_RESEARCHER = originalResearcher;
+    PLANS.pro.polarProductId = originalPro;
+    PLANS.researcher.polarProductId = originalResearcher;
   });
 
-  it("returns pro and researcher plans", () => {
-    expect(getPlan("pro").kbBuildsPerMonth).toBe(10);
-    expect(getPlan("researcher").chatMessagesPerMonth).toBe(600);
+  it("always includes free", () => {
+    delete process.env.POLAR_PRODUCT_ID_PRO;
+    delete process.env.POLAR_PRODUCT_ID_RESEARCHER;
+    PLANS.pro.polarProductId = undefined;
+    PLANS.researcher.polarProductId = undefined;
+
+    const plans = getPricingPlans();
+    expect(plans.map((plan) => plan.id)).toEqual(["free"]);
   });
 
-  it("free tier cannot build KB or chat", () => {
-    expect(canBuildKb(PLANS.free)).toBe(false);
-    expect(canChat(PLANS.free)).toBe(false);
+  it("includes paid tiers only when Polar product IDs are configured", () => {
+    PLANS.pro.polarProductId = "prod_pro";
+    PLANS.researcher.polarProductId = undefined;
+
+    const plans = getPricingPlans();
+    expect(plans.map((plan) => plan.id)).toEqual(["free", "pro"]);
   });
 
-  it("paid tiers can build KB and chat", () => {
-    expect(canBuildKb(PLANS.pro)).toBe(true);
-    expect(canChat(PLANS.pro)).toBe(true);
-    expect(canBuildKb(PLANS.researcher)).toBe(true);
+  it("reports polar product status", () => {
+    PLANS.pro.polarProductId = "prod_pro";
+    PLANS.researcher.polarProductId = "";
+
+    expect(getPolarProductStatus()).toEqual({
+      pro: true,
+      researcher: false,
+      team: false,
+    });
   });
 });

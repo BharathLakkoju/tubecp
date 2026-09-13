@@ -7,6 +7,7 @@ export type DbUser = {
   email: string | null;
   password: string | null;
   image: string | null;
+  emailVerified: Date | null;
 };
 
 type UserRow = {
@@ -15,6 +16,7 @@ type UserRow = {
   email: string | null;
   password: string | null;
   image: string | null;
+  emailVerified: Date | null;
 };
 
 function rowToUser(row: UserRow): DbUser {
@@ -24,6 +26,7 @@ function rowToUser(row: UserRow): DbUser {
     email: row.email,
     password: row.password,
     image: row.image,
+    emailVerified: row.emailVerified,
   };
 }
 
@@ -39,7 +42,7 @@ export function hasPasswordAuth(user: Pick<DbUser, "password"> | null | undefine
 export async function getUserByEmail(email: string): Promise<DbUser | null> {
   const pool = createDbPool();
   const result = await pool.query<UserRow>(
-    `SELECT id, name, email, password, image FROM users WHERE email = $1`,
+    `SELECT id, name, email, password, image, "emailVerified" FROM users WHERE email = $1`,
     [normalizeEmail(email)]
   );
   return result.rows[0] ? rowToUser(result.rows[0]) : null;
@@ -58,7 +61,7 @@ export async function verifyUserPassword(
 export async function getUserById(id: string): Promise<DbUser | null> {
   const pool = createDbPool();
   const result = await pool.query<UserRow>(
-    `SELECT id, name, email, password, image FROM users WHERE id = $1`,
+    `SELECT id, name, email, password, image, "emailVerified" FROM users WHERE id = $1`,
     [id]
   );
   return result.rows[0] ? rowToUser(result.rows[0]) : null;
@@ -80,9 +83,9 @@ export async function createUserWithPassword(
   const passwordHash = await hashPassword(plainPassword);
 
   const result = await pool.query<UserRow>(
-    `INSERT INTO users (name, email, password, "emailVerified")
-     VALUES ($1, $2, $3, NOW())
-     RETURNING id, name, email, password, image`,
+    `INSERT INTO users (name, email, password)
+     VALUES ($1, $2, $3)
+     RETURNING id, name, email, password, image, "emailVerified"`,
     [name.trim(), normalizedEmail, passwordHash]
   );
 

@@ -9,6 +9,7 @@ import { generateEmbeddings } from "./llm";
 import {
   saveChunk,
   saveKnowledgeBase,
+  getChunksByIds,
   getChunksForVideos,
   registerVideoChunks,
   getKnowledgeBase,
@@ -17,6 +18,11 @@ import {
   deleteChunksForKnowledgeBase,
   removeUserKnowledgeBase,
 } from "../store";
+import {
+  addToKbVectorIndex,
+  deleteKbVectorIndex,
+  setKbVectorIndex,
+} from "../store/vector-index";
 import { deleteKbChatData } from "./kb-chat";
 import type { TranscriptChunk, KnowledgeBaseRecord, RankedVideo } from "../types";
 
@@ -71,6 +77,7 @@ export async function createKnowledgeBase(
     kbId: uuidv4(),
     topic,
     userId,
+    rankedVideos,
     videoIds: rankedVideos.map((v) => v.videoId),
     chunkIds: [],
     chunksIndexed: 0,
@@ -102,6 +109,10 @@ export async function indexVideoInKnowledgeBase(
   if (existingChunks.length > 0 && existingChunks.every((c) => c.embedding)) {
     const chunkIds = existingChunks.map((c) => c.id);
     await registerVideoChunks(video.videoId, chunkIds);
+    await addToKbVectorIndex(
+      kbId,
+      existingChunks.map((chunk) => ({ id: chunk.id, embedding: chunk.embedding! }))
+    );
 
     const updated = await updateKnowledgeBase(
       kbId,
@@ -189,6 +200,10 @@ export async function indexVideoInKnowledgeBase(
     chunkIds.push(embeddableChunks[i].id);
   }
 
+  await addToKbVectorIndex(
+    kbId,
+    embeddableChunks.map((chunk) => ({ id: chunk.id, embedding: chunk.embedding! }))
+  );
   await registerVideoChunks(video.videoId, chunkIds);
 
   const updated = await updateKnowledgeBase(
@@ -214,6 +229,14 @@ export async function finalizeKnowledgeBase(
   const kb = await getKnowledgeBase(kbId);
   if (!kb) throw new Error(`Knowledge base not found: ${kbId}`);
 
+  const chunks = await getChunksByIds(kb.chunkIds);
+  await setKbVectorIndex(
+    kbId,
+    chunks
+      .filter((chunk) => chunk.embedding)
+      .map((chunk) => ({ id: chunk.id, embedding: chunk.embedding! }))
+  );
+
   const updated: KnowledgeBaseRecord = {
     ...kb,
     status: kb.chunkIds.length > 0 ? "ready" : "failed",
@@ -233,6 +256,7 @@ export async function deleteKnowledgeBase(kbId: string, userId: string): Promise
   }
 
   await deleteChunksForKnowledgeBase(kb.videoIds, kb.chunkIds);
+  await deleteKbVectorIndex(kbId);
   await deleteKbChatData(kbId);
   await deleteKnowledgeBaseRecord(kbId);
   await removeUserKnowledgeBase(userId, kbId);

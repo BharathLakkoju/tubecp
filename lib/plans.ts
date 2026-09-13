@@ -1,4 +1,4 @@
-export type PlanId = "free" | "pro" | "researcher";
+export type PlanId = "free" | "pro" | "researcher" | "team";
 
 export interface PlanLimits {
   id: PlanId;
@@ -8,6 +8,7 @@ export interface PlanLimits {
   chatMessagesPerMonth: number;
   researchPerDay: number;
   persistentKbs: boolean;
+  seatLimit?: number;
   polarProductId?: string;
 }
 
@@ -41,10 +42,23 @@ export const PLANS: Record<PlanId, PlanLimits> = {
     persistentKbs: true,
     polarProductId: process.env.POLAR_PRODUCT_ID_RESEARCHER,
   },
+  team: {
+    id: "team",
+    name: "Team",
+    priceMonthly: 49,
+    kbBuildsPerMonth: 50,
+    chatMessagesPerMonth: 2000,
+    researchPerDay: 200,
+    persistentKbs: true,
+    seatLimit: 5,
+    polarProductId: process.env.POLAR_PRODUCT_ID_TEAM,
+  },
 };
 
 export function getPlan(planId: string | undefined): PlanLimits {
-  if (planId === "pro" || planId === "researcher") return PLANS[planId];
+  if (planId === "pro" || planId === "researcher" || planId === "team") {
+    return PLANS[planId];
+  }
   return PLANS.free;
 }
 
@@ -54,4 +68,21 @@ export function canBuildKb(plan: PlanLimits): boolean {
 
 export function canChat(plan: PlanLimits): boolean {
   return plan.chatMessagesPerMonth > 0;
+}
+
+export function isPaidPlanConfigured(plan: PlanLimits): boolean {
+  return plan.id === "free" || Boolean(plan.polarProductId?.trim());
+}
+
+/** Plans shown on marketing/pricing surfaces (hides paid tiers without Polar product IDs). */
+export function getPricingPlans(): PlanLimits[] {
+  return [PLANS.free, PLANS.pro, PLANS.researcher].filter(isPaidPlanConfigured);
+}
+
+export function getPolarProductStatus(): Record<"pro" | "researcher" | "team", boolean> {
+  return {
+    pro: Boolean(PLANS.pro.polarProductId?.trim()),
+    researcher: Boolean(PLANS.researcher.polarProductId?.trim()),
+    team: Boolean(PLANS.team.polarProductId?.trim()),
+  };
 }

@@ -1,4 +1,6 @@
+import type { NextRequest } from "next/server";
 import { Ratelimit } from "@upstash/ratelimit";
+import { isProduction } from "@/lib/env";
 import { getRedis } from "@/lib/store/redis";
 
 const memoryCounters = new Map<string, { count: number; reset: number }>();
@@ -11,9 +13,29 @@ export class RateLimitError extends Error {
   }
 }
 
+function clientIp(request: NextRequest): string {
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) {
+    return forwarded.split(",")[0]?.trim() || "unknown";
+  }
+  return request.headers.get("x-real-ip") ?? "unknown";
+}
+
+export async function rateLimitByIp(
+  request: NextRequest,
+  action: string,
+  maxPerMinute = 30
+): Promise<void> {
+  await rateLimitApi(clientIp(request), action, maxPerMinute);
+}
+
 export async function rateLimitApi(userId: string, action: string, maxPerMinute = 30) {
   const redis = getRedis();
   const key = `rl:${action}:${userId}`;
+
+  if (!redis && isProduction()) {
+    throw new RateLimitError("Service temporarily unavailable. Please try again later.");
+  }
 
   if (redis) {
     const limiter = new Ratelimit({

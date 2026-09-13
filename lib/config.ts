@@ -1,3 +1,4 @@
+import { isProduction } from "./env";
 import { DEFAULT_EMBEDDING_MODEL, DEFAULT_LLM_MODEL } from "./openrouter-models";
 
 function required(name: string, value: string | undefined): string {
@@ -26,6 +27,8 @@ export function assertOpenRouterKey(): string {
 
 export function isLicenseValid(key?: string): boolean {
   const licenseKey = process.env.LICENSE_KEY ?? config.licenseKey;
-  if (!licenseKey) return true;
+  if (!licenseKey) {
+    return !isProduction();
+  }
   return key === licenseKey;
 }

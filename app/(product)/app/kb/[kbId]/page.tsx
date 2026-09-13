@@ -5,6 +5,7 @@ import { toKnowledgeBaseSummary } from "@/lib/knowledge-bases";
 import { getProductBootstrap } from "@/lib/server/product-bootstrap";
 import { ensureKbWelcomeMessage } from "@/lib/services/kb-chat";
 import UpgradePrompt from "@/components/UpgradePrompt";
+import KbFailedPanel from "@/components/KbFailedPanel";
 import KbChatClient from "./KbChatClient";
 
 export default async function KnowledgeBaseChatPage({
@@ -24,6 +25,10 @@ export default async function KnowledgeBaseChatPage({
     assertKbAccess(kbId, userId),
     ensureKbWelcomeMessage(kbId),
   ]);
+
+  if (kb.status === "failed") {
+    return <KbFailedPanel kb={toKnowledgeBaseSummary(kb)} />;
+  }
 
   const plan = getPlan(bootstrap.subscription.plan);
   if (plan.chatMessagesPerMonth <= 0) {

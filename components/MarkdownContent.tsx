@@ -3,7 +3,7 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/cn";
-import { normalizeMarkdown } from "@/lib/markdown";
+import { normalizeMarkdown, sanitizeMarkdownHref } from "@/lib/markdown";
 
 interface Props {
   content: string;
@@ -70,16 +70,22 @@ export default function MarkdownContent({ content, className }: Props) {
               {children}
             </pre>
           ),
-          a: ({ href, children }) => (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-accent underline-offset-2 hover:underline"
-            >
-              {children}
-            </a>
-          ),
+          a: ({ href, children }) => {
+            const safeHref = sanitizeMarkdownHref(href);
+            if (!safeHref) {
+              return <span className="text-accent">{children}</span>;
+            }
+            return (
+              <a
+                href={safeHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent underline-offset-2 hover:underline"
+              >
+                {children}
+              </a>
+            );
+          },
           blockquote: ({ children }) => (
             <blockquote className="my-2 border-l-2 border-border pl-3 text-text-muted">
               {children}
