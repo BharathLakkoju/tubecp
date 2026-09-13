@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { getRedis } from "@/lib/store/redis";
+import { getRedis, readStoredValue } from "@/lib/store/redis";
 
 export type McpAuthorizationRecord = {
   userId: string;
@@ -34,7 +34,7 @@ export async function storeAuthorizationCode(
   const redis = getRedis();
 
   if (redis) {
-    await redis.set(authCodeKey(code), JSON.stringify(record), { ex: 600 });
+    await redis.set(authCodeKey(code), record, { ex: 600 });
     return code;
   }
 
@@ -48,12 +48,13 @@ export async function consumeAuthorizationCode(
   const redis = getRedis();
 
   if (redis) {
-    const raw = await redis.get<string>(authCodeKey(code));
-    if (!raw) {
+    const raw = await redis.get(authCodeKey(code));
+    const record = readStoredValue<McpAuthorizationRecord>(raw);
+    if (!record) {
       return null;
     }
     await redis.del(authCodeKey(code));
-    return JSON.parse(raw) as McpAuthorizationRecord;
+    return record;
   }
 
   const record = memoryAuthCodes.get(code) ?? null;
@@ -66,7 +67,7 @@ export async function storeRefreshToken(record: McpRefreshRecord): Promise<strin
   const redis = getRedis();
 
   if (redis) {
-    await redis.set(refreshKey(token), JSON.stringify(record), {
+    await redis.set(refreshKey(token), record, {
       ex: 60 * 60 * 24 * 90,
     });
     return token;
@@ -82,12 +83,13 @@ export async function consumeRefreshToken(
   const redis = getRedis();
 
   if (redis) {
-    const raw = await redis.get<string>(refreshKey(token));
-    if (!raw) {
+    const raw = await redis.get(refreshKey(token));
+    const record = readStoredValue<McpRefreshRecord>(raw);
+    if (!record) {
       return null;
     }
     await redis.del(refreshKey(token));
-    return JSON.parse(raw) as McpRefreshRecord;
+    return record;
   }
 
   const record = memoryRefreshTokens.get(token) ?? null;
@@ -99,11 +101,8 @@ export async function getAuthorizationCodeChallenge(code: string): Promise<strin
   const redis = getRedis();
 
   if (redis) {
-    const raw = await redis.get<string>(authCodeKey(code));
-    if (!raw) {
-      return null;
-    }
-    return (JSON.parse(raw) as McpAuthorizationRecord).codeChallenge;
+    const raw = await redis.get(authCodeKey(code));
+    return readStoredValue<McpAuthorizationRecord>(raw)?.codeChallenge ?? null;
   }
 
   return memoryAuthCodes.get(code)?.codeChallenge ?? null;

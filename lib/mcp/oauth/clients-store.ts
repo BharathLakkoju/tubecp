@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import type { OAuthRegisteredClientsStore } from "@modelcontextprotocol/sdk/server/auth/clients.js";
 import type { OAuthClientInformationFull } from "@modelcontextprotocol/sdk/shared/auth.js";
-import { getRedis } from "@/lib/store/redis";
+import { getRedis, readStoredValue } from "@/lib/store/redis";
 
 const memoryClients = new Map<string, OAuthClientInformationFull>();
 
@@ -12,8 +12,8 @@ function clientKey(clientId: string): string {
 async function readClient(clientId: string): Promise<OAuthClientInformationFull | undefined> {
   const redis = getRedis();
   if (redis) {
-    const raw = await redis.get<string>(clientKey(clientId));
-    return raw ? (JSON.parse(raw) as OAuthClientInformationFull) : undefined;
+    const raw = await redis.get(clientKey(clientId));
+    return readStoredValue<OAuthClientInformationFull>(raw) ?? undefined;
   }
 
   return memoryClients.get(clientId);
@@ -22,7 +22,7 @@ async function readClient(clientId: string): Promise<OAuthClientInformationFull 
 async function writeClient(client: OAuthClientInformationFull): Promise<void> {
   const redis = getRedis();
   if (redis) {
-    await redis.set(clientKey(client.client_id), JSON.stringify(client), {
+    await redis.set(clientKey(client.client_id), client, {
       ex: 60 * 60 * 24 * 365,
     });
     return;

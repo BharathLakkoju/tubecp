@@ -20,3 +20,20 @@ export function getRedis(): Redis | null {
 export function hasRedis(): boolean {
   return getRedis() !== null;
 }
+
+/** Upstash may return either a JSON string or an already-parsed object. */
+export function readStoredValue<T>(raw: unknown): T | null {
+  if (raw == null) {
+    return null;
+  }
+
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      return null;
+    }
+  }
+
+  return raw as T;
+}

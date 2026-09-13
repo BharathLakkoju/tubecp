@@ -2,12 +2,29 @@ function normalizeOrigin(url: string): string {
   return url.trim().replace(/\/$/, "");
 }
 
+function isLocalHostname(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "local";
+}
+
 function isLocalAppUrl(url: string): boolean {
   try {
     const host = new URL(url.startsWith("http") ? url : `https://${url}`).hostname;
-    return host === "localhost" || host === "127.0.0.1" || host === "local";
+    return isLocalHostname(host);
   } catch {
     return false;
+  }
+}
+
+/** Public deployments should always use HTTPS, even if env vars were saved with http://. */
+function ensureHttpsForPublicHost(url: string): string {
+  try {
+    const parsed = new URL(url.startsWith("http") ? url : `https://${url}`);
+    if (parsed.protocol === "http:" && !isLocalHostname(parsed.hostname)) {
+      parsed.protocol = "https:";
+    }
+    return normalizeOrigin(parsed.toString());
+  } catch {
+    return normalizeOrigin(url);
   }
 }
 
@@ -24,7 +41,7 @@ function resolveConfiguredAppUrl(): string | null {
       continue;
     }
 
-    const normalized = normalizeOrigin(candidate);
+    const normalized = ensureHttpsForPublicHost(normalizeOrigin(candidate));
     if (process.env.VERCEL_ENV === "production" && isLocalAppUrl(normalized)) {
       continue;
     }
@@ -44,7 +61,7 @@ export function getAppUrl(): string {
 
   const vercelUrl = process.env.VERCEL_URL?.trim();
   if (vercelUrl) {
-    return `https://${normalizeOrigin(vercelUrl)}`;
+    return ensureHttpsForPublicHost(`https://${normalizeOrigin(vercelUrl)}`);
   }
 
   return "http://localhost:3000";

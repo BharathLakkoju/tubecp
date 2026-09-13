@@ -20,4 +20,10 @@ describe("getAppUrl", () => {
     process.env.VERCEL_URL = "tubecp.vercel.app";
     expect(getAppUrl()).toBe("https://tubecp.vercel.app");
   });
+
+  it("upgrades http public app URLs to https", () => {
+    process.env.AUTH_URL = "http://tubecp.vercel.app";
+    delete process.env.VERCEL_URL;
+    expect(getAppUrl()).toBe("https://tubecp.vercel.app");
+  });
 });

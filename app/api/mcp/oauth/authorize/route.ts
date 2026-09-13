@@ -8,17 +8,68 @@ import {
 
 export const dynamic = "force-dynamic";
 
+function oauthAuthorizeError(
+  redirectUri: string | undefined,
+  error: string,
+  description: string,
+  state?: string
+): NextResponse {
+  if (redirectUri) {
+    try {
+      const errorUrl = new URL(redirectUri);
+      errorUrl.searchParams.set("error", error);
+      errorUrl.searchParams.set("error_description", description);
+      if (state) {
+        errorUrl.searchParams.set("state", state);
+      }
+      return NextResponse.redirect(errorUrl);
+    } catch {
+      // Fall through to JSON error response.
+    }
+  }
+
+  return NextResponse.json(
+    { error, error_description: description },
+    { status: error === "server_error" ? 500 : 400 }
+  );
+}
+
 async function handleAuthorize(req: NextRequest): Promise<NextResponse> {
   const params = req.nextUrl.searchParams;
-  const parsed = parseAuthorizeRequest(params);
+  let parsed;
+  let redirectUri: string | undefined;
+
+  try {
+    parsed = parseAuthorizeRequest(params);
+  } catch (err) {
+    const description = err instanceof Error ? err.message : "invalid_request";
+    return oauthAuthorizeError(
+      params.get("redirect_uri") ?? undefined,
+      "invalid_request",
+      description,
+      params.get("state") ?? undefined
+    );
+  }
+
   const provider = getMcpOAuthProvider();
   const client = await provider.clientsStore.getClient(parsed.clientId);
 
   if (!client) {
-    return NextResponse.json({ error: "invalid_client" }, { status: 400 });
+    return oauthAuthorizeError(
+      parsed.redirectUri || undefined,
+      "invalid_client",
+      "Unknown client_id",
+      parsed.state
+    );
   }
 
-  const redirectUri = resolveRedirectUri(client, parsed.redirectUri || undefined);
+  try {
+    redirectUri = resolveRedirectUri(client, parsed.redirectUri || undefined);
+  } catch (err) {
+    const description = err instanceof Error ? err.message : "invalid_redirect_uri";
+    return oauthAuthorizeError(parsed.redirectUri || undefined, "invalid_request", description, parsed.state);
+  }
+
   const scopes = parsed.scope?.split(" ").filter(Boolean) ?? [];
 
   const session = await auth();
@@ -45,30 +96,42 @@ async function handleAuthorize(req: NextRequest): Promise<NextResponse> {
     return NextResponse.redirect(destination);
   } catch (err) {
     const message = err instanceof Error ? err.message : "authorization_failed";
-    const errorUrl = new URL(redirectUri);
-    errorUrl.searchParams.set("error", "server_error");
-    errorUrl.searchParams.set("error_description", message);
-    if (parsed.state) {
-      errorUrl.searchParams.set("state", parsed.state);
-    }
-    return NextResponse.redirect(errorUrl);
+    return oauthAuthorizeError(redirectUri, "server_error", message, parsed.state);
   }
 }
 
 export async function GET(req: NextRequest) {
-  return handleAuthorize(req);
+  try {
+    return await handleAuthorize(req);
+  } catch (err) {
+    console.error("MCP OAuth authorize error:", err);
+    const description = err instanceof Error ? err.message : "authorization_failed";
+    return NextResponse.json(
+      { error: "server_error", error_description: description },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.formData();
-  const params = new URLSearchParams();
-  for (const [key, value] of body.entries()) {
-    if (typeof value === "string") {
-      params.set(key, value);
+  try {
+    const body = await req.formData();
+    const params = new URLSearchParams();
+    for (const [key, value] of body.entries()) {
+      if (typeof value === "string") {
+        params.set(key, value);
+      }
     }
-  }
 
-  const url = new URL(req.nextUrl);
-  url.search = params.toString();
-  return handleAuthorize(new NextRequest(url, { method: "GET" }));
+    const url = new URL(req.nextUrl);
+    url.search = params.toString();
+    return handleAuthorize(new NextRequest(url, { method: "GET" }));
+  } catch (err) {
+    console.error("MCP OAuth authorize error:", err);
+    const description = err instanceof Error ? err.message : "authorization_failed";
+    return NextResponse.json(
+      { error: "server_error", error_description: description },
+      { status: 500 }
+    );
+  }
 }
