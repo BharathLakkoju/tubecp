@@ -4,17 +4,24 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { EvalBenchmarkSnapshot } from "@/lib/eval/benchmark";
 
+function isEvalBenchmarkSnapshot(data: unknown): data is EvalBenchmarkSnapshot {
+  if (!data || typeof data !== "object") return false;
+  const snapshot = data as EvalBenchmarkSnapshot;
+  return Array.isArray(snapshot.topics) && snapshot.topics.length > 0;
+}
+
 export default function EvalBenchmarkSection() {
   const [benchmark, setBenchmark] = useState<EvalBenchmarkSnapshot | null>(null);
 
   useEffect(() => {
     fetch("/api/eval/benchmark")
-      .then((res) => res.json())
-      .then((data) => setBenchmark(data))
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setBenchmark(isEvalBenchmarkSnapshot(data) ? data : null))
       .catch(() => setBenchmark(null));
   }, []);
 
-  if (!benchmark) return null;
+  const topics = benchmark?.topics ?? [];
+  if (!benchmark || topics.length === 0) return null;
 
   return (
     <section className="pt-10">
@@ -42,7 +49,7 @@ export default function EvalBenchmarkSection() {
       </div>
 
       <ul className="mt-6 divide-y divide-border border border-border">
-        {benchmark.topics.slice(0, 5).map((topic) => (
+        {topics.slice(0, 5).map((topic) => (
           <li key={topic.id} className="flex items-start justify-between gap-4 px-4 py-3">
             <div>
               <p className="font-mono text-sm font-semibold text-text">{topic.topic}</p>

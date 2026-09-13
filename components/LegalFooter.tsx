@@ -38,6 +38,9 @@ export default function LegalFooter() {
         <Link href="/pricing" className="font-mono text-xs text-text-muted no-underline hover:text-accent">
           Pricing
         </Link>
+        <Link href="/docs/mcp" className="font-mono text-xs text-text-muted no-underline hover:text-accent">
+          MCP setup
+        </Link>
       </nav>
       <p className="text-center font-mono text-[11px] text-text-muted">
         © {year} {PRODUCT_NAME}

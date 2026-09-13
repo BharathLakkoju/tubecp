@@ -35,8 +35,19 @@ You should see `YouTube Research MCP server running on stdio` on stderr.
 
 ## Hosted MCP (SaaS)
 
+**User-facing guide:** `/docs/mcp` in the app (step-by-step for Claude, Cursor, and ChatGPT).
+
+TubeCP gives you **two values** — they go in **different fields** in your MCP client:
+
+| Value | Example | Where it goes |
+|-------|---------|---------------|
+| **MCP server URL** | `https://your-app.vercel.app/api/mcp` | Client's "MCP server URL" field |
+| **API key** (`tcp_…`) | `tcp_abc123…` | `Authorization: Bearer tcp_…` header — **not** the URL field |
+
+### Setup
+
 1. Sign in to TubeCP → **Account** → **Hosted MCP** → **Generate MCP API key**.
-2. Copy the endpoint URL and API key (shown once).
+2. Copy **both** the endpoint URL and API key immediately (key shown once).
 3. Add to your MCP client:
 
 ```json
@@ -55,6 +66,23 @@ You should see `YouTube Research MCP server running on stdio` on stderr.
 Hosted MCP uses your TubeCP account quota and server-side API keys — no local repo or stdio process required.
 
 Optional server env: `MCP_API_KEY` for a shared service key (automation/CI).
+
+### Claude (claude.ai) custom connector
+
+1. **Settings → Connectors → Add custom connector**
+2. **Name:** `TubeCP`
+3. **MCP server URL:** paste your **endpoint** (`https://…/api/mcp`) — not the API key
+4. **Continue** → on the next screen, **Request headers** → `Authorization` → `Bearer tcp_YOUR_KEY`
+5. Enable the connector in chat
+
+If request headers are not available on your plan, use Claude Desktop or Claude Code (below).
+
+### Claude Code (hosted HTTP)
+
+```bash
+claude mcp add tubecp --transport http https://your-app.vercel.app/api/mcp \
+  --header "Authorization: Bearer tcp_YOUR_KEY_HERE"
+```
 
 ## Quick copy-paste config (local stdio)
 
@@ -85,19 +113,31 @@ Then copy the `mcpServers.tubecp` block into your client's MCP settings.
 
 ## Client-specific instructions
 
-### Cursor
+### Cursor (hosted HTTP — recommended)
 
-1. Open **Cursor Settings → MCP** (or edit `~/.cursor/mcp.json`).
-2. Add the `tubecp` entry from `mcp/clients/tubecp.mcp.json`.
-3. Restart Cursor or reload MCP servers.
-4. In Agent/Chat, enable the **tubecp** tools.
+1. Generate credentials in **Account → Hosted MCP** (endpoint + `tcp_` key).
+2. Open **Cursor Settings → MCP** (or edit `~/.cursor/mcp.json`).
+3. Add the hosted block (URL + `Authorization` header) from Account or `/docs/mcp`.
+4. Restart Cursor or reload MCP servers.
+5. In Agent/Chat, enable the **tubecp-hosted** tools.
 
 Config file locations:
 
 - **macOS/Linux:** `~/.cursor/mcp.json`
 - **Windows:** `%USERPROFILE%\.cursor\mcp.json`
 
+### Cursor (local stdio)
+
+1. Open **Cursor Settings → MCP** (or edit `~/.cursor/mcp.json`).
+2. Add the `tubecp` entry from `mcp/clients/tubecp.mcp.json`.
+3. Restart Cursor or reload MCP servers.
+4. In Agent/Chat, enable the **tubecp** tools.
+
 ### Claude Desktop
+
+**Hosted (recommended):** merge the hosted JSON block from Account → Hosted MCP (URL + bearer token).
+
+**Local stdio:**
 
 1. Edit `claude_desktop_config.json`:
    - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
@@ -140,7 +180,15 @@ Add to Zed `settings.json` under `context_servers` (see [Zed MCP docs](https://z
 }
 ```
 
-### ChatGPT desktop (MCP connectors)
+### ChatGPT (remote MCP connector)
+
+1. Enable **Settings → Apps → Advanced → Developer mode** (paid plan).
+2. **Settings → Connectors → Create**
+3. **Connector URL:** your TubeCP endpoint (`https://…/api/mcp`)
+4. **Authentication:** Token / API Key (Bearer) — paste `tcp_YOUR_KEY`
+5. Enable the connector in chat
+
+### ChatGPT desktop (local stdio — advanced)
 
 If your ChatGPT desktop build supports local MCP:
 
@@ -176,7 +224,10 @@ Free-tier MCP usage uses your API keys. Paid KB/chat tools require a valid `LICE
 
 | Symptom | Fix |
 |---------|-----|
-| Server exits immediately | Run `npm run dev:mcp` in a terminal; check missing `YOUTUBE_API_KEY` / `OPENROUTER_API_KEY` |
+| `401 Unauthorized` (hosted) | Check `Authorization: Bearer tcp_…` header; regenerate key in Account if lost |
+| Pasted API key into URL field | URL must be `https://…/api/mcp`; key goes in Authorization header |
+| Claude web won't accept API key | Use Claude Desktop, Claude Code, or Cursor with the JSON config |
+| Server exits immediately (stdio) | Run `npm run dev:mcp` in a terminal; check missing `YOUTUBE_API_KEY` / `OPENROUTER_API_KEY` |
 | `Invalid license key` | Set `LICENSE_KEY` in MCP `env` (required in production) |
 | Tools not visible | Restart the client after editing MCP config |
 | Windows path errors | Use `cwd` with forward slashes; prefer `npx tsx mcp/server.ts` |

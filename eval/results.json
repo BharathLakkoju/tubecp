@@ -1,0 +1,19 @@
+{
+  "version": "1.0",
+  "updatedAt": "2026-03-13",
+  "passRate": 100,
+  "topicsPassed": 10,
+  "topicsTotal": 10,
+  "topics": [
+    { "id": "ai-saas-monetization", "topic": "How developers monetize AI SaaS products in 2026", "minRelevantVideos": 4, "relevanceMin": 55, "notes": "Should surface videos discussing MRR, pricing, real revenue — not generic AI news.", "passed": true, "ranked": 12, "passing": 6 },
+    { "id": "react-server-components", "topic": "React Server Components best practices", "minRelevantVideos": 5, "relevanceMin": 55, "notes": "Technical depth required; exclude pure marketing/keynote clips.", "passed": true, "ranked": 14, "passing": 7 },
+    { "id": "startup-no-funding", "topic": "Building a startup with no funding bootstrapping", "minRelevantVideos": 4, "relevanceMin": 50, "notes": "Real founder stories, revenue tactics — not motivational fluff only.", "passed": true, "ranked": 11, "passing": 5 },
+    { "id": "typescript-generics", "topic": "TypeScript generics advanced patterns", "minRelevantVideos": 4, "relevanceMin": 55, "notes": "Code-level explanations expected.", "passed": true, "ranked": 10, "passing": 5 },
+    { "id": "kubernetes-production", "topic": "Kubernetes production deployment pitfalls", "minRelevantVideos": 4, "relevanceMin": 50, "notes": "Ops-focused; not beginner intro to K8s.", "passed": true, "ranked": 9, "passing": 4 },
+    { "id": "intermittent-fasting", "topic": "Intermittent fasting science evidence", "minRelevantVideos": 3, "relevanceMin": 45, "notes": "Tests non-tech domain; should cite research discussion not diet vlogs only.", "passed": true, "ranked": 8, "passing": 4 },
+    { "id": "cursor-ai-editor", "topic": "How developers use Cursor AI editor for coding", "minRelevantVideos": 3, "relevanceMin": 50, "notes": "Product-specific; titles may not say 'Cursor' verbatim.", "passed": true, "ranked": 7, "passing": 4 },
+    { "id": "llm-rag-production", "topic": "Production RAG systems architecture LLM", "minRelevantVideos": 5, "relevanceMin": 55, "notes": "Engineering depth on retrieval, chunking, evaluation.", "passed": true, "ranked": 13, "passing": 8 },
+    { "id": "youtube-seo-2026", "topic": "YouTube SEO strategy for small channels 2026", "minRelevantVideos": 4, "relevanceMin": 45, "notes": "Actionable SEO tactics, not generic 'grow fast' content.", "passed": true, "ranked": 10, "passing": 5 },
+    { "id": "remote-team-async", "topic": "Managing remote engineering teams async communication", "minRelevantVideos": 3, "relevanceMin": 45, "notes": "Management/process focus.", "passed": true, "ranked": 8, "passing": 4 }
+  ]
+}

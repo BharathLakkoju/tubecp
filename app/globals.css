@@ -257,6 +257,39 @@
     @apply text-accent;
   }
 
+  .legal-content pre {
+    @apply mb-4 overflow-x-auto border border-border bg-bg p-4 text-[12px] leading-relaxed text-text;
+  }
+
+  .legal-content code {
+    @apply text-[12px] text-text;
+  }
+
+  .legal-content pre code {
+    @apply whitespace-pre text-text;
+  }
+
+  .legal-content strong {
+    @apply font-semibold text-text;
+  }
+
+  .docs-table {
+    @apply mb-4 w-full border-collapse font-mono text-[12px];
+  }
+
+  .docs-table th,
+  .docs-table td {
+    @apply border border-border px-3 py-2 text-left align-top;
+  }
+
+  .docs-table th {
+    @apply bg-bg font-semibold text-text;
+  }
+
+  .docs-table td {
+    @apply text-text-muted;
+  }
+
   .auth-wrap {
     @apply w-full;
   }

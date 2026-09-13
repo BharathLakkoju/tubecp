@@ -147,7 +147,7 @@ npm run dev:mcp
 
 Connect **Cursor**, **Claude Desktop**, **Windsurf**, **Zed**, and other MCP hosts using:
 
-- **Hosted SaaS:** Account → Hosted MCP → generate API key → `https://your-app/api/mcp`
+- **Hosted SaaS:** [Connect MCP guide](/docs/mcp) — Account → Hosted MCP → endpoint URL + `tcp_` API key
 - **Local stdio:** copy-paste config in [docs/MCP-CLIENT.md](docs/MCP-CLIENT.md) and `mcp/clients/tubecp.mcp.json`
 
 Requires `YOUTUBE_API_KEY`, `OPENROUTER_API_KEY`, and `LICENSE_KEY` in production.

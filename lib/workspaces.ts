@@ -1,4 +1,5 @@
 import { createDbPool } from "@/lib/db";
+import { isMissingRelationError } from "@/lib/db/postgres-errors";
 import { isE2eAuthBypass } from "@/lib/e2e";
 import { getPlan, type PlanId } from "@/lib/plans";
 import type { UserSubscription } from "@/lib/billing/subscription";
@@ -54,31 +55,41 @@ export async function getUserWorkspace(userId: string): Promise<Workspace | null
   }
 
   const pool = createDbPool();
-  const result = await pool.query(
-    `SELECT w.id, w.name, w.owner_user_id, w.plan, w.seat_limit,
-            w.kb_builds_used, w.chat_messages_used, w.research_used_today,
-            COUNT(m.user_id)::int AS member_count
-     FROM workspaces w
-     JOIN workspace_members m ON m.workspace_id = w.id
-     JOIN workspace_members mine ON mine.workspace_id = w.id AND mine.user_id = $1
-     GROUP BY w.id`,
-    [userId]
-  );
+  try {
+    const result = await pool.query(
+      `SELECT w.id, w.name, w.owner_user_id, w.plan, w.seat_limit,
+              w.kb_builds_used, w.chat_messages_used, w.research_used_today,
+              COUNT(m.user_id)::int AS member_count
+       FROM workspaces w
+       JOIN workspace_members m ON m.workspace_id = w.id
+       JOIN workspace_members mine ON mine.workspace_id = w.id AND mine.user_id = $1
+       GROUP BY w.id`,
+      [userId]
+    );
 
-  const row = result.rows[0];
-  if (!row) return null;
+    const row = result.rows[0];
+    if (!row) return null;
 
-  return {
-    id: String(row.id),
-    name: row.name,
-    ownerUserId: String(row.owner_user_id),
-    plan: row.plan as PlanId,
-    seatLimit: row.seat_limit,
-    memberCount: row.member_count,
-    kbBuildsUsed: row.kb_builds_used,
-    chatMessagesUsed: row.chat_messages_used,
-    researchUsedToday: row.research_used_today,
-  };
+    return {
+      id: String(row.id),
+      name: row.name,
+      ownerUserId: String(row.owner_user_id),
+      plan: row.plan as PlanId,
+      seatLimit: row.seat_limit,
+      memberCount: row.member_count,
+      kbBuildsUsed: row.kb_builds_used,
+      chatMessagesUsed: row.chat_messages_used,
+      researchUsedToday: row.research_used_today,
+    };
+  } catch (err) {
+    if (isMissingRelationError(err, "workspaces")) {
+      console.warn(
+        "[workspaces] Table missing — run npm run db:migrate to enable team workspaces."
+      );
+      return null;
+    }
+    throw err;
+  }
 }
 
 export async function createWorkspace(userId: string, name: string): Promise<Workspace> {

@@ -72,6 +72,9 @@ export default function SiteNav({
             <Link href="/pricing" className="nav-tab">
               pricing
             </Link>
+            <Link href="/docs/mcp" className="nav-tab">
+              mcp
+            </Link>
           </div>
 
           <ThemeSwitcher variant="icon" />
@@ -157,6 +160,9 @@ export default function SiteNav({
           )}
           <Link href="/pricing" className={cn(mobileItem, "bg-surface text-text hover:bg-bg hover:text-accent")} onClick={closeMenu}>
             pricing
+          </Link>
+          <Link href="/docs/mcp" className={cn(mobileItem, "bg-surface text-text hover:bg-bg hover:text-accent")} onClick={closeMenu}>
+            mcp
           </Link>
 
           <AppSignedIn>
