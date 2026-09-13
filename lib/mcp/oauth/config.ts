@@ -1,6 +1,7 @@
 import { getOAuthProtectedResourceMetadataUrl } from "@modelcontextprotocol/sdk/server/auth/router.js";
 import type { OAuthMetadata, OAuthProtectedResourceMetadata } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { getAppUrl } from "@/lib/app-url";
+import { getMcpBrandIconUrl } from "@/lib/mcp/branding";
 import { getMcpEndpoint } from "@/lib/mcp/endpoint";
 
 export const MCP_OAUTH_SCOPES = ["mcp:tools"] as const;
@@ -36,6 +37,7 @@ export function getMcpOAuthMetadata(): OAuthMetadata {
     grant_types_supported: ["authorization_code", "refresh_token"],
     scopes_supported: [...MCP_OAUTH_SCOPES],
     service_documentation: `${getAppUrl()}/docs/mcp`,
+    logo_uri: getMcpBrandIconUrl(),
   };
 }
 

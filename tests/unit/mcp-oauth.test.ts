@@ -20,6 +20,7 @@ describe("mcp oauth", () => {
     expect(metadata.authorization_endpoint).toContain("/api/mcp/oauth/authorize");
     expect(metadata.token_endpoint).toContain("/api/mcp/oauth/token");
     expect(metadata.registration_endpoint).toContain("/api/mcp/oauth/register");
+    expect(metadata.logo_uri).toBe("https://tubecp.vercel.app/icon.svg");
 
     const protectedResource = getMcpProtectedResourceMetadata();
     expect(protectedResource.resource).toBe("https://tubecp.vercel.app/api/mcp");

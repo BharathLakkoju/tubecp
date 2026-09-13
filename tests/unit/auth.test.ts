@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { apiError, AuthError, requireUserId } from "@/lib/auth";
 import { KbAccessError } from "@/lib/kb-access";
 import { FeatureGateError, UsageLimitError } from "@/lib/billing/subscription";
+import { WorkspaceError } from "@/lib/workspaces";
 
 vi.mock("@/auth", () => ({
   auth: vi.fn().mockResolvedValue(null),
@@ -63,6 +64,14 @@ describe("apiError", () => {
     const res = apiError(new FeatureGateError("upgrade"));
     const body = await res.json();
     expect(body.code).toBe("FEATURE_GATE");
+  });
+
+  it("maps workspace errors to 400", async () => {
+    const res = apiError(new WorkspaceError("Team subscription required"));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.code).toBe("WORKSPACE_ERROR");
+    expect(body.error).toContain("Team subscription");
   });
 
   it("maps unknown errors to 500 with detail in development", async () => {

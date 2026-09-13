@@ -10,6 +10,15 @@ import {
 
 export type WorkspaceRole = "owner" | "admin" | "member";
 
+export class WorkspaceError extends Error {
+  code = "WORKSPACE_ERROR";
+
+  constructor(message: string) {
+    super(message);
+    this.name = "WorkspaceError";
+  }
+}
+
 export type Workspace = {
   id: string;
   name: string;
@@ -36,6 +45,14 @@ function usePostgres(): boolean {
 
 function teamPlanLimits() {
   return getPlan("team");
+}
+
+function parseDbUserId(userId: string): number {
+  const id = Number.parseInt(userId, 10);
+  if (!Number.isFinite(id)) {
+    throw new WorkspaceError("Invalid user account");
+  }
+  return id;
 }
 
 export async function getUserWorkspace(userId: string): Promise<Workspace | null> {
@@ -99,7 +116,7 @@ export async function getUserWorkspace(userId: string): Promise<Workspace | null
 async function assertTeamSubscription(userId: string): Promise<void> {
   const sub = await getUserSubscription(userId);
   if (sub.plan !== "team" || !isSubscriptionUsable(sub)) {
-    throw new Error(
+    throw new WorkspaceError(
       "Team workspace requires an active Team subscription. Upgrade at /pricing?plan=team."
     );
   }
@@ -108,14 +125,14 @@ async function assertTeamSubscription(userId: string): Promise<void> {
 export async function createWorkspace(userId: string, name: string): Promise<Workspace> {
   const trimmed = name.trim();
   if (!trimmed) {
-    throw new Error("Workspace name is required");
+    throw new WorkspaceError("Workspace name is required");
   }
 
   await assertTeamSubscription(userId);
 
   const existing = await getUserWorkspace(userId);
   if (existing) {
-    throw new Error("You already belong to a workspace");
+    throw new WorkspaceError("You already belong to a workspace");
   }
 
   if (!usePostgres()) {
@@ -137,21 +154,29 @@ export async function createWorkspace(userId: string, name: string): Promise<Wor
   }
 
   const pool = createDbPool();
-  const client = await pool.connect();
+  const dbUserId = parseDbUserId(userId);
+  const seatLimit = teamPlanLimits().seatLimit ?? 5;
+
   try {
-    await client.query("BEGIN");
-    const created = await client.query(
-      `INSERT INTO workspaces (name, owner_user_id, plan, seat_limit)
-       VALUES ($1, $2, 'team', $3)
-       RETURNING id, name, owner_user_id, plan, seat_limit, kb_builds_used, chat_messages_used, research_used_today`,
-      [trimmed, userId, teamPlanLimits().seatLimit ?? 5]
+    const created = await pool.query(
+      `WITH new_workspace AS (
+         INSERT INTO workspaces (name, owner_user_id, plan, seat_limit)
+         VALUES ($1, $2, 'team', $3)
+         RETURNING id, name, owner_user_id, plan, seat_limit, kb_builds_used, chat_messages_used, research_used_today
+       ),
+       inserted_member AS (
+         INSERT INTO workspace_members (workspace_id, user_id, role)
+         SELECT id, $2, 'owner' FROM new_workspace
+         RETURNING workspace_id
+       )
+       SELECT * FROM new_workspace`,
+      [trimmed, dbUserId, seatLimit]
     );
+
     const row = created.rows[0];
-    await client.query(
-      `INSERT INTO workspace_members (workspace_id, user_id, role) VALUES ($1, $2, 'owner')`,
-      [row.id, userId]
-    );
-    await client.query("COMMIT");
+    if (!row) {
+      throw new WorkspaceError("Failed to create workspace");
+    }
 
     return {
       id: String(row.id),
@@ -165,10 +190,12 @@ export async function createWorkspace(userId: string, name: string): Promise<Wor
       researchUsedToday: row.research_used_today,
     };
   } catch (err) {
-    await client.query("ROLLBACK");
+    if (isMissingRelationError(err, "workspaces")) {
+      throw new WorkspaceError(
+        "Team workspaces are not enabled on this database yet. Run npm run db:migrate."
+      );
+    }
     throw err;
-  } finally {
-    client.release();
   }
 }
 
@@ -178,20 +205,20 @@ export async function addWorkspaceMember(
 ): Promise<WorkspaceMember> {
   const workspace = await getUserWorkspace(ownerUserId);
   if (!workspace || workspace.ownerUserId !== ownerUserId) {
-    throw new Error("Only the workspace owner can invite members");
+    throw new WorkspaceError("Only the workspace owner can invite members");
   }
 
   if (workspace.memberCount >= workspace.seatLimit) {
-    throw new Error(`Seat limit reached (${workspace.seatLimit})`);
+    throw new WorkspaceError(`Seat limit reached (${workspace.seatLimit})`);
   }
 
   if (!usePostgres()) {
     const stored = memoryWorkspaces.get(workspace.id);
-    if (!stored) throw new Error("Workspace not found");
+    if (!stored) throw new WorkspaceError("Workspace not found");
 
     const memberUserId = `user_${email.toLowerCase()}`;
     if (stored.members.some((member) => member.userId === memberUserId)) {
-      throw new Error("Member already in workspace");
+      throw new WorkspaceError("Member already in workspace");
     }
 
     const member = {
@@ -210,13 +237,13 @@ export async function addWorkspaceMember(
   ]);
   const invitee = userResult.rows[0];
   if (!invitee) {
-    throw new Error("No account found for that email — they must sign up first");
+    throw new WorkspaceError("No account found for that email — they must sign up first");
   }
 
   const inviteeId = String(invitee.id);
   const existingWorkspace = await getUserWorkspace(inviteeId);
   if (existingWorkspace) {
-    throw new Error("That user already belongs to a workspace");
+    throw new WorkspaceError("That user already belongs to a workspace");
   }
 
   await pool.query(

@@ -8,6 +8,7 @@ import { EmailDeliveryError } from "@/lib/email";
 import { AdminAccessError } from "@/lib/admin";
 import { KbAccessError } from "@/lib/kb-access";
 import { ResearchSessionError } from "@/lib/research-session";
+import { WorkspaceError } from "@/lib/workspaces";
 
 export async function requireUserId(): Promise<string> {
   if (isE2eAuthBypass()) {
@@ -44,6 +45,9 @@ export function apiError(err: unknown, fallback = "Internal server error") {
     return NextResponse.json({ error: err.message, code: err.code }, { status: 403 });
   }
   if (err instanceof ResearchSessionError) {
+    return NextResponse.json({ error: err.message, code: err.code }, { status: 400 });
+  }
+  if (err instanceof WorkspaceError) {
     return NextResponse.json({ error: err.message, code: err.code }, { status: 400 });
   }
   if (err instanceof AdminAccessError) {
