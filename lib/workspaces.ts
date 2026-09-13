@@ -116,9 +116,7 @@ export async function getUserWorkspace(userId: string): Promise<Workspace | null
 async function assertTeamSubscription(userId: string): Promise<void> {
   const sub = await getUserSubscription(userId);
   if (sub.plan !== "team" || !isSubscriptionUsable(sub)) {
-    throw new WorkspaceError(
-      "Team workspace requires an active Team subscription. Upgrade at /pricing?plan=team."
-    );
+    throw new WorkspaceError("Team workspace requires an active Team subscription.");
   }
 }
 

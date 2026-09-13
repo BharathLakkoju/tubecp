@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   getPolarProductStatus,
   getPricingPlans,
+  isTeamPlanPublic,
   planIdFromPolarProductId,
   resolvePolarProductId,
 } from "@/lib/plans";
@@ -10,11 +11,13 @@ describe("getPricingPlans", () => {
   const originalPro = process.env.POLAR_PRODUCT_ID_PRO;
   const originalResearcher = process.env.POLAR_PRODUCT_ID_RESEARCHER;
   const originalTeam = process.env.POLAR_PRODUCT_ID_TEAM;
+  const originalTeamPublic = process.env.NEXT_PUBLIC_TEAM_PLAN_ENABLED;
 
   afterEach(() => {
     process.env.POLAR_PRODUCT_ID_PRO = originalPro;
     process.env.POLAR_PRODUCT_ID_RESEARCHER = originalResearcher;
     process.env.POLAR_PRODUCT_ID_TEAM = originalTeam;
+    process.env.NEXT_PUBLIC_TEAM_PLAN_ENABLED = originalTeamPublic;
   });
 
   it("always includes free", () => {
@@ -35,13 +38,26 @@ describe("getPricingPlans", () => {
     expect(plans.map((plan) => plan.id)).toEqual(["free", "pro"]);
   });
 
-  it("includes team tier when POLAR_PRODUCT_ID_TEAM is set", () => {
+  it("hides team tier by default even when Polar product ID is set", () => {
+    delete process.env.NEXT_PUBLIC_TEAM_PLAN_ENABLED;
+    process.env.POLAR_PRODUCT_ID_PRO = "prod_pro";
+    process.env.POLAR_PRODUCT_ID_RESEARCHER = "prod_researcher";
+    process.env.POLAR_PRODUCT_ID_TEAM = "prod_team";
+
+    const plans = getPricingPlans();
+    expect(plans.map((plan) => plan.id)).toEqual(["free", "pro", "researcher"]);
+    expect(isTeamPlanPublic()).toBe(false);
+  });
+
+  it("includes team tier when explicitly enabled", () => {
+    process.env.NEXT_PUBLIC_TEAM_PLAN_ENABLED = "true";
     process.env.POLAR_PRODUCT_ID_PRO = "prod_pro";
     process.env.POLAR_PRODUCT_ID_RESEARCHER = "prod_researcher";
     process.env.POLAR_PRODUCT_ID_TEAM = "prod_team";
 
     const plans = getPricingPlans();
     expect(plans.map((plan) => plan.id)).toEqual(["free", "pro", "researcher", "team"]);
+    expect(isTeamPlanPublic()).toBe(true);
   });
 
   it("reads polar product ids at call time", () => {

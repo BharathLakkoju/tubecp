@@ -14,6 +14,15 @@ export interface PlanLimits {
 
 const PLAN_ORDER: PlanId[] = ["free", "pro", "researcher", "team"];
 
+/** Team tier stays in the backend but is hidden from marketing until collaboration ships. */
+export function isTeamPlanPublic(): boolean {
+  return process.env.NEXT_PUBLIC_TEAM_PLAN_ENABLED === "true";
+}
+
+export function isTeamPlanOffered(planId: PlanId): boolean {
+  return planId !== "team" || isTeamPlanPublic();
+}
+
 export const PLANS: Record<PlanId, PlanLimits> = {
   free: {
     id: "free",
@@ -102,7 +111,9 @@ export function isPaidPlanConfigured(plan: PlanLimits): boolean {
 
 /** Plans shown on marketing/pricing surfaces (hides paid tiers without Polar product IDs). */
 export function getPricingPlans(): PlanLimits[] {
-  return PLAN_ORDER.map((id) => getPlan(id)).filter(isPaidPlanConfigured);
+  return PLAN_ORDER.map((id) => getPlan(id))
+    .filter(isPaidPlanConfigured)
+    .filter((plan) => isTeamPlanOffered(plan.id));
 }
 
 export function getPolarProductStatus(): Record<"pro" | "researcher" | "team", boolean> {

@@ -1,9 +1,14 @@
-import type { PlanId } from "@/lib/plans";
+import { isTeamPlanOffered, type PlanId } from "@/lib/plans";
 
 export type PaidPlanId = "pro" | "researcher" | "team";
 
 export function isPaidPlan(plan: string | undefined): plan is PaidPlanId {
   return plan === "pro" || plan === "researcher" || plan === "team";
+}
+
+/** Paid plans that can be purchased or upgraded to from the product UI. */
+export function isCheckoutPlan(plan: string | undefined): plan is PaidPlanId {
+  return isPaidPlan(plan) && isTeamPlanOffered(plan);
 }
 
 export function checkoutPathForPlan(plan: PaidPlanId): string {
@@ -26,7 +31,7 @@ export function resolveAuthCallbackUrl(params: {
   if (params.callbackUrl) {
     return safeCallbackPath(params.callbackUrl);
   }
-  if (isPaidPlan(params.plan)) {
+  if (isCheckoutPlan(params.plan)) {
     return checkoutPathForPlan(params.plan);
   }
   return "/app";

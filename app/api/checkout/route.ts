@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUserId, AuthError } from "@/lib/auth";
-import { checkoutPathForPlan, isPaidPlan } from "@/lib/billing/checkout-flow";
+import { checkoutPathForPlan, isCheckoutPlan } from "@/lib/billing/checkout-flow";
 import { getPolarClient, getAppUrl } from "@/lib/polar";
 import type { PlanId } from "@/lib/plans";
-import { getPlan } from "@/lib/plans";
+import { getPlan, isTeamPlanOffered } from "@/lib/plans";
 
 export async function GET(req: NextRequest) {
   const planParam = (req.nextUrl.searchParams.get("plan") ?? "pro") as PlanId;
@@ -13,14 +13,18 @@ export async function GET(req: NextRequest) {
     userId = await requireUserId();
   } catch (err) {
     if (err instanceof AuthError) {
-      const checkoutPlan = isPaidPlan(planParam) ? planParam : "pro";
+      const checkoutPlan = isCheckoutPlan(planParam) ? planParam : "pro";
       const callbackUrl = encodeURIComponent(checkoutPathForPlan(checkoutPlan));
       return NextResponse.redirect(new URL(`/sign-in?callbackUrl=${callbackUrl}`, req.url));
     }
     throw err;
   }
 
-  const plan = isPaidPlan(planParam) ? getPlan(planParam) : getPlan("pro");
+  if (planParam === "team" && !isTeamPlanOffered("team")) {
+    return NextResponse.redirect(new URL("/pricing", req.url));
+  }
+
+  const plan = isCheckoutPlan(planParam) ? getPlan(planParam) : getPlan("pro");
   const productId = plan.polarProductId;
 
   if (!productId) {

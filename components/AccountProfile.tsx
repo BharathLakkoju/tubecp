@@ -9,7 +9,11 @@ import McpHostedPanel from "@/components/McpHostedPanel";
 
 type PasswordState = "pending" | "available" | "unavailable";
 
-export default function AccountProfile() {
+type AccountProfileProps = {
+  showTeamWorkspace?: boolean;
+};
+
+export default function AccountProfile({ showTeamWorkspace = false }: AccountProfileProps) {
   const { data: session, status, update } = useAuthSession();
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -266,10 +270,12 @@ export default function AccountProfile() {
         </section>
       )}
 
-      <section className="auth-profile-section">
-        <h2 className="auth-profile-title">Team workspace</h2>
-        <WorkspacePanel />
-      </section>
+      {showTeamWorkspace && (
+        <section className="auth-profile-section">
+          <h2 className="auth-profile-title">Team workspace</h2>
+          <WorkspacePanel />
+        </section>
+      )}
 
       <section className="auth-profile-section">
         <h2 className="auth-profile-title">Hosted MCP</h2>

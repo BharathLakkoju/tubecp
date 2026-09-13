@@ -2,11 +2,13 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import AccountProfile from "@/components/AccountProfile";
 import MobileNavToggle from "@/components/MobileNavToggle";
+import { shouldShowTeamWorkspace } from "@/lib/account/team-workspace";
 import { isAdminUserId } from "@/lib/admin";
 
 export default async function AccountPage() {
   const session = await auth();
   const showAdminLink = session?.user?.id ? isAdminUserId(session.user.id) : false;
+  const showTeamWorkspace = await shouldShowTeamWorkspace(session?.user?.id);
   if (process.env.E2E_AUTH_BYPASS === "true") {
     return (
       <div className="app-panel" data-testid="e2e-account">
@@ -52,7 +54,7 @@ export default async function AccountPage() {
             </Link>
           </p>
         )}
-        <AccountProfile />
+        <AccountProfile showTeamWorkspace={showTeamWorkspace} />
       </div>
     </div>
   );

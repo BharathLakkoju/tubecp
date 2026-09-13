@@ -8,7 +8,7 @@ import { checkoutPathForPlan } from "@/lib/billing/checkout-flow";
 import { changePolarSubscriptionProduct } from "@/lib/billing/polar-subscription";
 import { getUserSubscription, setUserPlan } from "@/lib/billing/subscription";
 import type { PlanId } from "@/lib/plans";
-import { getPlan } from "@/lib/plans";
+import { getPlan, isTeamPlanOffered } from "@/lib/plans";
 import { formatDisplayDate } from "@/lib/format-display-date";
 
 export async function POST(req: NextRequest) {
@@ -19,6 +19,10 @@ export async function POST(req: NextRequest) {
 
     if (!targetPlanId || !isPaidPlanId(targetPlanId)) {
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
+    }
+
+    if (!isTeamPlanOffered(targetPlanId)) {
+      return NextResponse.json({ error: "This plan is not available" }, { status: 400 });
     }
 
     const sub = await getUserSubscription(userId);
