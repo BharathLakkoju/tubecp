@@ -23,7 +23,7 @@ describe("mcp oauth", () => {
 
     const protectedResource = getMcpProtectedResourceMetadata();
     expect(protectedResource.resource).toBe("https://tubecp.vercel.app/api/mcp");
-    expect(protectedResource.authorization_servers?.[0]?.href).toBe("https://tubecp.vercel.app/");
+    expect(protectedResource.authorization_servers?.[0]).toBe("https://tubecp.vercel.app/");
   });
 
   it("issues and verifies access tokens", () => {

@@ -35,7 +35,7 @@ export function getMcpOAuthMetadata(): OAuthMetadata {
     token_endpoint_auth_methods_supported: ["client_secret_post", "none"],
     grant_types_supported: ["authorization_code", "refresh_token"],
     scopes_supported: [...MCP_OAUTH_SCOPES],
-    service_documentation: new URL(`${getAppUrl()}/docs/mcp`),
+    service_documentation: `${getAppUrl()}/docs/mcp`,
   };
 }
 
@@ -44,7 +44,7 @@ export function getMcpProtectedResourceMetadata(): OAuthProtectedResourceMetadat
 
   return {
     resource: getMcpResourceServerUrl().href,
-    authorization_servers: [new URL(oauthMetadata.issuer)],
+    authorization_servers: [oauthMetadata.issuer],
     scopes_supported: [...MCP_OAUTH_SCOPES],
     resource_name: "TubeCP",
     resource_documentation: `${getAppUrl()}/docs/mcp`,
