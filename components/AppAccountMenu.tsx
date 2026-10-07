@@ -19,13 +19,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useSubscription } from "@/lib/hooks/useSubscription";
+import { LEGAL_LINKS } from "@/lib/legal";
 import { isColorMode } from "@/lib/theme";
-
-const LEGAL_LINKS = [
-  { href: "/terms", label: "Terms of service" },
-  { href: "/privacy", label: "Privacy policy" },
-  { href: "/refund", label: "Cancellation & refunds" },
-] as const;
 
 function userInitial(user: { name?: string | null; email?: string | null }): string {
   const source = user.name?.trim() || user.email?.trim() || "?";
