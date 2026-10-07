@@ -37,6 +37,18 @@
   --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+.brand-lockup-dark {
+  display: none;
+}
+
+[data-color-scheme="dark"] .brand-lockup-light {
+  display: none;
+}
+
+[data-color-scheme="dark"] .brand-lockup-dark {
+  display: block;
+}
+
 /* ── Dark ── */
 [data-color-scheme="dark"] {
   --bg: #212121;

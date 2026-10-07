@@ -7,23 +7,34 @@ interface Props {
 }
 
 const sizeClasses = {
-  sm: "text-sm tracking-tight",
-  md: "text-lg tracking-tight",
-  lg: "text-[42px] leading-none tracking-[-0.84px]",
+  sm: "h-6",
+  md: "h-7",
+  lg: "h-[52px] max-sm:h-10",
 };
 
 export default function Wordmark({ size = "md", className }: Props) {
   return (
     <span
-      className={cn(
-        "whitespace-nowrap font-mono font-semibold text-text [font-variant-ligatures:none]",
-        sizeClasses[size],
-        className
-      )}
+      className={cn("brand-lockup inline-flex shrink-0 items-center", sizeClasses[size], className)}
+      role="img"
+      aria-label={BRAND_NAME}
     >
-      <span className="text-accent">[</span>
-      {BRAND_NAME}
-      <span className="text-accent">]</span>
+      <img
+        src="/brand/logo-full-light.svg"
+        alt=""
+        className="brand-lockup-light h-full w-auto"
+        width={416}
+        height={103}
+        decoding="async"
+      />
+      <img
+        src="/brand/logo-full-dark.svg"
+        alt=""
+        className="brand-lockup-dark h-full w-auto"
+        width={416}
+        height={103}
+        decoding="async"
+      />
     </span>
   );
 }
