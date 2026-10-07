@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Wordmark from "@/components/Wordmark";
 import { BRAND_TAGLINE } from "@/lib/brand";
-import { PRODUCT_NAME, SUPPORT_EMAIL } from "@/lib/legal";
+import { LEGAL_LINKS, PRODUCT_NAME, SUPPORT_EMAIL } from "@/lib/legal";
 const PRODUCT_ROUTE_PREFIXES = ["/app", "/account", "/admin"];
 
 const PRODUCT_LINKS = [
@@ -18,12 +18,6 @@ const RESOURCE_LINKS = [
   { href: "/docs/mcp", label: "MCP setup" },
   { href: "/#features", label: "Features" },
   { href: "/pricing", label: "Plans" },
-] as const;
-
-const LEGAL_LINKS = [
-  { href: "/terms", label: "Terms of service" },
-  { href: "/privacy", label: "Privacy policy" },
-  { href: "/refund", label: "Cancellation policy" },
 ] as const;
 
 function isProductRoute(pathname: string): boolean {
@@ -40,35 +34,6 @@ function FooterLink({ href, label }: { href: string; label: string }) {
     >
       {label}
     </Link>
-  );
-}
-
-function CompactFooter({ year }: { year: number }) {
-  return (
-    <footer
-      id="site-footer"
-      className="mt-auto border-t border-border bg-background px-4 py-6 sm:px-6"
-    >
-      <div className="mx-auto flex max-w-(--content-max) flex-col items-center gap-3">
-        <nav
-          className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2"
-          aria-label="Footer"
-        >
-          {LEGAL_LINKS.map((link) => (
-            <FooterLink key={link.href} href={link.href} label={link.label} />
-          ))}
-          <a
-            href={`mailto:${SUPPORT_EMAIL}`}
-            className="rounded-xs text-body-sm text-foreground-secondary transition-colors duration-(--duration-fast) hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            Support
-          </a>
-        </nav>
-        <p className="font-mono text-caption text-muted-foreground">
-          © {year} {PRODUCT_NAME}
-        </p>
-      </div>
-    </footer>
   );
 }
 
@@ -137,11 +102,12 @@ function MarketingFooter({ year }: { year: number }) {
   );
 }
 
-/** Site-wide footer: full columns on marketing routes, compact bar in the signed-in app. */
+/** Site-wide footer on marketing routes; hidden in the app shell (legal links live in the sidebar). */
 export default function SiteFooter() {
   const pathname = usePathname();
   const year = new Date().getFullYear();
-  const compact = isProductRoute(pathname);
 
-  return compact ? <CompactFooter year={year} /> : <MarketingFooter year={year} />;
+  if (isProductRoute(pathname)) return null;
+
+  return <MarketingFooter year={year} />;
 }

@@ -28,6 +28,7 @@ import {
 import UsageIndicator from "@/components/UsageIndicator";
 import { useKnowledgeBases } from "@/lib/hooks/useKnowledgeBases";
 import { useSubscription } from "@/lib/hooks/useSubscription";
+import { LEGAL_LINKS, PRODUCT_NAME, SUPPORT_EMAIL } from "@/lib/legal";
 import { cn } from "@/lib/utils";
 
 /** Sidebar shows at most this many knowledge bases, then "View all" (design system §6.14). */
@@ -143,6 +144,30 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </SidebarContent>
 
         <SidebarFooter className="gap-3 border-t p-3">
+          <nav
+            className="flex flex-wrap gap-x-3 gap-y-1 px-1"
+            aria-label="Legal and support"
+          >
+            {LEGAL_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                prefetch={false}
+                className="rounded-xs text-caption text-muted-foreground transition-colors duration-(--duration-fast) hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {link.label}
+              </Link>
+            ))}
+            <a
+              href={`mailto:${SUPPORT_EMAIL}`}
+              className="rounded-xs text-caption text-muted-foreground transition-colors duration-(--duration-fast) hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              Support
+            </a>
+          </nav>
+          <p className="px-1 font-mono text-caption text-muted-foreground">
+            © {new Date().getFullYear()} {PRODUCT_NAME}
+          </p>
           {!sub.loading && sub.researchLimit > 0 && session?.user && (
             <UsageIndicator used={usage.used} limit={usage.limit} label={usage.label} />
           )}
