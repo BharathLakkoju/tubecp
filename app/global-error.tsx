@@ -2,7 +2,12 @@
 
 import * as Sentry from "@sentry/nextjs";
 import { useEffect } from "react";
+import "./globals.css";
 
+/**
+ * Last-resort error boundary. It replaces the root layout, so it loads the token file itself
+ * and uses plain elements styled with token classes (no providers are available here).
+ */
 export default function GlobalError({
   error,
   reset,
@@ -16,50 +21,22 @@ export default function GlobalError({
 
   return (
     <html lang="en" data-color-scheme="light">
-      <head>
-        <link
-          href="https://fonts.googleapis.com/css2?family=Work+Sans:ital,wght@0,100..900;1,100..900&display=swap"
-          rel="stylesheet"
-        />
-        <style>{`
-          * { box-sizing: border-box; margin: 0; padding: 0; border-radius: 0 !important; }
-          body {
-            font-family: 'IBM Plex Mono', ui-monospace, monospace;
-            background: #ffffff;
-            color: #1f2328;
-            min-height: 100dvh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 60px 24px;
-          }
-          .container { max-width: 860px; width: 100%; }
-          h2 { font-size: 18px; font-weight: 600; margin-bottom: 10px; }
-          p { font-size: 14px; color: #57606a; line-height: 1.6; }
-          button {
-            margin-top: 24px;
-            background: #0969da;
-            color: #ffffff;
-            border: 1px solid #0969da;
-            padding: 16px 20px;
-            font-family: 'IBM Plex Mono', ui-monospace, monospace;
-            font-size: 13px;
-            font-weight: 500;
-            cursor: pointer;
-          }
-          button:hover { background: #0550ae; border-color: #0550ae; }
-        `}</style>
-      </head>
-      <body>
-        <div className="container">
-          <h2>
-            <span style={{ color: "#0969da" }}>[</span>
-            error
-            <span style={{ color: "#0969da" }}>]</span>
-          </h2>
-          <p>We&apos;ve been notified. Please try again.</p>
-          <button onClick={reset}>try again →</button>
-        </div>
+      <body className="flex min-h-dvh items-center justify-center px-6 py-16">
+        <main className="flex w-full max-w-md flex-col items-start gap-4">
+          <h1 className="font-mono text-headline font-semibold text-foreground">
+            <span className="text-primary">[</span>error<span className="text-primary">]</span>
+          </h1>
+          <p className="text-body text-foreground-secondary">
+            Something went wrong. We&apos;ve been notified. Please try again.
+          </p>
+          <button
+            type="button"
+            onClick={reset}
+            className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-body-sm font-medium text-primary-foreground transition-colors duration-(--duration-fast) hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
+            Try again
+          </button>
+        </main>
       </body>
     </html>
   );

@@ -5,10 +5,10 @@ import { ForgotPasswordForm } from "@/components/AuthForms";
 
 export default function ForgotPasswordPage() {
   return (
-    <MarketingLayout showThemeSwitcher={false}>
+    <MarketingLayout>
       <div className="flex min-h-dvh flex-col">
         <SiteNav variant="landing" />
-        <div className="page-container flex-1">
+        <div id="main-content" className="flex-1">
           <AuthFormShell
             title="Reset password"
             subtitle="For accounts created with email and password only. Google and GitHub sign-in cannot be reset here."

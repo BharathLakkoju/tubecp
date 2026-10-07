@@ -1,17 +1,38 @@
 import Link from "next/link";
+import { buttonVariants } from "@/components/ui/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 
 export default function NotFound() {
   return (
-    <div className="page-container motion-fade-up flex min-h-[60dvh] flex-col justify-center">
-      <p className="mb-2.5 font-mono text-[42px] leading-none font-semibold tracking-[-0.84px] text-text">
-        <span className="text-accent">[</span>
-        404
-        <span className="text-accent">]</span>
-      </p>
-      <p className="mb-6 font-mono text-sm text-text-muted">Page not found.</p>
-      <Link href="/" className="btn-primary w-fit">
-        go home →
-      </Link>
-    </div>
+    <main id="main-content" className="flex min-h-[70dvh] flex-1 items-center justify-center px-4">
+      <Empty>
+        <EmptyHeader>
+          <p
+            className="font-mono text-display leading-none font-semibold text-foreground"
+          >
+            <span className="text-primary">[</span>404<span className="text-primary">]</span>
+          </p>
+          <EmptyTitle>
+            <h1>This page doesn&apos;t exist</h1>
+          </EmptyTitle>
+          <EmptyDescription>
+            The link may be broken, or the page may have moved.
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <div className="flex flex-wrap justify-center gap-3">
+            <Link href="/app" className={buttonVariants()}>
+              Go to research
+            </Link>
+            <Link href="/" className={buttonVariants({ variant: "outline" })}>
+              Go home
+            </Link>
+          </div>
+          <Link href="/app/kb" className={buttonVariants({ variant: "link" })}>
+            Your knowledge bases
+          </Link>
+        </EmptyContent>
+      </Empty>
+    </main>
   );
 }

@@ -21,10 +21,10 @@ export default async function SignUpPage({
   const upgrading = isCheckoutCallback(callbackUrl);
 
   return (
-    <MarketingLayout showThemeSwitcher={false}>
+    <MarketingLayout>
       <div className="flex min-h-dvh flex-col">
         <SiteNav variant="landing" />
-        <div className="page-container flex-1">
+        <div id="main-content" className="flex-1">
           <AuthFormShell
             title={upgrading ? "Create your account" : "Create your account"}
             subtitle={

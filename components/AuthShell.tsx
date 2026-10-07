@@ -6,6 +6,9 @@ import { signOut, useSession } from "next-auth/react";
 import type { Session } from "next-auth";
 import type { SubscriptionState } from "@/lib/hooks/useSubscription";
 import { GUEST_SUBSCRIPTION_STATE } from "@/lib/subscription-state";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const BypassContext = createContext(false);
 
@@ -104,26 +107,19 @@ export function AppUserButton() {
     <Link
       href="/account"
       prefetch={false}
-      className="inline-flex size-8.5 shrink-0 items-center justify-center overflow-hidden border border-border bg-surface no-underline transition-[border-color] duration-150 hover:border-text-muted"
+      className="inline-flex shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       aria-label="Account settings"
     >
-      {user.image ? (
-        <img
-          src={user.image}
-          alt=""
-          className="size-full object-cover"
-        />
-      ) : (
-        <span className="font-mono text-[13px] font-medium text-text-muted">
-          {userInitial(user)}
-        </span>
-      )}
+      <Avatar>
+        {user.image && <AvatarImage src={user.image} alt="" />}
+        <AvatarFallback>{userInitial(user)}</AvatarFallback>
+      </Avatar>
     </Link>
   );
 }
 
 export function AppSignOutButton({
-  className = "nav-tab",
+  className,
   onClick,
 }: {
   className?: string;
@@ -136,13 +132,16 @@ export function AppSignOutButton({
   return (
     <button
       type="button"
-      className={className}
+      className={cn(
+        !className && buttonVariants({ variant: "ghost" }),
+        className
+      )}
       onClick={() => {
         onClick?.();
         void signOut({ callbackUrl: "/" });
       }}
     >
-      sign out
+      Sign out
     </button>
   );
 }

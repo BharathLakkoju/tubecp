@@ -1,25 +1,15 @@
-import ThemeSwitcher from "@/components/ThemeSwitcher";
-import { cn } from "@/lib/cn";
+import { cn } from "@/lib/utils";
 
 interface Props {
   children: React.ReactNode;
   className?: string;
-  showThemeSwitcher?: boolean;
 }
 
-export default function PageShell({
-  children,
-  className,
-  showThemeSwitcher = true,
-}: Props) {
+/** Full-height frame for marketing and auth routes. Theme control lives in `SiteNav`. */
+export default function PageShell({ children, className }: Props) {
   return (
-    <div className={cn("relative flex min-h-dvh flex-col bg-bg", className)}>
-      {showThemeSwitcher && (
-        <div className="fixed top-4 right-6 z-[60] max-sm:top-3 max-sm:right-4">
-          <ThemeSwitcher />
-        </div>
-      )}
-      <div className="relative flex flex-1 flex-col overflow-x-hidden">{children}</div>
+    <div className={cn("relative flex min-h-dvh flex-col bg-background", className)}>
+      <div className="relative flex flex-1 flex-col">{children}</div>
     </div>
   );
 }

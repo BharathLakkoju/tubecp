@@ -22,10 +22,10 @@ export default async function SignInPage({
 
   if (process.env.E2E_AUTH_BYPASS === "true") {
     return (
-      <MarketingLayout showThemeSwitcher={false}>
+      <MarketingLayout>
         <div data-testid="e2e-sign-in" className="flex min-h-dvh flex-col">
           <SiteNav variant="landing" />
-          <div className="page-container flex-1">
+          <div id="main-content" className="flex-1">
             <AuthFormShell
               title="Sign in"
               subtitle="Authentication is bypassed in E2E test mode."
@@ -39,10 +39,10 @@ export default async function SignInPage({
   }
 
   return (
-    <MarketingLayout showThemeSwitcher={false}>
+    <MarketingLayout>
       <div className="flex min-h-dvh flex-col">
         <SiteNav variant="landing" />
-        <div className="page-container flex-1">
+        <div id="main-content" className="flex-1">
           <AuthFormShell
             title={upgrading ? "Sign in to continue" : "Welcome back"}
             subtitle={

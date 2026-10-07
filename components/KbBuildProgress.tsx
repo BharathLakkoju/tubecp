@@ -1,40 +1,64 @@
 "use client";
 
-import LoadingSpinner from "@/components/LoadingSpinner";
-import ProgressBar from "@/components/ProgressBar";
-import { useRotatingStatus } from "@/lib/hooks/useRotatingStatus";
-
-const KB_BUILD_PHRASES = [
-  "Fetching transcript",
-  "Transcribing",
-  "Chunking content",
-  "Contextualizing",
-  "Generating embeddings",
-  "Indexing videos",
-];
+import JobStatus from "@/components/tubecp/JobStatus";
+import type { PipelineStep } from "@/components/tubecp/PipelineRail";
 
 interface Props {
+  /** Latest server message (e.g. which video is being indexed). */
   detail?: string;
+  /** 0-100. */
   progress: number;
-  active: boolean;
+  /** Number of videos being indexed, when known. */
+  videoCount?: number;
+  startedAt?: number;
+  stalled?: boolean;
+  onKeepWaiting?: () => void;
+  error?: string;
+  onRetry?: () => void;
+  retryLabel?: string;
 }
 
-export default function KbBuildProgress({ detail, progress, active }: Props) {
-  const status = useRotatingStatus(KB_BUILD_PHRASES, active);
+/**
+ * Knowledge base build status. The build API reports a message and a percentage, so the rail
+ * only claims the steps we can actually observe: queued, indexing, ready.
+ */
+export default function KbBuildProgress({
+  detail,
+  progress,
+  videoCount,
+  startedAt,
+  stalled,
+  onKeepWaiting,
+  error,
+  onRetry,
+  retryLabel,
+}: Props) {
+  const queued = progress < 3 && !error;
+  const steps: PipelineStep[] = [
+    { id: "queued", label: "Queued", state: queued ? "active" : "done" },
+    {
+      id: "indexing",
+      label: "Indexing videos",
+      state: queued ? "pending" : progress >= 100 ? "done" : "active",
+      count: videoCount ? `${videoCount} videos` : undefined,
+    },
+    { id: "ready", label: "Ready", state: progress >= 100 ? "done" : "pending" },
+  ];
 
   return (
-    <div className="motion-fade-up">
-      <div className="mb-4 flex items-center gap-3 border border-border bg-surface px-4 py-3">
-        <LoadingSpinner size="sm" />
-        <div className="min-w-0">
-          <p className="font-sans text-sm text-text">{status}</p>
-          {detail && (
-            <p className="mt-1 font-sans text-xs text-text-muted line-clamp-2">{detail}</p>
-          )}
-        </div>
-      </div>
-
-      <ProgressBar message="Building knowledge base" progress={progress} />
-    </div>
+    <JobStatus
+      title="Building knowledge base"
+      railLabel="Knowledge base build progress"
+      steps={steps}
+      progress={progress}
+      progressText={videoCount ? `Indexing ${videoCount} videos` : "Indexing videos"}
+      current={detail || "Preparing transcripts"}
+      startedAt={startedAt}
+      stalled={stalled}
+      onKeepWaiting={onKeepWaiting}
+      error={error}
+      onRetry={onRetry}
+      retryLabel={retryLabel}
+    />
   );
 }

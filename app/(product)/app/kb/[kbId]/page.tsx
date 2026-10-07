@@ -5,6 +5,7 @@ import { toKnowledgeBaseSummary } from "@/lib/knowledge-bases";
 import { getProductBootstrap } from "@/lib/server/product-bootstrap";
 import { ensureKbWelcomeMessage } from "@/lib/services/kb-chat";
 import UpgradePrompt from "@/components/UpgradePrompt";
+import AppPage from "@/components/tubecp/AppPage";
 import KbFailedPanel from "@/components/KbFailedPanel";
 import KbChatClient from "./KbChatClient";
 
@@ -33,14 +34,13 @@ export default async function KnowledgeBaseChatPage({
   const plan = getPlan(bootstrap.subscription.plan);
   if (plan.chatMessagesPerMonth <= 0) {
     return (
-      <div className="app-panel">
-        <div className="app-panel-scroll">
-          <UpgradePrompt
-            title="Chat requires Pro"
-            description="Upgrade to chat with your knowledge bases using cited transcript sources."
-          />
-        </div>
-      </div>
+      <AppPage width="reading">
+        <UpgradePrompt
+          title="Chat requires Pro"
+          description="Upgrade to chat with your knowledge bases using cited transcript sources."
+          className="mt-6"
+        />
+      </AppPage>
     );
   }
 

@@ -1,205 +1,167 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { List, X } from "@phosphor-icons/react";
+import { usePathname } from "next/navigation";
+import { List } from "@phosphor-icons/react";
 import { AppSignedIn, AppSignedOut, AppSignOutButton, AppUserButton } from "@/components/AuthShell";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import Wordmark from "@/components/Wordmark";
-import { useSubscription } from "@/lib/hooks/useSubscription";
-import { cn } from "@/lib/cn";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetClose,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
 
 interface Props {
   variant?: "landing" | "app";
-  onReset?: () => void;
-  showNewResearch?: boolean;
 }
 
-const mobileItem =
-  "block w-full border-0 border-b border-border px-4 py-3.5 text-left font-mono text-[13px] font-medium no-underline";
+const LINKS = [
+  { href: "/#features", label: "Features", landingOnly: true },
+  { href: "/pricing", label: "Pricing" },
+  { href: "/docs/mcp", label: "MCP" },
+] as const;
 
-export default function SiteNav({
-  variant = "landing",
-  onReset,
-  showNewResearch,
-}: Props) {
-  const sub = useSubscription();
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  useEffect(() => {
-    document.body.style.overflow = menuOpen ? "hidden" : "";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [menuOpen]);
-
-  useEffect(() => {
-    const onResize = () => {
-      if (window.innerWidth > 768) setMenuOpen(false);
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-
-  const closeMenu = () => setMenuOpen(false);
-
-  const handleReset = () => {
-    onReset?.();
-    closeMenu();
-  };
+/**
+ * Marketing and auth navigation. The mobile menu is a Sheet: the one allowed overlay,
+ * used for navigation only (repo rule `no-modals`).
+ */
+export default function SiteNav({ variant = "landing" }: Props) {
+  const pathname = usePathname();
+  const links = LINKS.filter((link) => !("landingOnly" in link && link.landingOnly) || variant === "landing");
 
   return (
-    <header className="site-header">
-      <div className="site-header-inner">
+    <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur-md backdrop-saturate-150">
+      <div className="mx-auto flex h-14 w-full max-w-(--marketing-max) items-center justify-between gap-4 px-4 sm:px-6">
         <Link
-          href={variant === "app" ? "/app" : "/"}
-          className="shrink-0 no-underline"
-          onClick={() => {
-            onReset?.();
-            closeMenu();
-          }}
+          href="/"
+          className="shrink-0 rounded-md px-1 py-1 outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Wordmark size="sm" />
         </Link>
 
-        <nav className="hidden min-w-0 items-center gap-3 md:flex" aria-label="Main">
-          <div className="nav-tabs">
-            {variant === "landing" && (
-              <Link href="/#features" className="nav-tab">
-                features
+        <nav className="hidden items-center gap-1 md:flex" aria-label="Main">
+          {links.map((link) => {
+            const active = pathname === link.href;
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  buttonVariants({ variant: "ghost" }),
+                  active ? "text-foreground" : "text-foreground-secondary"
+                )}
+              >
+                {link.label}
               </Link>
-            )}
-            <Link href="/pricing" className="nav-tab">
-              pricing
-            </Link>
-            <Link href="/docs/mcp" className="nav-tab">
-              mcp
-            </Link>
-          </div>
-
-          <ThemeSwitcher variant="icon" />
-
-          <AppSignedIn>
-            {variant === "app" && !sub.loading && (
-              <span className="plan-badge">
-                {sub.planName}
-                {sub.plan === "free" && " · research"}
-              </span>
-            )}
-            {variant === "app" && showNewResearch && onReset && (
-              <div className="nav-tabs">
-                <button type="button" className="nav-tab" onClick={handleReset}>
-                  new research
-                </button>
-              </div>
-            )}
-            {variant === "landing" && (
-              <div className="nav-tabs">
-                <Link href="/app" className="nav-tab">
-                  open app
-                </Link>
-              </div>
-            )}
-            <div className="nav-tabs">
-              <AppSignOutButton />
-            </div>
-            <AppUserButton />
-          </AppSignedIn>
-
-          <AppSignedOut>
-            <div className="nav-tabs">
-              <Link href="/sign-in" className="nav-tab">
-                sign in
-              </Link>
-              <Link href="/sign-up" className="nav-tab nav-tab-primary">
-                get started →
-              </Link>
-            </div>
-          </AppSignedOut>
+            );
+          })}
         </nav>
 
-        <div className="flex shrink-0 items-center gap-3 md:hidden">
-          <ThemeSwitcher variant="icon" />
+        <div className="hidden items-center gap-2 md:flex">
+          <ThemeSwitcher />
           <AppSignedIn>
+            <Link href="/app" className={buttonVariants()}>
+              Open app
+            </Link>
             <AppUserButton />
           </AppSignedIn>
-          <button
-            type="button"
-            className="flex size-[34px] items-center justify-center border border-border bg-surface text-text"
-            onClick={() => setMenuOpen((open) => !open)}
-            aria-expanded={menuOpen}
-            aria-controls="mobile-nav"
-            aria-label={menuOpen ? "Close menu" : "Open menu"}
-          >
-            {menuOpen ? <X size={18} weight="bold" /> : <List size={18} weight="bold" />}
-          </button>
+          <AppSignedOut>
+            <Link href="/sign-in" className={buttonVariants({ variant: "ghost" })}>
+              Sign in
+            </Link>
+            <Link href="/sign-up" className={buttonVariants()}>
+              Get started
+            </Link>
+          </AppSignedOut>
         </div>
-      </div>
 
-      <div
-        id="mobile-nav"
-        className={cn(
-          "fixed inset-0 z-40 bg-bg/60 transition-opacity duration-200 ease-out md:hidden",
-          menuOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
-        )}
-        onClick={closeMenu}
-        aria-hidden={!menuOpen}
-      >
-        <nav
-          className={cn(
-            "absolute top-[calc(3.5rem+env(safe-area-inset-top))] right-4 left-4 flex flex-col border border-border bg-bg transition-[opacity,transform] duration-200 ease-out",
-            menuOpen ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0"
-          )}
-          aria-label="Mobile"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {variant === "landing" && (
-            <Link href="/#features" className={cn(mobileItem, "bg-surface text-text hover:bg-bg hover:text-accent")} onClick={closeMenu}>
-              features
-            </Link>
-          )}
-          <Link href="/pricing" className={cn(mobileItem, "bg-surface text-text hover:bg-bg hover:text-accent")} onClick={closeMenu}>
-            pricing
-          </Link>
-          <Link href="/docs/mcp" className={cn(mobileItem, "bg-surface text-text hover:bg-bg hover:text-accent")} onClick={closeMenu}>
-            mcp
-          </Link>
-
+        <div className="flex items-center gap-2 md:hidden">
+          <ThemeSwitcher />
           <AppSignedIn>
-            {variant === "app" && !sub.loading && (
-              <span className={cn(mobileItem, "cursor-default bg-surface text-text-muted")}>
-                plan: {sub.planName}
-                {sub.plan === "free" && " · research only"}
-              </span>
-            )}
-            {variant === "app" && showNewResearch && onReset && (
-              <button className={cn(mobileItem, "bg-surface text-text hover:bg-bg hover:text-accent")} onClick={handleReset}>
-                new research
-              </button>
-            )}
-            {variant === "landing" && (
-              <Link href="/app" className={cn(mobileItem, "bg-surface text-text hover:bg-bg hover:text-accent")} onClick={closeMenu}>
-                open app
-              </Link>
-            )}
-            <Link href="/account" className={cn(mobileItem, "bg-surface text-text hover:bg-bg hover:text-accent")} onClick={closeMenu}>
-              account
-            </Link>
-            <AppSignOutButton
-              className={cn(mobileItem, "bg-surface text-text hover:bg-bg hover:text-accent")}
-              onClick={closeMenu}
-            />
+            <AppUserButton />
           </AppSignedIn>
+          <Sheet>
+            <SheetTrigger render={<Button variant="outline" size="icon" aria-label="Open menu" />}>
+              <List aria-hidden weight="bold" />
+            </SheetTrigger>
+            <SheetContent side="right" showCloseButton>
+              <SheetHeader>
+                <SheetTitle>Menu</SheetTitle>
+              </SheetHeader>
+              <nav className="flex flex-col gap-1 px-4" aria-label="Mobile">
+                {links.map((link) => (
+                  <SheetClose
+                    key={link.href}
+                    render={
+                      <Link
+                        href={link.href}
+                        aria-current={pathname === link.href ? "page" : undefined}
+                        className={cn(buttonVariants({ variant: "ghost", size: "lg" }), "justify-start")}
+                      />
+                    }
+                  >
+                    {link.label}
+                  </SheetClose>
+                ))}
 
-          <AppSignedOut>
-            <Link href="/sign-in" className={cn(mobileItem, "bg-surface text-text hover:bg-bg hover:text-accent")} onClick={closeMenu}>
-              sign in
-            </Link>
-            <Link href="/sign-up" className={cn(mobileItem, "on-accent-fill hover:opacity-90")} onClick={closeMenu}>
-              get started →
-            </Link>
-          </AppSignedOut>
-        </nav>
+                <AppSignedIn>
+                  <SheetClose
+                    render={
+                      <Link
+                        href="/app"
+                        className={cn(buttonVariants({ variant: "ghost", size: "lg" }), "justify-start")}
+                      />
+                    }
+                  >
+                    Open app
+                  </SheetClose>
+                  <SheetClose
+                    render={
+                      <Link
+                        href="/account"
+                        prefetch={false}
+                        className={cn(buttonVariants({ variant: "ghost", size: "lg" }), "justify-start")}
+                      />
+                    }
+                  >
+                    Account
+                  </SheetClose>
+                  <AppSignOutButton
+                    className={cn(
+                      buttonVariants({ variant: "ghost", size: "lg" }),
+                      "justify-start text-destructive"
+                    )}
+                  />
+                </AppSignedIn>
+
+                <AppSignedOut>
+                  <SheetClose
+                    render={
+                      <Link
+                        href="/sign-in"
+                        className={cn(buttonVariants({ variant: "ghost", size: "lg" }), "justify-start")}
+                      />
+                    }
+                  >
+                    Sign in
+                  </SheetClose>
+                  <SheetClose
+                    render={<Link href="/sign-up" className={cn(buttonVariants({ size: "lg" }), "mt-2")} />}
+                  >
+                    Get started
+                  </SheetClose>
+                </AppSignedOut>
+              </nav>
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
     </header>
   );

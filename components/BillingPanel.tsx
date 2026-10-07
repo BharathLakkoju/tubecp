@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import LoadingSpinner from "@/components/LoadingSpinner";
+import { Prohibit } from "@phosphor-icons/react";
+import PlanBadge from "@/components/tubecp/PlanBadge";
+import StatTile from "@/components/tubecp/StatTile";
+import StatusBadge, { type JobStatusKind } from "@/components/tubecp/StatusBadge";
+import { FormAlert, SettingsSection } from "@/components/tubecp/FormKit";
+import InlineConfirm from "@/components/tubecp/InlineConfirm";
+import { buttonVariants, Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { checkoutPathForPlan } from "@/lib/billing/checkout-flow";
 
 type BillingInfo = {
@@ -25,8 +32,15 @@ type BillingInfo = {
   };
 };
 
+/** Free plans carry a far-future sentinel period end (year 2100): nothing renews. */
+function isSentinelDate(iso?: string): boolean {
+  if (!iso) return true;
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) || date.getUTCFullYear() >= 2100;
+}
+
 function formatDate(iso?: string): string {
-  if (!iso) return "—";
+  if (!iso || isSentinelDate(iso)) return "-";
   return new Date(iso).toLocaleDateString(undefined, {
     year: "numeric",
     month: "long",
@@ -34,11 +48,16 @@ function formatDate(iso?: string): string {
   });
 }
 
+function statusKind(status: string): JobStatusKind {
+  if (status === "active") return "done";
+  if (status === "canceled" || status === "past_due") return "warning";
+  return "info";
+}
+
 export default function BillingPanel() {
   const [data, setData] = useState<BillingInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [canceling, setCanceling] = useState(false);
   const [message, setMessage] = useState("");
 
   const load = () => {
@@ -49,7 +68,7 @@ export default function BillingPanel() {
         if (!json.plan) throw new Error(json.error ?? "Failed to load billing");
         setData(json as BillingInfo);
       })
-      .catch((err) => setError(String(err)))
+      .catch((err) => setError(String(err).replace(/^Error: /, "")))
       .finally(() => setLoading(false));
   };
 
@@ -59,34 +78,32 @@ export default function BillingPanel() {
 
   const handleCancel = async () => {
     if (!data || data.subscription.plan === "free") return;
-    if (!window.confirm("Cancel your subscription? You keep access until the end of the current billing period.")) {
-      return;
-    }
 
-    setCanceling(true);
     setError("");
     setMessage("");
 
     const res = await fetch("/api/billing/cancel", { method: "POST" });
     const json = await res.json().catch(() => ({}));
 
-    setCanceling(false);
-
     if (!res.ok) {
-      setError(json.error ?? "Failed to cancel subscription");
-      return;
+      throw new Error(json.error ?? "Failed to cancel subscription");
     }
 
     setMessage(json.message ?? "Subscription will cancel at the end of your billing period.");
     load();
   };
 
-  if (loading) {
-    return <LoadingSpinner label="Loading billing details..." />;
+  if (loading && !data) {
+    return (
+      <div className="flex flex-col gap-6" aria-busy="true" aria-label="Loading billing details">
+        <Skeleton className="h-44 w-full rounded-xl" />
+        <Skeleton className="h-28 w-full rounded-xl" />
+      </div>
+    );
   }
 
   if (error && !data) {
-    return <p className="font-sans text-sm text-accent">{error}</p>;
+    return <FormAlert kind="error">{error}</FormAlert>;
   }
 
   if (!data) return null;
@@ -94,112 +111,130 @@ export default function BillingPanel() {
   const planId = data.subscription.plan;
   const isPaid = planId !== "free";
   const isCanceled = data.subscription.status === "canceled";
+  const hasRenewal = !isSentinelDate(data.subscription.periodEnd);
+  const pct = (used: number, limit: number) => (limit > 0 ? Math.round((used / limit) * 100) : 0);
 
   return (
-    <div className="auth-profile">
-      <section className="auth-profile-section">
-        <h2 className="auth-profile-title">Current plan</h2>
-        <dl className="auth-profile-meta">
-          <div>
-            <dt>Plan</dt>
-            <dd>
-              {data.plan.name}
-              {data.plan.priceMonthly > 0 && ` — $${data.plan.priceMonthly}/mo`}
+    <div className="flex flex-col gap-6">
+      <SettingsSection title="Current plan">
+        <dl className="grid gap-4 sm:grid-cols-3">
+          <div className="flex flex-col gap-1">
+            <dt className="text-label text-foreground-secondary">Plan</dt>
+            <dd className="flex flex-wrap items-center gap-2 text-body text-foreground">
+              <PlanBadge planId={data.plan.id} />
+              {data.plan.priceMonthly > 0 && (
+                <span className="font-mono text-body-sm tabular-nums text-foreground-secondary">
+                  ${data.plan.priceMonthly}/mo
+                </span>
+              )}
             </dd>
           </div>
-          <div>
-            <dt>Status</dt>
-            <dd className="capitalize">{data.subscription.status.replace("_", " ")}</dd>
+          <div className="flex flex-col gap-1">
+            <dt className="text-label text-foreground-secondary">Status</dt>
+            <dd>
+              <StatusBadge status={statusKind(data.subscription.status)}>
+                <span className="capitalize">{data.subscription.status.replace("_", " ")}</span>
+              </StatusBadge>
+            </dd>
           </div>
-          <div>
-            <dt>{isPaid ? "Renews on" : "Usage resets on"}</dt>
-            <dd>{formatDate(data.subscription.periodEnd)}</dd>
+          <div className="flex flex-col gap-1">
+            <dt className="text-label text-foreground-secondary">
+              {isPaid ? "Renews on" : "Usage resets on"}
+            </dt>
+            <dd className="text-body text-foreground">
+              {hasRenewal ? formatDate(data.subscription.periodEnd) : "No renewal scheduled"}
+            </dd>
           </div>
         </dl>
 
-        <div className="mt-4 flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-3">
           {planId === "free" && (
-            <Link href="/pricing" className="btn-primary inline-flex">
-              Upgrade now
+            <Link href="/pricing" className={buttonVariants()}>
+              See plans
             </Link>
           )}
 
           {planId === "pro" && !isCanceled && (
-            <Link href={checkoutPathForPlan("researcher")} className="btn-primary inline-flex">
+            <Link href={checkoutPathForPlan("researcher")} className={buttonVariants()}>
               Upgrade to Researcher
             </Link>
-          )}
-
-          {isPaid && !isCanceled && (
-            <button
-              type="button"
-              className="btn-ghost inline-flex text-accent"
-              onClick={handleCancel}
-              disabled={canceling}
-            >
-              {canceling ? (
-                <span className="inline-flex items-center gap-2">
-                  <LoadingSpinner size="sm" />
-                  Canceling...
-                </span>
-              ) : (
-                "Cancel subscription"
-              )}
-            </button>
           )}
         </div>
 
         {isCanceled && (
-          <p className="mt-4 font-sans text-sm text-text-muted">
+          <FormAlert kind="success">
             Your subscription is canceled. You keep paid access until{" "}
             {formatDate(data.subscription.periodEnd)}.
-          </p>
+          </FormAlert>
         )}
-      </section>
+      </SettingsSection>
 
-      <section className="auth-profile-section">
-        <h2 className="auth-profile-title">Usage this period</h2>
-        <dl className="auth-profile-meta">
-          <div>
-            <dt>Research today</dt>
-            <dd>
-              {data.usage.researchUsedToday} / {data.limits.researchPerDay}
-            </dd>
-          </div>
+      <section aria-labelledby="usage-heading" className="flex flex-col gap-3">
+        <h2 id="usage-heading" className="text-title text-foreground">
+          Usage this period
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <StatTile
+            label="Research today"
+            value={`${data.usage.researchUsedToday} / ${data.limits.researchPerDay}`}
+            progress={pct(data.usage.researchUsedToday, data.limits.researchPerDay)}
+            thresholds
+          />
           {data.limits.kbBuildsPerMonth > 0 && (
-            <div>
-              <dt>KB builds</dt>
-              <dd>
-                {data.usage.kbBuildsUsed} / {data.limits.kbBuildsPerMonth}
-              </dd>
-            </div>
+            <StatTile
+              label="KB builds"
+              value={`${data.usage.kbBuildsUsed} / ${data.limits.kbBuildsPerMonth}`}
+              progress={pct(data.usage.kbBuildsUsed, data.limits.kbBuildsPerMonth)}
+              thresholds
+            />
           )}
           {data.limits.chatMessagesPerMonth > 0 && (
-            <div>
-              <dt>Chat messages</dt>
-              <dd>
-                {data.usage.chatMessagesUsed} / {data.limits.chatMessagesPerMonth}
-              </dd>
-            </div>
+            <StatTile
+              label="Chat messages"
+              value={`${data.usage.chatMessagesUsed} / ${data.limits.chatMessagesPerMonth}`}
+              progress={pct(data.usage.chatMessagesUsed, data.limits.chatMessagesPerMonth)}
+              thresholds
+            />
           )}
-        </dl>
+        </div>
       </section>
 
-      {message && (
-        <p className="border border-border bg-surface px-4 py-3 font-sans text-sm text-text-muted">
-          {message}
-        </p>
+      {message && <FormAlert kind="success">{message}</FormAlert>}
+      {error && <FormAlert kind="error">{error}</FormAlert>}
+
+      {isPaid && !isCanceled && (
+        <SettingsSection
+          title="Cancel subscription"
+          description="You keep access until the end of the current billing period."
+          danger
+        >
+          <InlineConfirm
+            trigger={(open) => (
+              <Button
+                variant="outline"
+                className="border-destructive/40 text-destructive hover:bg-destructive-subtle hover:text-destructive"
+                onClick={open}
+              >
+                <Prohibit data-icon="inline-start" aria-hidden />
+                Cancel subscription
+              </Button>
+            )}
+            title="Cancel your subscription?"
+            description={`You keep paid access until ${formatDate(data.subscription.periodEnd)}.`}
+            confirmLabel="Cancel subscription"
+            busyLabel="Canceling..."
+            cancelLabel="Keep subscription"
+            onConfirm={handleCancel}
+          />
+        </SettingsSection>
       )}
 
-      {error && data && (
-        <p className="mt-4 border border-red-500/40 bg-red-500/10 px-4 py-3 font-sans text-sm text-red-600 dark:text-red-400">
-          {error}
-        </p>
-      )}
-
-      <p className="font-sans text-xs text-text-muted">
+      <p className="text-label text-foreground-secondary">
         Cancellations take effect at the end of your billing period. See our{" "}
-        <Link href="/refund" className="text-accent">cancellation policy</Link>.
+        <Link href="/refund" className="text-primary underline underline-offset-2">
+          cancellation policy
+        </Link>
+        .
       </p>
     </div>
   );

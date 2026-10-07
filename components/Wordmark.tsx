@@ -1,5 +1,5 @@
 import { BRAND_NAME } from "@/lib/brand";
-import { cn } from "@/lib/cn";
+import { cn } from "@/lib/utils";
 
 interface Props {
   size?: "sm" | "md" | "lg";
@@ -7,23 +7,24 @@ interface Props {
 }
 
 const sizeClasses = {
-  sm: "text-sm tracking-tight",
-  md: "text-lg tracking-tight",
-  lg: "text-[42px] leading-none tracking-[-0.84px]",
+  sm: "text-body-sm tracking-tight",
+  md: "text-title tracking-tight",
+  lg: "text-display leading-none",
 };
 
+/** `[tubecp]` wordmark: Geist Mono with primary-colored brackets (design system §2.2, §4.1). */
 export default function Wordmark({ size = "md", className }: Props) {
   return (
     <span
       className={cn(
-        "whitespace-nowrap font-mono font-semibold text-text [font-variant-ligatures:none]",
+        "whitespace-nowrap font-mono font-semibold text-foreground [font-variant-ligatures:none]",
         sizeClasses[size],
         className
       )}
     >
-      <span className="text-accent">[</span>
+      <span className="text-primary">[</span>
       {BRAND_NAME}
-      <span className="text-accent">]</span>
+      <span className="text-primary">]</span>
     </span>
   );
 }

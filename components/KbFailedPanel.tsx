@@ -1,9 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { WarningCircle } from "@phosphor-icons/react";
 import type { KnowledgeBase } from "@/lib/types";
-import LoadingSpinner from "@/components/LoadingSpinner";
+import AppPage from "@/components/tubecp/AppPage";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 
 export default function KbFailedPanel({ kb }: { kb: KnowledgeBase }) {
   const router = useRouter();
@@ -51,43 +56,27 @@ export default function KbFailedPanel({ kb }: { kb: KnowledgeBase }) {
   };
 
   return (
-    <div className="app-panel">
-      <div className="app-panel-scroll">
-        <div className="max-w-xl border border-border bg-surface p-6">
-          <h2 className="font-mono text-base font-semibold text-text">
-            Knowledge base build failed
-          </h2>
-          <p className="mt-3 font-mono text-[13px] leading-relaxed text-text-muted">
-            We could not index any transcript content for <strong>{kb.topic}</strong>. This
-            usually means every selected video was missing captions or failed to process.
-          </p>
-          {error && (
-            <p className="mt-4 border border-red-500/40 bg-red-500/10 px-4 py-3 font-mono text-[13px] text-red-600 dark:text-red-400">
-              {error}
-            </p>
-          )}
-          <div className="mt-6 flex flex-wrap gap-3">
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={handleRetry}
-              disabled={retrying}
-            >
-              {retrying ? (
-                <span className="inline-flex items-center gap-2">
-                  <LoadingSpinner size="sm" />
-                  Retrying build...
-                </span>
-              ) : (
-                "Retry build"
-              )}
-            </button>
-            <a href="/app" className="btn-ghost">
-              Back to research
-            </a>
-          </div>
+    <AppPage width="reading">
+      <div className="flex flex-col gap-6 pt-6">
+        <h1 className="text-headline text-foreground">Knowledge base build failed</h1>
+        <Alert variant="destructive">
+          <WarningCircle weight="fill" aria-hidden />
+          <AlertTitle>No transcript content was indexed for {kb.topic}</AlertTitle>
+          <AlertDescription>
+            This usually means every selected video was missing captions or failed to process.
+            {error && <span className="mt-2 block font-medium">{error}</span>}
+          </AlertDescription>
+        </Alert>
+        <div className="flex flex-wrap gap-3">
+          <Button onClick={handleRetry} disabled={retrying} aria-busy={retrying}>
+            {retrying && <Spinner data-icon="inline-start" />}
+            {retrying ? "Retrying build..." : "Retry build"}
+          </Button>
+          <Link href="/app" prefetch={false} className={buttonVariants({ variant: "outline" })}>
+            Back to research
+          </Link>
         </div>
       </div>
-    </div>
+    </AppPage>
   );
 }

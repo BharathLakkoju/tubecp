@@ -12,7 +12,7 @@ test.describe("Public pages", () => {
   test("app page loads sign-in prompt when signed out", async ({ page }) => {
     await page.goto("/app");
     await expect(page.getByRole("heading", { level: 1 })).toContainText(/sign in/i);
-    await expect(page.getByRole("link", { name: /sign in to continue/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /^sign in$/i })).toBeVisible();
   });
 
   test("pricing page shows configured plans", async ({ page }) => {

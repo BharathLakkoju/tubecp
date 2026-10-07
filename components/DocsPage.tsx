@@ -1,7 +1,8 @@
 import MarketingLayout from "@/components/MarketingLayout";
 import SiteNav from "@/components/SiteNav";
-import FadeIn from "@/components/FadeIn";
 import HeroSection from "@/components/HeroSection";
+import Reveal from "@/components/motion/Reveal";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface Props {
   title: string;
@@ -11,19 +12,19 @@ interface Props {
 
 export default function DocsPage({ title, subtitle, children }: Props) {
   return (
-    <MarketingLayout showThemeSwitcher={false}>
+    <MarketingLayout>
       <div className="flex min-h-dvh flex-col">
         <SiteNav variant="landing" />
-        <article className="page-container flex-1">
-          <FadeIn>
-            <HeroSection align="center" showWordmark title={title} subtitle={subtitle} />
-          </FadeIn>
+        <article id="main-content" className="mx-auto w-full max-w-(--content-max) flex-1 px-4 pb-16 sm:px-6">
+          <HeroSection align="center" title={title} subtitle={subtitle} />
 
-          <FadeIn delay={0.06}>
-            <div className="mt-6 border border-border">
-              <div className="legal-content bg-surface px-6 py-8 max-sm:px-4 max-sm:py-6">{children}</div>
-            </div>
-          </FadeIn>
+          <Reveal>
+            <Card>
+              <CardContent className="prose-tubecp mx-auto w-full max-w-(--reading-max)">
+                {children}
+              </CardContent>
+            </Card>
+          </Reveal>
         </article>
       </div>
     </MarketingLayout>
