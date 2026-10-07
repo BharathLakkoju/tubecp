@@ -1,153 +1,158 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Books,
-  CaretDown,
-  Plus,
-  X,
-} from "@phosphor-icons/react";
-import { AppShellProvider } from "@/lib/contexts/AppShellContext";
-import AnimatedCollapse from "@/components/AnimatedCollapse";
-import Wordmark from "@/components/Wordmark";
+import { Books, Plus } from "@phosphor-icons/react";
+import { useAuthSession } from "@/components/AuthShell";
 import AppAccountMenu from "@/components/AppAccountMenu";
 import KbSidebarItem from "@/components/KbSidebarItem";
+import Wordmark from "@/components/Wordmark";
+import { buttonVariants } from "@/components/ui/button";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupAction,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSkeleton,
+  SidebarProvider,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import UsageIndicator from "@/components/UsageIndicator";
 import { useKnowledgeBases } from "@/lib/hooks/useKnowledgeBases";
 import { useSubscription } from "@/lib/hooks/useSubscription";
-import { cn } from "@/lib/cn";
+import { cn } from "@/lib/utils";
 
+/** Sidebar shows at most this many knowledge bases, then "View all" (design system §6.14). */
+const MAX_SIDEBAR_KBS = 8;
+
+/** Close the mobile nav sheet after route changes (design system: navigation-only overlay). */
+function SidebarMobileRouteSync() {
+  const pathname = usePathname();
+  const { isMobile, setOpenMobile } = useSidebar();
+
+  useEffect(() => {
+    if (isMobile) setOpenMobile(false);
+  }, [pathname, isMobile, setOpenMobile]);
+
+  return null;
+}
+
+/**
+ * App shell (design system §6.14): shadcn Sidebar family + SidebarInset.
+ * On mobile the Sidebar becomes a Sheet (the one allowed overlay: navigation only).
+ * Cmd/Ctrl+B toggles the sidebar.
+ */
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const sub = useSubscription();
-  const { knowledgeBases, loading: kbsLoading } = useKnowledgeBases();
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [kbExpanded, setKbExpanded] = useState(() => pathname.startsWith("/app/kb/"));
+  const { data: session } = useAuthSession();
+  const { knowledgeBases, loading } = useKnowledgeBases();
 
-  const activeKbId = pathname.startsWith("/app/kb/")
-    ? pathname.split("/")[3] ?? null
-    : null;
+  const activeKbId = pathname.startsWith("/app/kb/") ? (pathname.split("/")[3] ?? null) : null;
+  const visibleKbs = knowledgeBases.slice(0, MAX_SIDEBAR_KBS);
+  const hiddenCount = knowledgeBases.length - visibleKbs.length;
 
-  useEffect(() => {
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, []);
-
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
-
-  useEffect(() => {
-    if (pathname.startsWith("/app/kb/")) {
-      setKbExpanded(true);
-    }
-  }, [pathname]);
-
-  const toggleKbSection = () => {
-    setKbExpanded((open) => !open);
-  };
+  const usage = sub.canBuildKb
+    ? { used: sub.kbBuildsUsed, limit: sub.kbBuildsLimit, label: "KB builds" }
+    : { used: sub.researchUsedToday, limit: sub.researchLimit, label: "researches today" };
 
   return (
-    <AppShellProvider mobileOpen={mobileOpen} setMobileOpen={setMobileOpen}>
-    <div className="app-shell">
-      {mobileOpen && (
-        <button
-          type="button"
-          className="app-shell-backdrop md:hidden"
-          aria-label="Close navigation"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
+    <SidebarProvider style={{ "--sidebar-width": "16.5rem" } as React.CSSProperties}>
+      <SidebarMobileRouteSync />
+      <a
+        href="#main-content"
+        className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:top-2 focus-visible:left-2 focus-visible:z-[60] focus-visible:rounded-md focus-visible:bg-primary focus-visible:px-3 focus-visible:py-2 focus-visible:text-label focus-visible:text-primary-foreground"
+      >
+        Skip to content
+      </a>
 
-      <aside className={cn("app-sidebar", mobileOpen && "app-sidebar-open")}>
-        <div className="app-sidebar-header">
-          <button
-            type="button"
-            className="app-sidebar-close md:hidden"
-            onClick={() => setMobileOpen(false)}
-            aria-label="Close navigation"
-          >
-            <X size={18} weight="bold" />
-          </button>
-          <Link href="/app" className="app-sidebar-brand no-underline" onClick={() => setMobileOpen(false)}>
+      <Sidebar collapsible="offcanvas" variant="sidebar">
+        <SidebarHeader className="gap-3 p-3">
+          <Link href="/app" className="rounded-md px-1 py-1 outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <Wordmark size="sm" />
           </Link>
-        </div>
-
-        <div className="app-sidebar-top">
           <Link
             href="/app"
             prefetch={false}
-            className={cn(
-              "app-sidebar-new",
-              pathname === "/app" && !activeKbId && "app-sidebar-new-active"
-            )}
+            className={cn(buttonVariants({ variant: "outline", size: "default" }), "w-full justify-start")}
           >
-            <Plus size={16} weight="bold" aria-hidden />
+            <Plus data-icon="inline-start" weight="bold" aria-hidden />
             New research
           </Link>
-        </div>
+        </SidebarHeader>
 
-        <nav className="app-sidebar-nav" aria-label="App">
-          {sub.canBuildKb && (
-            <div
-              className={cn(
-                "app-sidebar-section",
-                kbExpanded && "app-sidebar-section-expanded"
-              )}
-            >
-              <button
-                type="button"
-                className={cn(
-                  "app-sidebar-section-toggle",
-                  activeKbId && "app-sidebar-section-toggle-active"
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupLabel render={<Link href="/app/kb" prefetch={false} />}>
+              <Books aria-hidden className="mr-2" />
+              Knowledge bases
+            </SidebarGroupLabel>
+            {sub.canBuildKb && (
+              <SidebarGroupAction render={<Link href="/app" prefetch={false} />} aria-label="New research">
+                <Plus aria-hidden />
+              </SidebarGroupAction>
+            )}
+
+            {sub.canBuildKb ? (
+              <SidebarMenu aria-label="Knowledge bases">
+                {loading && knowledgeBases.length === 0 && (
+                  <>
+                    <SidebarMenuItem>
+                      <SidebarMenuSkeleton />
+                    </SidebarMenuItem>
+                    <SidebarMenuItem>
+                      <SidebarMenuSkeleton />
+                    </SidebarMenuItem>
+                  </>
                 )}
-                onClick={toggleKbSection}
-                aria-expanded={kbExpanded}
-              >
-                <Books size={18} weight="regular" aria-hidden />
-                <span className="flex-1 text-left">Knowledge bases</span>
-                <CaretDown
-                  size={14}
-                  weight="bold"
-                  className={cn("app-sidebar-caret", kbExpanded && "app-sidebar-caret-open")}
-                  aria-hidden
-                />
-              </button>
+                {!loading && knowledgeBases.length === 0 && (
+                  <li className="px-2 py-2 text-label text-muted-foreground">No knowledge bases yet</li>
+                )}
+                {visibleKbs.map((kb) => (
+                  <KbSidebarItem key={kb.kbId} kb={kb} active={activeKbId === kb.kbId} />
+                ))}
+                {hiddenCount > 0 && (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      render={<Link href="/app/kb" prefetch={false} />}
+                      size="sm"
+                      className="text-foreground-secondary"
+                    >
+                      View all <span className="font-mono tabular-nums">({knowledgeBases.length})</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )}
+              </SidebarMenu>
+            ) : (
+              <p className="px-2 py-2 text-label text-foreground-secondary">
+                Knowledge bases are on paid plans.{" "}
+                <Link href="/pricing" className="text-primary underline underline-offset-2">
+                  See plans
+                </Link>
+              </p>
+            )}
+          </SidebarGroup>
+        </SidebarContent>
 
-              <AnimatedCollapse open={kbExpanded} innerClassName="app-sidebar-kb-collapse">
-                <ul className="app-sidebar-kb-list">
-                  {kbsLoading && (
-                    <li className="app-sidebar-kb-empty">Loading…</li>
-                  )}
-                  {!kbsLoading && knowledgeBases.length === 0 && (
-                    <li className="app-sidebar-kb-empty">No knowledge bases yet</li>
-                  )}
-                  {knowledgeBases.map((kb) => (
-                    <KbSidebarItem
-                      key={kb.kbId}
-                      kb={kb}
-                      active={activeKbId === kb.kbId}
-                    />
-                  ))}
-                </ul>
-              </AnimatedCollapse>
-            </div>
+        <SidebarFooter className="gap-3 border-t p-3">
+          {!sub.loading && sub.researchLimit > 0 && session?.user && (
+            <UsageIndicator used={usage.used} limit={usage.limit} label={usage.label} />
           )}
-        </nav>
-
-        <div className="app-sidebar-footer">
           <AppAccountMenu />
-        </div>
-      </aside>
+        </SidebarFooter>
+      </Sidebar>
 
-      <div className="app-main">
-        <div className="app-main-inner">{children}</div>
-      </div>
-    </div>
-    </AppShellProvider>
+      <SidebarInset id="main-content" className="min-w-0">
+        {children}
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

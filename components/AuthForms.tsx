@@ -3,21 +3,21 @@
 import Link from "next/link";
 import { useState } from "react";
 import { signIn } from "next-auth/react";
+import { GithubLogo, GoogleLogo } from "@phosphor-icons/react";
 import type { OAuthProviderId } from "@/lib/auth-providers";
 import { authLinkWithCallback } from "@/lib/billing/checkout-flow";
+import { FormAlert, TextField } from "@/components/tubecp/FormKit";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 
-function AuthError({ message }: { message: string }) {
-  return (
-    <p className="border border-red-500/40 bg-red-500/10 px-4 py-3 font-mono text-[13px] text-red-600 dark:text-red-400">
-      {message}
-    </p>
-  );
-}
+const linkClass = "text-primary underline underline-offset-2";
 
 function AuthDivider() {
   return (
-    <div className="auth-divider" aria-hidden="true">
-      <span>or</span>
+    <div className="flex items-center gap-3" aria-hidden="true">
+      <span className="h-px flex-1 bg-border" />
+      <span className="text-label text-muted-foreground">or</span>
+      <span className="h-px flex-1 bg-border" />
     </div>
   );
 }
@@ -27,26 +27,33 @@ const PROVIDER_LABELS: Record<OAuthProviderId, string> = {
   github: "Continue with GitHub",
 };
 
-function SocialButton({
-  provider,
-  label,
+const PROVIDER_ICONS: Record<OAuthProviderId, React.ReactNode> = {
+  google: <GoogleLogo data-icon="inline-start" weight="bold" aria-hidden />,
+  github: <GithubLogo data-icon="inline-start" weight="bold" aria-hidden />,
+};
+
+function SubmitButton({
+  loading,
+  idle,
+  busy,
   disabled,
-  onClick,
 }: {
-  provider: OAuthProviderId;
-  label: string;
-  disabled: boolean;
-  onClick: () => void;
+  loading: boolean;
+  idle: string;
+  busy: string;
+  disabled?: boolean;
 }) {
   return (
-    <button
-      type="button"
-      className={`auth-oauth-btn auth-oauth-btn-${provider}`}
-      disabled={disabled}
-      onClick={onClick}
+    <Button
+      type="submit"
+      size="lg"
+      className="w-full"
+      disabled={loading || disabled}
+      aria-busy={loading}
     >
-      {label}
-    </button>
+      {loading && <Spinner data-icon="inline-start" />}
+      {loading ? busy : idle}
+    </Button>
   );
 }
 
@@ -89,17 +96,20 @@ function OAuthButtons({
   const busy = disabled || loadingProvider !== null;
 
   return (
-    <div className="auth-oauth-stack">
+    <div className="flex flex-col gap-2">
       {providers.map((provider) => (
-        <SocialButton
+        <Button
           key={provider}
-          provider={provider}
-          label={
-            loadingProvider === provider ? "Connecting..." : PROVIDER_LABELS[provider]
-          }
+          type="button"
+          variant="outline"
+          size="lg"
+          className="w-full"
           disabled={busy}
-          onClick={() => signInWith(provider)}
-        />
+          onClick={() => void signInWith(provider)}
+        >
+          {loadingProvider === provider ? <Spinner data-icon="inline-start" /> : PROVIDER_ICONS[provider]}
+          {loadingProvider === provider ? "Connecting..." : PROVIDER_LABELS[provider]}
+        </Button>
       ))}
     </div>
   );
@@ -114,11 +124,13 @@ export function SignInForm({ providers, callbackUrl }: AuthFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setNotice(null);
     setLoading(true);
 
     const result = await signIn("credentials", {
@@ -131,9 +143,7 @@ export function SignInForm({ providers, callbackUrl }: AuthFormProps) {
     setLoading(false);
 
     if (result?.error) {
-      setError(
-        "Invalid email or password. If you signed up with email, verify your inbox first."
-      );
+      setError("Invalid email or password. If you signed up with email, verify your inbox first.");
       return;
     }
 
@@ -148,6 +158,7 @@ export function SignInForm({ providers, callbackUrl }: AuthFormProps) {
       return;
     }
     setError(null);
+    setNotice(null);
     setLoading(true);
     const res = await fetch("/api/auth/resend-verification", {
       method: "POST",
@@ -159,56 +170,52 @@ export function SignInForm({ providers, callbackUrl }: AuthFormProps) {
       setError("Could not resend verification email.");
       return;
     }
-    setError(null);
-    alert("If an unverified account exists for that email, a new verification link was sent.");
+    setNotice("If an unverified account exists for that email, a new verification link was sent.");
   };
 
   const showOAuth = providers.length > 0;
 
   return (
-    <div className="auth-form">
-      {error && <AuthError message={error} />}
-      <form className="auth-form" onSubmit={handleSubmit}>
-        <label className="auth-field">
-          <span className="auth-label">Email</span>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-            required
-            disabled={loading}
-          />
-        </label>
-        <label className="auth-field">
-          <span className="auth-label">Password</span>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-            disabled={loading}
-          />
-        </label>
-        <p className="auth-footer !mt-0 !border-0 !pt-0 text-left">
-          <Link href="/forgot-password">Forgot password?</Link>
+    <div className="flex flex-col gap-4">
+      {error && <FormAlert kind="error">{error}</FormAlert>}
+      {notice && <FormAlert kind="success">{notice}</FormAlert>}
+      <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+        <TextField
+          label="Email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="email"
+          required
+          disabled={loading}
+        />
+        <TextField
+          label="Password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="current-password"
+          required
+          disabled={loading}
+        />
+        <p className="text-label text-foreground-secondary">
+          <Link href="/forgot-password" className={linkClass}>
+            Forgot password?
+          </Link>
           {" · "}
           <button
             type="button"
-            className="text-text underline-offset-2 hover:underline"
-            onClick={resendVerification}
+            className={`${linkClass} rounded-xs focus-visible:ring-2 focus-visible:ring-ring`}
+            onClick={() => void resendVerification()}
             disabled={loading}
           >
             Resend verification
           </button>
-          <span className="block mt-1 text-[11px] text-text-muted">
+          <span className="mt-1 block text-caption text-muted-foreground">
             Email and password accounts only
           </span>
         </p>
-        <button type="submit" className="btn-primary btn-block" disabled={loading}>
-          {loading ? "Signing in..." : "Sign in"}
-        </button>
+        <SubmitButton loading={loading} idle="Sign in" busy="Signing in..." />
       </form>
 
       {showOAuth && (
@@ -223,9 +230,11 @@ export function SignInForm({ providers, callbackUrl }: AuthFormProps) {
         </>
       )}
 
-      <p className="auth-footer">
+      <p className="text-center text-body-sm text-foreground-secondary">
         No account?{" "}
-        <Link href={authLinkWithCallback("/sign-up", callbackUrl)}>Create one</Link>
+        <Link href={authLinkWithCallback("/sign-up", callbackUrl)} className={linkClass}>
+          Create one
+        </Link>
       </p>
     </div>
   );
@@ -261,63 +270,55 @@ export function SignUpForm({ providers, callbackUrl }: AuthFormProps) {
     }
 
     setMessage(
-      registerData.message ??
-        "Check your email to verify your account, then sign in."
+      registerData.message ?? "Check your email to verify your account, then sign in."
     );
   };
 
   const showOAuth = providers.length > 0;
 
   return (
-    <div className="auth-form">
-      {error && <AuthError message={error} />}
+    <div className="flex flex-col gap-4">
+      {error && <FormAlert kind="error">{error}</FormAlert>}
       {message && (
-        <p className="border border-border bg-surface px-4 py-3 font-mono text-[13px] text-text-muted">
+        <FormAlert kind="success">
           {message}{" "}
-          <Link href={authLinkWithCallback("/sign-in", callbackUrl)} className="text-text underline-offset-2 hover:underline">
+          <Link href={authLinkWithCallback("/sign-in", callbackUrl)} className={linkClass}>
             Sign in
           </Link>{" "}
           after verifying.
-        </p>
+        </FormAlert>
       )}
-      <form className="auth-form" onSubmit={handleSubmit}>
-        <label className="auth-field">
-          <span className="auth-label">Name</span>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoComplete="name"
-            required
-            disabled={loading}
-          />
-        </label>
-        <label className="auth-field">
-          <span className="auth-label">Email</span>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-            required
-            disabled={loading}
-          />
-        </label>
-        <label className="auth-field">
-          <span className="auth-label">Password</span>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="new-password"
-            minLength={8}
-            required
-            disabled={loading}
-          />
-        </label>
-        <button type="submit" className="btn-primary btn-block" disabled={loading}>
-          {loading ? "Creating account..." : "Create account"}
-        </button>
+      <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+        <TextField
+          label="Name"
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          autoComplete="name"
+          required
+          disabled={loading}
+        />
+        <TextField
+          label="Email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="email"
+          required
+          disabled={loading}
+        />
+        <TextField
+          label="Password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="new-password"
+          minLength={8}
+          required
+          description="At least 8 characters."
+          disabled={loading}
+        />
+        <SubmitButton loading={loading} idle="Create account" busy="Creating account..." />
       </form>
 
       {showOAuth && (
@@ -332,9 +333,11 @@ export function SignUpForm({ providers, callbackUrl }: AuthFormProps) {
         </>
       )}
 
-      <p className="auth-footer">
+      <p className="text-center text-body-sm text-foreground-secondary">
         Already have an account?{" "}
-        <Link href={authLinkWithCallback("/sign-in", callbackUrl)}>Sign in</Link>
+        <Link href={authLinkWithCallback("/sign-in", callbackUrl)} className={linkClass}>
+          Sign in
+        </Link>
       </p>
     </div>
   );
@@ -370,35 +373,30 @@ export function ForgotPasswordForm() {
   };
 
   return (
-    <div className="auth-form">
-      {error && <AuthError message={error} />}
-      {message && (
-        <p className="border border-border bg-surface px-4 py-3 font-mono text-[13px] text-text-muted">
-          {message}
-        </p>
-      )}
-      <form className="auth-form" onSubmit={handleSubmit}>
-        <label className="auth-field">
-          <span className="auth-label">Email</span>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-            required
-            disabled={loading || Boolean(message)}
-          />
-        </label>
-        <button
-          type="submit"
-          className="btn-primary btn-block"
+    <div className="flex flex-col gap-4">
+      {error && <FormAlert kind="error">{error}</FormAlert>}
+      {message && <FormAlert kind="success">{message}</FormAlert>}
+      <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+        <TextField
+          label="Email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="email"
+          required
           disabled={loading || Boolean(message)}
-        >
-          {loading ? "Sending..." : "Send reset link"}
-        </button>
+        />
+        <SubmitButton
+          loading={loading}
+          idle="Send reset link"
+          busy="Sending..."
+          disabled={Boolean(message)}
+        />
       </form>
-      <p className="auth-footer">
-        <Link href="/sign-in">Back to sign in</Link>
+      <p className="text-center text-body-sm text-foreground-secondary">
+        <Link href="/sign-in" className={linkClass}>
+          Back to sign in
+        </Link>
       </p>
     </div>
   );
@@ -434,10 +432,14 @@ export function ResetPasswordForm({ token }: { token: string }) {
 
   if (!token) {
     return (
-      <div className="auth-form">
-        <AuthError message="This reset link is invalid. Request a new one from the sign-in page." />
-        <p className="auth-footer">
-          <Link href="/forgot-password">Request reset link</Link>
+      <div className="flex flex-col gap-4">
+        <FormAlert kind="error">
+          This reset link is invalid. Request a new one from the sign-in page.
+        </FormAlert>
+        <p className="text-center text-body-sm">
+          <Link href="/forgot-password" className={linkClass}>
+            Request reset link
+          </Link>
         </p>
       </div>
     );
@@ -445,39 +447,40 @@ export function ResetPasswordForm({ token }: { token: string }) {
 
   if (done) {
     return (
-      <div className="auth-form">
-        <p className="border border-border bg-surface px-4 py-3 font-mono text-[13px] text-text-muted">
+      <div className="flex flex-col gap-4">
+        <FormAlert kind="success">
           Password updated. You can sign in with your new password.
-        </p>
-        <p className="auth-footer">
-          <Link href="/sign-in">Sign in</Link>
+        </FormAlert>
+        <p className="text-center text-body-sm">
+          <Link href="/sign-in" className={linkClass}>
+            Sign in
+          </Link>
         </p>
       </div>
     );
   }
 
   return (
-    <div className="auth-form">
-      {error && <AuthError message={error} />}
-      <form className="auth-form" onSubmit={handleSubmit}>
-        <label className="auth-field">
-          <span className="auth-label">New password</span>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="new-password"
-            minLength={8}
-            required
-            disabled={loading}
-          />
-        </label>
-        <button type="submit" className="btn-primary btn-block" disabled={loading}>
-          {loading ? "Updating..." : "Update password"}
-        </button>
+    <div className="flex flex-col gap-4">
+      {error && <FormAlert kind="error">{error}</FormAlert>}
+      <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+        <TextField
+          label="New password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="new-password"
+          minLength={8}
+          required
+          description="At least 8 characters."
+          disabled={loading}
+        />
+        <SubmitButton loading={loading} idle="Update password" busy="Updating..." />
       </form>
-      <p className="auth-footer">
-        <Link href="/forgot-password">Request a new link</Link>
+      <p className="text-center text-body-sm text-foreground-secondary">
+        <Link href="/forgot-password" className={linkClass}>
+          Request a new link
+        </Link>
       </p>
     </div>
   );

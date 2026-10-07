@@ -1,174 +1,214 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { DotsThree, DownloadSimple, Info, Trash } from "@phosphor-icons/react";
 import type { KnowledgeBase, ChatMessage } from "@/lib/types";
 import type { KbChatStreamState } from "@/lib/hooks/useKbChatStream";
-import { cn } from "@/lib/cn";
+import { deleteKnowledgeBase } from "@/lib/client/knowledge-base";
+import { useKnowledgeBases } from "@/lib/hooks/useKnowledgeBases";
+import { useSubscription } from "@/lib/hooks/useSubscription";
 import CopyButton from "@/components/CopyButton";
 import MarkdownContent from "@/components/MarkdownContent";
-import LoadingSpinner from "@/components/LoadingSpinner";
-import MobileNavToggle from "@/components/MobileNavToggle";
-import KbDeleteButton from "@/components/KbDeleteButton";
-
-function formatTimestamp(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
+import AppPage from "@/components/tubecp/AppPage";
+import ChatComposer from "@/components/tubecp/ChatComposer";
+import InlineConfirm from "@/components/tubecp/InlineConfirm";
+import SourceList from "@/components/tubecp/SourceList";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Bubble, BubbleContent } from "@/components/ui/bubble";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker";
+import { Message, MessageContent, MessageFooter } from "@/components/ui/message";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Props {
   topic: string;
   kb: KnowledgeBase;
   messages: ChatMessage[];
   stream?: KbChatStreamState | null;
+  notice?: string | null;
   onSend: (message: string) => void;
 }
 
-export default function ChatPanel({ topic, kb, messages, stream, onSend }: Props) {
-  const [input, setInput] = useState("");
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+/**
+ * Chat surface (design system 8.5): glass header with stats and a menu, a readable message
+ * column, evidence under every answer, and a sticky composer. The page scrolls (no inner scroller).
+ */
+export default function ChatPanel({ topic, kb, messages, stream, notice, onSend }: Props) {
+  const router = useRouter();
+  const sub = useSubscription();
+  const { removeKnowledgeBase } = useKnowledgeBases();
+  const endRef = useRef<HTMLDivElement>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const isBusy = Boolean(stream);
+  const showStreamStatus = stream && !stream.content;
+  const lastAssistantIndex = messages.map((m) => m.role).lastIndexOf("assistant");
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    endRef.current?.scrollIntoView({ block: "end" });
   }, [messages, stream?.content, stream?.status]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (input.trim() && !isBusy) {
-      onSend(input.trim());
-      setInput("");
-    }
+  const handleDelete = async () => {
+    await deleteKnowledgeBase(kb.kbId);
+    removeKnowledgeBase(kb.kbId);
+    router.push("/app");
   };
 
-  const showStreamStatus = stream && !stream.content;
+  const chatLimitReached = !sub.loading && sub.chatLimit > 0 && sub.chatUsed >= sub.chatLimit;
 
-  return (
-    <div className="chat-panel">
-      <div className="chat-panel-body">
-        <div className="chat-panel-header glass-header">
-          <div className="app-inline-header-row">
-            <MobileNavToggle />
-            <div className="app-inline-header-text">
-              <h2 className="chat-panel-title">{kb.topic}</h2>
-              <p className="chat-panel-meta">
-                {kb.videosIndexed} videos · {kb.chunksIndexed} chunks · ~{kb.totalMinutes} min
-              </p>
-            </div>
-            <KbDeleteButton kbId={kb.kbId} topic={kb.topic} redirectOnDelete />
-          </div>
-        </div>
-
-        <div className="chat-panel-messages">
-        {messages.length === 0 && !stream && (
-          <p className="chat-panel-empty">Start a conversation about this knowledge base.</p>
-        )}
-
-        {messages.map((msg, i) => (
-          <div
-            key={i}
-            className={cn("chat-message", msg.role === "user" ? "chat-message-user" : "chat-message-assistant")}
-          >
-            <div className="chat-message-bubble-wrap">
-              {msg.role === "assistant" && (
-                <CopyButton
-                  variant="icon"
-                  text={msg.content}
-                  label="Copy response"
-                  className="chat-message-copy"
-                />
-              )}
-              <div className="chat-message-bubble">
-                {msg.role === "assistant" ? (
-                  <MarkdownContent content={msg.content} />
-                ) : (
-                  msg.content.split("\n").map((line, j) => (
-                    <p key={j} className="mb-1.5 last:mb-0">
-                      {line}
-                    </p>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {msg.sources && msg.sources.length > 0 && (
-              <div className="chat-message-sources">
-                <span className="chat-message-sources-label">Sources</span>
-                {msg.sources.map((src, j) => (
-                  <a
-                    key={j}
-                    href={src.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="chat-message-source-link"
-                  >
-                    {src.title} @ {formatTimestamp(src.timestamp)}
-                  </a>
-                ))}
-              </div>
-            )}
-
-            {msg.gaps && (
-              <div className="chat-message-gaps">
-                <span className="chat-message-gaps-label">Gaps</span>
-                <p>{msg.gaps}</p>
-              </div>
-            )}
-          </div>
-        ))}
-
-        {stream && (
-          <div className="chat-message chat-message-assistant">
-            <div className="chat-message-bubble-wrap">
-              {stream.content && (
-                <CopyButton
-                  variant="icon"
-                  text={stream.content}
-                  label="Copy response"
-                  className="chat-message-copy"
-                />
-              )}
-              <div className="chat-message-bubble">
-                {showStreamStatus ? (
-                  <div className="chat-stream-status">
-                    <LoadingSpinner size="sm" />
-                    <span className="chat-stream-status-text">{stream.status}</span>
-                  </div>
-                ) : (
-                  <div className="chat-stream-markdown">
-                    <MarkdownContent content={stream.content} />
-                    {stream.isRevealing && (
-                      <span className="chat-stream-cursor" aria-hidden="true" />
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div ref={messagesEndRef} />
-        </div>
-      </div>
-
-      <div className="chat-panel-composer-wrap">
-        <form className="chat-panel-composer" onSubmit={handleSubmit}>
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={`Ask about "${topic}"...`}
-            disabled={isBusy}
-            className="chat-panel-input"
-          />
-          <button type="submit" className="chat-panel-send" disabled={isBusy || !input.trim()}>
-            Send
-          </button>
-        </form>
-        <p className="chat-panel-disclaimer">
-          The responses may be inaccurate. please report any issues and help us improve the application.
+  const header = (
+    <div className="flex min-w-0 items-center gap-3 py-2">
+      <div className="min-w-0 flex-1">
+        <h1 className="truncate text-title-sm text-foreground">{kb.topic}</h1>
+        <p className="truncate font-mono text-caption tabular-nums text-muted-foreground">
+          {kb.videosIndexed} videos · {kb.chunksIndexed} chunks · ~{Math.round(kb.totalMinutes)} min
         </p>
       </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button variant="ghost" size="icon-sm" aria-label={`Options for ${kb.topic}`} />
+          }
+        >
+          <DotsThree weight="bold" aria-hidden />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem render={<a href={`/api/knowledge-base/${kb.kbId}/export`} download />}>
+            <DownloadSimple aria-hidden />
+            Export
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onClick={() => setConfirmingDelete(true)}>
+            <Trash aria-hidden />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
+  );
+
+  return (
+    <AppPage width="reading" header={header} className="gap-6 pt-6 pb-0">
+      {confirmingDelete && (
+        <InlineConfirm
+          open
+          onOpenChange={setConfirmingDelete}
+          title={`Delete "${kb.topic}"?`}
+          description="This removes its indexed videos and chat history. It can't be undone."
+          onConfirm={handleDelete}
+        />
+      )}
+
+      {notice && (
+        <Alert variant="info">
+          <Info weight="fill" aria-hidden />
+          <AlertTitle>Some videos were skipped</AlertTitle>
+          <AlertDescription>{notice}</AlertDescription>
+        </Alert>
+      )}
+
+      <div role="log" aria-live="polite" aria-label="Conversation" className="flex flex-1 flex-col gap-6">
+        {messages.length === 0 && !stream && (
+          <p className="text-body text-foreground-secondary">
+            Ask anything about this knowledge base. Answers cite the video and the moment.
+          </p>
+        )}
+
+        {messages.map((msg, i) =>
+          msg.role === "user" ? (
+            <Message key={i} align="end" className="text-body">
+              <MessageContent>
+                <Bubble variant="tinted" align="end" className="max-w-[85%]">
+                  <BubbleContent className="text-body whitespace-pre-wrap">
+                    {msg.content}
+                  </BubbleContent>
+                </Bubble>
+              </MessageContent>
+            </Message>
+          ) : (
+            <Message key={i} className="text-body">
+              <MessageContent>
+                <Bubble variant="ghost">
+                  <BubbleContent className="text-body">
+                    <MarkdownContent content={msg.content} />
+                  </BubbleContent>
+                </Bubble>
+
+                {msg.sources && msg.sources.length > 0 && (
+                  <SourceList sources={msg.sources} defaultOpen={i === lastAssistantIndex} />
+                )}
+
+                {msg.gaps && (
+                  <Alert variant="info">
+                    <Info weight="fill" aria-hidden />
+                    <AlertTitle>Not covered by these videos</AlertTitle>
+                    <AlertDescription>{msg.gaps}</AlertDescription>
+                  </Alert>
+                )}
+
+                <MessageFooter className="px-0">
+                  <CopyButton variant="icon" text={msg.content} label="Copy response" />
+                </MessageFooter>
+              </MessageContent>
+            </Message>
+          )
+        )}
+
+        {stream && (
+          <Message className="text-body">
+            <MessageContent>
+              {showStreamStatus ? (
+                <Marker aria-live="off" className="text-body-sm">
+                  <MarkerIcon>
+                    <Spinner />
+                  </MarkerIcon>
+                  <MarkerContent className="shimmer">{stream.status}</MarkerContent>
+                </Marker>
+              ) : (
+                <Bubble variant="ghost">
+                  <BubbleContent className="text-body">
+                    <MarkdownContent content={stream.content} />
+                    {stream.isRevealing && (
+                      <span
+                        aria-hidden
+                        className="ml-0.5 inline-block h-4 w-0.5 translate-y-0.5 bg-primary motion-safe:animate-pulse"
+                      />
+                    )}
+                  </BubbleContent>
+                </Bubble>
+              )}
+            </MessageContent>
+          </Message>
+        )}
+
+        <div ref={endRef} className="scroll-mb-48" />
+      </div>
+
+      <div className="sticky bottom-0 z-20 -mx-4 bg-linear-to-t from-background from-70% to-transparent px-4 pt-6 pb-4 sm:-mx-6 sm:px-6">
+        <ChatComposer
+          topic={topic}
+          busy={isBusy}
+          onSend={onSend}
+          quotaText={
+            sub.loading || sub.chatLimit <= 0
+              ? undefined
+              : `${sub.chatUsed} / ${sub.chatLimit} chat messages this month`
+          }
+          disabledReason={
+            chatLimitReached ? "Monthly chat limit reached. Upgrade for more messages." : undefined
+          }
+        />
+        <p className="mt-2 text-center text-caption text-muted-foreground">
+          Answers can be wrong. Check the cited moments before relying on them.
+        </p>
+      </div>
+    </AppPage>
   );
 }

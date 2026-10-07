@@ -6,13 +6,25 @@ test.describe("Public pages", () => {
     await expect(page.getByRole("heading", { level: 1 })).toContainText(/youtube research/i);
     await expect(page.getByRole("link", { name: /start researching/i })).toBeVisible();
     await expect(page.getByRole("link", { name: /sign in/i }).first()).toBeVisible();
-    await expect(page.getByRole("link", { name: /get started/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /get started/i }).first()).toBeVisible();
   });
 
   test("app page loads sign-in prompt when signed out", async ({ page }) => {
     await page.goto("/app");
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(/sign in/i);
-    await expect(page.getByRole("link", { name: /sign in to continue/i })).toBeVisible();
+
+    const inAppGate = page.getByRole("heading", {
+      level: 1,
+      name: /sign in to start researching/i,
+    });
+    if (await inAppGate.count()) {
+      await expect(inAppGate).toBeVisible();
+      await expect(page.getByRole("link", { name: /^sign in$/i })).toBeVisible();
+      return;
+    }
+
+    await expect(page).toHaveURL(/\/sign-in/);
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(/welcome back|sign in/i);
+    await expect(page.getByRole("link", { name: /^sign in$/i }).or(page.getByRole("button", { name: /^sign in$/i }))).toBeVisible();
   });
 
   test("pricing page shows configured plans", async ({ page }) => {

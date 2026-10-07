@@ -51,21 +51,13 @@ export default function KbChatClient({
   );
 
   return (
-    <div className="app-panel app-panel-chat">
-      {buildNotice && (
-        <div className="mb-3 shrink-0 border border-border bg-surface px-4 py-3 font-sans text-[13px] text-text-muted">
-          {buildNotice}
-        </div>
-      )}
-      <div className="min-h-0 flex-1">
-        <ChatPanel
-          topic={kb.topic}
-          kb={kb}
-          messages={messages}
-          stream={stream}
-          onSend={handleChat}
-        />
-      </div>
-    </div>
+    <ChatPanel
+      topic={kb.topic}
+      kb={kb}
+      messages={messages}
+      stream={stream}
+      notice={buildNotice}
+      onSend={handleChat}
+    />
   );
 }

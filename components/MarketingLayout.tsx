@@ -1,18 +1,16 @@
 "use client";
 
 import { SessionProvider } from "next-auth/react";
+import MarketingAmbientBackground from "@/components/motion/MarketingAmbientBackground";
 import PageShell from "@/components/PageShell";
 
-export default function MarketingLayout({
-  children,
-  showThemeSwitcher = true,
-}: {
-  children: React.ReactNode;
-  showThemeSwitcher?: boolean;
-}) {
+export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   return (
     <SessionProvider refetchOnWindowFocus={false} refetchInterval={0}>
-      <PageShell showThemeSwitcher={showThemeSwitcher}>{children}</PageShell>
+      <PageShell>
+        <MarketingAmbientBackground />
+        {children}
+      </PageShell>
     </SessionProvider>
   );
 }

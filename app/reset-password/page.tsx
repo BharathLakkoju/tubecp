@@ -16,10 +16,10 @@ export default async function ResetPasswordPage({
   const token = params.token ?? "";
 
   return (
-    <MarketingLayout showThemeSwitcher={false}>
+    <MarketingLayout>
       <div className="flex min-h-dvh flex-col">
         <SiteNav variant="landing" />
-        <div className="page-container flex-1">
+        <div id="main-content" className="flex-1">
           <AuthFormShell
             title="Choose a new password"
             subtitle="Enter a new password for your account. This link expires after 1 hour."

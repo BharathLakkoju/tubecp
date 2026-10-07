@@ -2,12 +2,30 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { CheckCircle, XCircle } from "@phosphor-icons/react";
+import StatTile from "@/components/tubecp/StatTile";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { EvalBenchmarkSnapshot } from "@/lib/eval/benchmark";
 
 function isEvalBenchmarkSnapshot(data: unknown): data is EvalBenchmarkSnapshot {
   if (!data || typeof data !== "object") return false;
   const snapshot = data as EvalBenchmarkSnapshot;
   return Array.isArray(snapshot.topics) && snapshot.topics.length > 0;
+}
+
+function BenchmarkResult({ passed }: { passed: boolean }) {
+  return (
+    <span
+      className={
+        passed
+          ? "inline-flex shrink-0 items-center gap-1 text-label text-success"
+          : "inline-flex shrink-0 items-center gap-1 text-label text-destructive"
+      }
+    >
+      {passed ? <CheckCircle weight="fill" aria-hidden /> : <XCircle weight="fill" aria-hidden />}
+      {passed ? "Pass" : "Fail"}
+    </span>
+  );
 }
 
 export default function EvalBenchmarkSection() {
@@ -24,47 +42,67 @@ export default function EvalBenchmarkSection() {
   if (!benchmark || topics.length === 0) return null;
 
   return (
-    <section className="pt-10">
-      <h2 className="section-title">Benchmarked research quality</h2>
-      <p className="section-desc">
-        We score ranking quality on {benchmark.topicsTotal} curated topics — technical, business,
-        and general-interest queries with human-reviewed relevance thresholds.
-      </p>
-
-      <div className="mt-6 grid gap-4 border border-border bg-surface p-5 md:grid-cols-3">
-        <div>
-          <p className="font-mono text-[11px] uppercase tracking-wide text-text-muted">Pass rate</p>
-          <p className="mt-1 font-mono text-3xl font-semibold text-text">{benchmark.passRate}%</p>
-        </div>
-        <div>
-          <p className="font-mono text-[11px] uppercase tracking-wide text-text-muted">Topics</p>
-          <p className="mt-1 font-mono text-3xl font-semibold text-text">
-            {benchmark.topicsPassed}/{benchmark.topicsTotal}
-          </p>
-        </div>
-        <div>
-          <p className="font-mono text-[11px] uppercase tracking-wide text-text-muted">Updated</p>
-          <p className="mt-1 font-mono text-3xl font-semibold text-text">{benchmark.updatedAt}</p>
-        </div>
+    <section aria-labelledby="benchmark-heading" className="flex flex-col gap-10">
+      <div className="flex max-w-2xl flex-col gap-3">
+        <h2 id="benchmark-heading" className="text-headline text-foreground">
+          Benchmarked research quality
+        </h2>
+        <p className="text-body text-foreground-secondary">
+          We score ranking quality on {benchmark.topicsTotal} curated topics: technical, business,
+          and general-interest queries with human-reviewed relevance thresholds.
+        </p>
       </div>
 
-      <ul className="mt-6 divide-y divide-border border border-border">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatTile label="Pass rate" value={`${benchmark.passRate}%`} />
+        <StatTile label="Topics" value={`${benchmark.topicsPassed}/${benchmark.topicsTotal}`} />
+        <StatTile label="Updated" value={benchmark.updatedAt} />
+      </div>
+
+      <ul className="flex flex-col divide-y rounded-xl border bg-card sm:hidden">
         {topics.slice(0, 5).map((topic) => (
-          <li key={topic.id} className="flex items-start justify-between gap-4 px-4 py-3">
-            <div>
-              <p className="font-mono text-sm font-semibold text-text">{topic.topic}</p>
-              <p className="mt-1 font-mono text-[12px] text-text-muted">{topic.notes}</p>
+          <li key={topic.id} className="flex flex-col gap-3 px-5 py-5">
+            <div className="flex items-start justify-between gap-3">
+              <p className="min-w-0 text-body-sm font-medium text-foreground">{topic.topic}</p>
+              <BenchmarkResult passed={topic.passed ?? false} />
             </div>
-            <span className="shrink-0 font-mono text-xs text-success">
-              {topic.passed ? "pass" : "fail"}
-            </span>
+            {topic.notes ? (
+              <p className="text-body-sm text-foreground-secondary">{topic.notes}</p>
+            ) : null}
           </li>
         ))}
       </ul>
 
-      <p className="mt-4 font-mono text-xs text-text-muted">
-        Reproduce locally with <code>npm run eval</code>.{" "}
-        <Link href="/api/eval/benchmark" className="text-text-muted underline">
+      <div className="hidden rounded-xl border bg-card sm:block">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="h-12 w-[38%] px-5 py-3">Topic</TableHead>
+              <TableHead className="px-5 py-3">Notes</TableHead>
+              <TableHead className="w-28 px-5 py-3 text-right">Result</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {topics.slice(0, 5).map((topic) => (
+              <TableRow key={topic.id}>
+                <TableCell className="px-5 py-4 align-top whitespace-normal font-medium text-foreground">
+                  {topic.topic}
+                </TableCell>
+                <TableCell className="px-5 py-4 align-top whitespace-normal text-body-sm leading-relaxed text-foreground-secondary">
+                  {topic.notes}
+                </TableCell>
+                <TableCell className="px-5 py-4 text-right align-top">
+                  <BenchmarkResult passed={topic.passed ?? false} />
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      <p className="pt-2 text-body-sm break-words text-foreground-secondary">
+        Reproduce locally with <code className="font-mono">npm run eval</code>.{" "}
+        <Link href="/api/eval/benchmark" className="underline underline-offset-2">
           View full benchmark JSON
         </Link>
       </p>

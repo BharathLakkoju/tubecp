@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import LoadingSpinner from "@/components/LoadingSpinner";
+import { FormAlert } from "@/components/tubecp/FormKit";
+import { buttonVariants } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 
 type VerifyState = "pending" | "success" | "error";
 
@@ -39,21 +41,18 @@ export function VerifyEmailForm({ token }: { token: string }) {
   }, [token]);
 
   if (state === "pending") {
-    return <LoadingSpinner label="Verifying your email..." />;
+    return (
+      <p role="status" className="flex items-center gap-2 text-body text-foreground-secondary">
+        <Spinner />
+        Verifying your email...
+      </p>
+    );
   }
 
   return (
-    <div className="auth-form">
-      <p
-        className={
-          state === "success"
-            ? "border border-border bg-surface px-4 py-3 font-mono text-[13px] text-text-muted"
-            : "border border-red-500/40 bg-red-500/10 px-4 py-3 font-mono text-[13px] text-red-600 dark:text-red-400"
-        }
-      >
-        {message}
-      </p>
-      <Link href="/sign-in" className="btn-primary inline-flex w-fit">
+    <div className="flex flex-col gap-4">
+      <FormAlert kind={state === "success" ? "success" : "error"}>{message}</FormAlert>
+      <Link href="/sign-in" className={buttonVariants({ size: "lg" })}>
         {state === "success" ? "Sign in" : "Back to sign in"}
       </Link>
     </div>

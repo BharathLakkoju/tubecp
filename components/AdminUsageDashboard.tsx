@@ -1,7 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import LoadingSpinner from "@/components/LoadingSpinner";
+import StatTile from "@/components/tubecp/StatTile";
+import { FormAlert } from "@/components/tubecp/FormKit";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 type AdminUsagePayload = {
   summary: {
@@ -39,75 +49,83 @@ export default function AdminUsageDashboard() {
         }
         setData(json as AdminUsagePayload);
       })
-      .catch((err) => setError(String(err)))
+      .catch((err) => setError(String(err).replace(/^Error: /, "")))
       .finally(() => setLoading(false));
   }, []);
 
   if (loading) {
-    return <LoadingSpinner label="Loading operator usage..." />;
+    return (
+      <div className="grid gap-3 sm:grid-cols-2" aria-busy="true" aria-label="Loading operator usage">
+        {[0, 1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-24 rounded-xl" />
+        ))}
+      </div>
+    );
   }
 
   if (error) {
-    return <p className="font-sans text-sm text-accent">{error}</p>;
+    return <FormAlert kind="error">{error}</FormAlert>;
   }
 
   if (!data) return null;
 
   const { summary, youtubeQuota } = data;
+  const quotaPct = youtubeQuota.limit > 0 ? Math.round((youtubeQuota.used / youtubeQuota.limit) * 100) : 0;
 
   return (
-    <div className="space-y-8">
-      <section className="auth-profile-section">
-        <h2 className="auth-profile-title">Platform totals ({summary.date})</h2>
-        <dl className="auth-profile-meta">
-          <div>
-            <dt>OpenRouter chat tokens</dt>
-            <dd>{summary.totals.openrouterChatTokens.toLocaleString()}</dd>
-          </div>
-          <div>
-            <dt>Embedding inputs</dt>
-            <dd>{summary.totals.openrouterEmbeddingInputs.toLocaleString()}</dd>
-          </div>
-          <div>
-            <dt>YouTube quota units (users)</dt>
-            <dd>{summary.totals.youtubeQuotaUnits.toLocaleString()}</dd>
-          </div>
-          <div>
-            <dt>YouTube quota (global)</dt>
-            <dd>
-              {youtubeQuota.used.toLocaleString()} / {youtubeQuota.limit.toLocaleString()}
-              {youtubeQuota.warning ? " — warning" : ""}
-            </dd>
-          </div>
-        </dl>
+    <div className="flex flex-col gap-8">
+      <section aria-labelledby="platform-totals" className="flex flex-col gap-3">
+        <h2 id="platform-totals" className="text-title text-foreground">
+          Platform totals <span className="font-mono text-body-sm text-foreground-secondary">({summary.date})</span>
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <StatTile label="OpenRouter chat tokens" value={summary.totals.openrouterChatTokens.toLocaleString()} />
+          <StatTile label="Embedding inputs" value={summary.totals.openrouterEmbeddingInputs.toLocaleString()} />
+          <StatTile label="YouTube units (users)" value={summary.totals.youtubeQuotaUnits.toLocaleString()} />
+          <StatTile
+            label="YouTube quota (global)"
+            value={`${youtubeQuota.used.toLocaleString()} / ${youtubeQuota.limit.toLocaleString()}`}
+            hint={youtubeQuota.warning ? "Warning: near the daily limit" : undefined}
+            progress={quotaPct}
+            thresholds
+          />
+        </div>
       </section>
 
-      <section className="auth-profile-section">
-        <h2 className="auth-profile-title">Per-user usage</h2>
+      <section aria-labelledby="per-user" className="flex flex-col gap-3">
+        <h2 id="per-user" className="text-title text-foreground">
+          Per-user usage
+        </h2>
         {summary.users.length === 0 ? (
-          <p className="font-mono text-[13px] text-text-muted">No usage recorded for this date.</p>
+          <p className="text-body text-foreground-secondary">No usage recorded for this date.</p>
         ) : (
-          <div className="overflow-x-auto border border-border">
-            <table className="markdown-table w-full min-w-[640px]">
-              <thead className="markdown-table-head">
-                <tr className="markdown-table-row">
-                  <th className="markdown-table-cell markdown-table-header">User</th>
-                  <th className="markdown-table-cell markdown-table-header">Chat tokens</th>
-                  <th className="markdown-table-cell markdown-table-header">Embeddings</th>
-                  <th className="markdown-table-cell markdown-table-header">YouTube units</th>
-                </tr>
-              </thead>
-              <tbody className="markdown-table-body">
+          <div className="overflow-x-auto rounded-xl border bg-card">
+            <Table className="min-w-[640px]">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>User</TableHead>
+                  <TableHead className="text-right">Chat tokens</TableHead>
+                  <TableHead className="text-right">Embeddings</TableHead>
+                  <TableHead className="text-right">YouTube units</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {summary.users.map((row) => (
-                  <tr key={row.userId} className="markdown-table-row">
-                    <td className="markdown-table-cell font-mono text-xs">{row.userId}</td>
-                    <td className="markdown-table-cell">{row.openrouterChatTokens}</td>
-                    <td className="markdown-table-cell">{row.openrouterEmbeddingInputs}</td>
-                    <td className="markdown-table-cell">{row.youtubeQuotaUnits}</td>
-                  </tr>
+                  <TableRow key={row.userId}>
+                    <TableCell className="font-mono text-label">{row.userId}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {row.openrouterChatTokens.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {row.openrouterEmbeddingInputs.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {row.youtubeQuotaUnits.toLocaleString()}
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
       </section>

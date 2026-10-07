@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import StatTile from "@/components/tubecp/StatTile";
+import { FormAlert, SettingsSection, TextField } from "@/components/tubecp/FormKit";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { Workspace } from "@/lib/workspaces";
 
 type Member = {
@@ -69,79 +73,79 @@ export default function WorkspacePanel() {
   };
 
   if (loading) {
-    return <p className="font-mono text-[13px] text-text-muted">Loading workspace…</p>;
+    return <Skeleton className="h-40 w-full rounded-xl" />;
   }
+
+  const feedback = (
+    <>
+      {message && <FormAlert kind="success">{message}</FormAlert>}
+      {error && <FormAlert kind="error">{error}</FormAlert>}
+    </>
+  );
 
   if (!workspace) {
     return (
-      <div className="border border-border bg-surface p-5">
-        <h3 className="font-mono text-sm font-semibold text-text">Team workspace</h3>
-        <p className="mt-2 font-mono text-[13px] text-text-muted">
-          Requires an active Team subscription. Create a shared workspace with pooled limits for up to
-          5 seats.
-        </p>
-        <label className="mt-4 block font-mono text-xs text-text-muted">
-          Workspace name
-          <input
-            className="mt-1 w-full border border-border bg-bg px-3 py-2 font-mono text-sm text-text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-        </label>
-        <button type="button" className="btn-primary mt-4" onClick={createWorkspace}>
-          create workspace
-        </button>
-        {error && <p className="mt-3 font-mono text-[13px] text-accent">{error}</p>}
-      </div>
+      <SettingsSection
+        title="Team workspace"
+        description="Requires an active Team subscription. Create a shared workspace with pooled limits for up to 5 seats."
+      >
+        <TextField label="Workspace name" value={name} onChange={(e) => setName(e.target.value)} />
+        <div>
+          <Button onClick={createWorkspace}>Create workspace</Button>
+        </div>
+        {feedback}
+      </SettingsSection>
     );
   }
 
   return (
-    <div className="border border-border bg-surface p-5">
-      <h3 className="font-mono text-sm font-semibold text-text">{workspace.name}</h3>
-      <p className="mt-2 font-mono text-[13px] text-text-muted">
-        Team plan · {workspace.memberCount}/{workspace.seatLimit} seats · pooled usage
-      </p>
-
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
-        <div className="border border-border px-3 py-2">
-          <p className="font-mono text-[11px] text-text-muted">KB builds</p>
-          <p className="font-mono text-sm text-text">{workspace.kbBuildsUsed}</p>
-        </div>
-        <div className="border border-border px-3 py-2">
-          <p className="font-mono text-[11px] text-text-muted">Chats</p>
-          <p className="font-mono text-sm text-text">{workspace.chatMessagesUsed}</p>
-        </div>
-        <div className="border border-border px-3 py-2">
-          <p className="font-mono text-[11px] text-text-muted">Research today</p>
-          <p className="font-mono text-sm text-text">{workspace.researchUsedToday}</p>
-        </div>
+    <SettingsSection
+      title={workspace.name}
+      description={
+        <>
+          Team plan ·{" "}
+          <span className="font-mono tabular-nums">
+            {workspace.memberCount}/{workspace.seatLimit}
+          </span>{" "}
+          seats · pooled usage
+        </>
+      }
+    >
+      <div className="grid gap-3 sm:grid-cols-3">
+        <StatTile label="KB builds" value={workspace.kbBuildsUsed} />
+        <StatTile label="Chats" value={workspace.chatMessagesUsed} />
+        <StatTile label="Research today" value={workspace.researchUsedToday} />
       </div>
 
-      <ul className="mt-4 divide-y divide-border border border-border">
+      <ul className="divide-y overflow-hidden rounded-lg border" aria-label="Workspace members">
         {members.map((member) => (
-          <li key={member.userId} className="px-3 py-2 font-mono text-[12px] text-text-muted">
-            {member.userId} · {member.role}
+          <li
+            key={member.userId}
+            className="flex items-center justify-between gap-3 px-3 py-2 text-label text-foreground-secondary"
+          >
+            <span className="min-w-0 truncate font-mono">{member.userId}</span>
+            <span className="shrink-0">{member.role}</span>
           </li>
         ))}
       </ul>
 
       {workspace.ownerUserId && (
-        <div className="mt-4 flex flex-col gap-2 md:flex-row">
-          <input
-            className="flex-1 border border-border bg-bg px-3 py-2 font-mono text-sm text-text"
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <TextField
+            className="flex-1"
+            label="Invite by email"
+            type="email"
             placeholder="teammate@company.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
-          <button type="button" className="btn-ghost" onClick={inviteMember}>
-            invite member
-          </button>
+          <Button variant="outline" onClick={inviteMember}>
+            Invite member
+          </Button>
         </div>
       )}
 
-      {message && <p className="mt-3 font-mono text-[13px] text-success">{message}</p>}
-      {error && <p className="mt-3 font-mono text-[13px] text-accent">{error}</p>}
-    </div>
+      {feedback}
+    </SettingsSection>
   );
 }

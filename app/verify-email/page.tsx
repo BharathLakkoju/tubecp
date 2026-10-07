@@ -16,10 +16,10 @@ export default async function VerifyEmailPage({
   const token = params.token ?? "";
 
   return (
-    <MarketingLayout showThemeSwitcher={false}>
+    <MarketingLayout>
       <div className="flex min-h-dvh flex-col">
         <SiteNav variant="landing" />
-        <div className="page-container flex-1">
+        <div id="main-content" className="flex-1">
           <AuthFormShell
             title="Verify email"
             subtitle="Confirming your Tubecp account email address."

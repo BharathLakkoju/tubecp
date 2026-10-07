@@ -34,6 +34,7 @@ export async function requireAdminUserId(): Promise<string> {
     if (testUser && isAdminUserId(testUser)) {
       return testUser;
     }
+    throw new AdminAccessError();
   }
 
   const session = await auth();

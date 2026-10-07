@@ -1,30 +1,52 @@
 "use client";
 
-import { useState } from "react";
-import dynamic from "next/dynamic";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { WarningCircle } from "@phosphor-icons/react";
 import type { ResearchResult, ResearchLiveState } from "@/lib/types";
 import type { ResearchStage, ResearchLiveUpdate } from "@/lib/client/workflows";
 import { parseClientError } from "@/lib/client/chat";
 import { useSubscription } from "@/lib/hooks/useSubscription";
-import HeroSection from "@/components/HeroSection";
-import SearchBox from "@/components/SearchBox";
-import UsageIndicator from "@/components/UsageIndicator";
-import MobileNavToggle from "@/components/MobileNavToggle";
 import { useKnowledgeBases } from "@/lib/hooks/useKnowledgeBases";
+import { getPlan } from "@/lib/plans";
+import AppPage from "@/components/tubecp/AppPage";
+import ActionDock from "@/components/tubecp/ActionDock";
+import JobStatus from "@/components/tubecp/JobStatus";
+import KbTile from "@/components/tubecp/KbTile";
+import type { PipelineStep } from "@/components/tubecp/PipelineRail";
+import SearchBar from "@/components/tubecp/SearchBar";
+import VideoResultsSkeletonList from "@/components/tubecp/VideoResultsSkeletonList";
+import Reveal from "@/components/motion/Reveal";
+import Stagger, { StaggerItem } from "@/components/motion/Stagger";
+import ResearchLiveView from "@/components/ResearchLiveView";
+import ResearchResults from "@/components/ResearchResults";
+import KbBuildProgress from "@/components/KbBuildProgress";
+import UpgradePrompt from "@/components/UpgradePrompt";
+import FreeTierTeaser from "@/components/FreeTierTeaser";
+import UpgradeSuccessBanner from "@/components/UpgradeSuccessBanner";
+import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
-const PhasePanel = dynamic(() => import("@/components/PhasePanel"), {
-  loading: () => <div />,
-});
+/** Videos preselected for a knowledge base build. */
+const TOP_COUNT = 20;
+/** No progress update for this long = stalled (design system 6.7). */
+const STALL_AFTER_MS = 45_000;
 
-const ResearchProgress = dynamic(() => import("@/components/ResearchProgress"));
-const ResearchLiveView = dynamic(() => import("@/components/ResearchLiveView"));
-const ResearchResults = dynamic(() => import("@/components/ResearchResults"));
-const ResearchMatchedLinks = dynamic(() => import("@/components/ResearchMatchedLinks"));
-const KbBuildProgress = dynamic(() => import("@/components/KbBuildProgress"));
-const UpgradePrompt = dynamic(() => import("@/components/UpgradePrompt"));
-const FreeTierTeaser = dynamic(() => import("@/components/FreeTierTeaser"));
-const UpgradeSuccessBanner = dynamic(() => import("@/components/UpgradeSuccessBanner"));
+const SUGGESTIONS = [
+  "How developers monetize AI SaaS products",
+  "Best practices for React Server Components",
+  "Building a startup with no funding",
+];
+
+const RESEARCH_STAGES: { id: ResearchStage; label: string }[] = [
+  { id: "expanding", label: "Expand queries" },
+  { id: "searching", label: "Search YouTube" },
+  { id: "analyzing", label: "Analyze videos" },
+  { id: "ranking", label: "Rank" },
+];
 
 function emptyLiveResearch(): ResearchLiveState {
   return {
@@ -42,7 +64,7 @@ export default function AppResearchClient({
 }) {
   const router = useRouter();
   const sub = useSubscription();
-  const { refresh: refreshKnowledgeBases } = useKnowledgeBases();
+  const { knowledgeBases, refresh: refreshKnowledgeBases } = useKnowledgeBases();
   const [phase, setPhase] = useState<"search" | "results" | "building">("search");
   const [research, setResearch] = useState<ResearchResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -52,7 +74,37 @@ export default function AppResearchClient({
   const [researchStage, setResearchStage] = useState<ResearchStage>("expanding");
   const [liveResearch, setLiveResearch] = useState<ResearchLiveState>(emptyLiveResearch);
   const [error, setError] = useState("");
+  const [buildError, setBuildError] = useState("");
   const [resumeSessionId, setResumeSessionId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [startedAt, setStartedAt] = useState<number | undefined>();
+  const [stalled, setStalled] = useState(false);
+
+  const liveResearchEmpty =
+    liveResearch.queries.length === 0 &&
+    liveResearch.allVideos.length === 0 &&
+    liveResearch.analyzedVideos.length === 0;
+  const [buildVideoCount, setBuildVideoCount] = useState(0);
+  const lastProgressAt = useRef(Date.now());
+
+  const ranked = useMemo(
+    () => [...(research?.rankedVideos ?? [])].sort((a, b) => b.relevanceScore - a.relevanceScore),
+    [research]
+  );
+
+  const touchProgress = () => {
+    lastProgressAt.current = Date.now();
+    setStalled(false);
+  };
+
+  // Stalled detection: a running job with no progress update for 45s+.
+  useEffect(() => {
+    if (!loading) return;
+    const id = window.setInterval(() => {
+      setStalled(Date.now() - lastProgressAt.current >= STALL_AFTER_MS);
+    }, 5000);
+    return () => window.clearInterval(id);
+  }, [loading]);
 
   const mergeLiveResearch = (update: ResearchLiveUpdate) => {
     setLiveResearch((prev) => ({
@@ -66,12 +118,16 @@ export default function AppResearchClient({
   const handleSearch = async (searchTopic: string, options?: { resume?: boolean }) => {
     setLoading(true);
     setError("");
+    setBuildError("");
     setActiveTopic(searchTopic);
     setProgressMsg("");
     setProgressPct(0);
     setResearchStage("expanding");
     setLiveResearch(emptyLiveResearch());
     setResearch(null);
+    setSelectedIds(new Set());
+    setStartedAt(Date.now());
+    touchProgress();
     if (!options?.resume) {
       setResumeSessionId(null);
     }
@@ -85,6 +141,7 @@ export default function AppResearchClient({
         searchTopic,
         (msg, pct, stage, live) => {
           progressed = true;
+          touchProgress();
           setProgressMsg(msg);
           if (pct !== undefined) setProgressPct(pct);
           if (stage) setResearchStage(stage);
@@ -95,6 +152,11 @@ export default function AppResearchClient({
       setResearch(result);
       setResumeSessionId(researchSessionId);
       setProgressMsg("");
+      const top = [...result.rankedVideos]
+        .sort((a, b) => b.relevanceScore - a.relevanceScore)
+        .slice(0, TOP_COUNT)
+        .map((video) => video.videoId);
+      setSelectedIds(new Set(top));
     } catch (err) {
       setError(parseClientError(err));
       if (!progressed) {
@@ -106,20 +168,27 @@ export default function AppResearchClient({
   };
 
   const handleBuildKB = async () => {
-    if (!research || !sub.canBuildKb) return;
+    if (!research || !sub.canBuildKb || kbBuildLimitReached) return;
+    const chosen = ranked.filter((video) => selectedIds.has(video.videoId));
+    if (chosen.length === 0) return;
 
     setLoading(true);
     setError("");
+    setBuildError("");
     setPhase("building");
-    setProgressMsg("Building knowledge base...");
+    setProgressMsg("");
     setProgressPct(0);
+    setBuildVideoCount(chosen.length);
+    setStartedAt(Date.now());
+    touchProgress();
 
     try {
       const { buildKnowledgeBase } = await import("@/lib/client/workflows");
       const { kb, skippedVideos } = await buildKnowledgeBase(
         research.topic,
-        research.rankedVideos,
+        chosen,
         (msg, pct) => {
+          touchProgress();
           setProgressMsg(msg);
           if (pct !== undefined) setProgressPct(pct);
         }
@@ -142,7 +211,7 @@ export default function AppResearchClient({
       router.refresh();
       router.push(`/app/kb/${kb.kbId}`);
     } catch (err) {
-      setError(parseClientError(err));
+      setBuildError(parseClientError(err));
       setPhase("results");
     } finally {
       setLoading(false);
@@ -150,123 +219,275 @@ export default function AppResearchClient({
     }
   };
 
-  const panelKey = phase === "search" ? "search" : "research";
+  const toggleVideo = (videoId: string, selected: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (selected) next.add(videoId);
+      else next.delete(videoId);
+      return next;
+    });
+  };
+
+  const selectTop = () => setSelectedIds(new Set(ranked.slice(0, TOP_COUNT).map((v) => v.videoId)));
+  const selectAll = () => setSelectedIds(new Set(ranked.map((v) => v.videoId)));
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const researchSteps: PipelineStep[] = useMemo(() => {
+    const activeIndex = RESEARCH_STAGES.findIndex((stage) => stage.id === researchStage);
+    return RESEARCH_STAGES.map((stage, index) => {
+      let count: string | undefined;
+      if (stage.id === "searching" && liveResearch.allVideos.length > 0) {
+        count = `${liveResearch.allVideos.length} found`;
+      }
+      if (stage.id === "analyzing" && liveResearch.analyzedVideos.length > 0) {
+        count = `${liveResearch.analyzedVideos.length} done`;
+      }
+      return {
+        id: stage.id,
+        label: stage.label,
+        count,
+        state: index < activeIndex ? "done" : index === activeIndex ? "active" : "pending",
+      } satisfies PipelineStep;
+    });
+  }, [researchStage, liveResearch.allVideos.length, liveResearch.analyzedVideos.length]);
+
+  const researchFailed = phase === "results" && !loading && !research && !!error;
+  const researchDone = phase === "results" && !loading && !!research;
+
+  const quotaText = sub.loading
+    ? undefined
+    : `${sub.researchUsedToday} / ${sub.researchLimit} researches today`;
+  const limitReached =
+    !sub.loading && sub.researchLimit > 0 && sub.researchUsedToday >= sub.researchLimit;
+  const kbBuildLimitReached =
+    !sub.loading &&
+    sub.canBuildKb &&
+    sub.kbBuildsLimit > 0 &&
+    sub.kbBuildsUsed >= sub.kbBuildsLimit;
+  const kbBuildQuotaMessage = kbBuildLimitReached
+    ? `Monthly KB build limit reached (${sub.kbBuildsUsed} / ${sub.kbBuildsLimit}). Resets on your billing date or upgrade for more.`
+    : undefined;
+  const proName = getPlan("pro").name;
+
+  const recentKbs = knowledgeBases.slice(0, 3);
 
   return (
-    <div className="app-panel">
-      <div className="app-panel-scroll">
-        <div className="app-inline-header-row mb-4 md:hidden">
-          <MobileNavToggle />
+    <AppPage>
+      {showUpgradedBanner && <UpgradeSuccessBanner />}
+
+      {phase === "search" && (
+        <div className="mx-auto flex max-w-(--reading-max) flex-col gap-10 pt-6 sm:pt-16">
+          <Reveal tone="app" immediate className="flex flex-col gap-3">
+            <h1 className="text-headline text-foreground">What do you want to research?</h1>
+            <p className="text-body text-foreground-secondary">
+              We search YouTube, rank videos by how well they cover your topic
+              {sub.canBuildKb ? ", then turn the best into a knowledge base you can chat with." : "."}
+            </p>
+          </Reveal>
+
+          <Reveal tone="app" immediate delay={0.05} className="flex flex-col gap-4">
+            <SearchBar
+              onSearch={(topic) => void handleSearch(topic)}
+              loading={loading}
+              quotaText={quotaText}
+              disabledReason={
+                limitReached
+                  ? `Daily research limit reached (${sub.researchLimit}). It resets tomorrow.`
+                  : undefined
+              }
+              suggestions={SUGGESTIONS}
+            />
+
+            {error && (
+              <Alert variant="destructive">
+                <WarningCircle weight="fill" aria-hidden />
+                <AlertTitle>Research didn&apos;t finish</AlertTitle>
+                <AlertDescription>{error}</AlertDescription>
+                {resumeSessionId && activeTopic && (
+                  <AlertAction>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleSearch(activeTopic, { resume: true })}
+                    >
+                      Resume from checkpoint
+                    </Button>
+                  </AlertAction>
+                )}
+              </Alert>
+            )}
+          </Reveal>
+
+          {sub.loading ? null : limitReached && !sub.canBuildKb ? (
+            <UpgradePrompt
+              title="Need more researches?"
+              description={`${proName} raises your daily research limit and unlocks knowledge bases and chat with cited sources.`}
+            />
+          ) : null}
+
+          {sub.canBuildKb && recentKbs.length > 0 && (
+            <section aria-labelledby="recent-kbs" className="flex flex-col gap-4">
+              <div className="flex items-baseline justify-between gap-4">
+                <h2 id="recent-kbs" className="text-title text-foreground">
+                  Recent knowledge bases
+                </h2>
+                <Link
+                  href="/app/kb"
+                  prefetch={false}
+                  className="text-label text-primary underline-offset-2 hover:underline"
+                >
+                  View all
+                </Link>
+              </div>
+              <Stagger tone="app" immediate className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {recentKbs.map((kb, index) => (
+                  <StaggerItem key={kb.kbId} index={index} tone="app">
+                    <KbTile kb={kb} />
+                  </StaggerItem>
+                ))}
+              </Stagger>
+            </section>
+          )}
         </div>
+      )}
 
-        {showUpgradedBanner && <UpgradeSuccessBanner />}
+      {phase !== "search" && (loading || research || researchFailed) && (
+        <div className="flex flex-col gap-6">
+          <Reveal tone="app" immediate className="flex flex-col gap-1">
+            <p className="font-mono text-label text-foreground-secondary">Research</p>
+            <h1 className="text-headline break-words text-foreground">
+              {research?.topic ?? activeTopic}
+            </h1>
+          </Reveal>
 
-        <PhasePanel phase={panelKey}>
-          {phase === "search" && (
-            <>
-              <HeroSection
-                showWordmark={false}
-                title="What do you want to research?"
-                subtitle={
-                  sub.canBuildKb
-                    ? `Free: ranked video lists (${sub.researchLimit}/day). Pro: ${sub.kbBuildsLimit - sub.kbBuildsUsed} KB builds and ${sub.chatLimit - sub.chatUsed} chats left this month.`
-                    : `Free: ranked video lists (${sub.researchLimit}/day). Upgrade to build knowledge bases and chat.`
-                }
-              >
-                <SearchBox onSearch={handleSearch} loading={loading} />
-                {error && (
-                  <p className="mt-4 font-mono text-[13px] text-accent">{error}</p>
-                )}
-                {error && resumeSessionId && activeTopic && (
-                  <button
-                    type="button"
-                    className="btn-ghost mt-4"
-                    onClick={() => handleSearch(activeTopic, { resume: true })}
-                  >
-                    resume research from checkpoint →
-                  </button>
-                )}
-              </HeroSection>
-              <UsageIndicator
-                used={sub.researchUsedToday}
-                limit={sub.researchLimit}
-                label="researches today"
-              />
-            </>
+          {phase === "results" && (loading || researchFailed) && (
+            <JobStatus
+              title="Researching"
+              railLabel="Research progress"
+              steps={researchSteps}
+              progress={progressPct}
+              progressText={`Step ${
+                Math.max(
+                  1,
+                  RESEARCH_STAGES.findIndex((stage) => stage.id === researchStage) + 1
+                )
+              } of ${RESEARCH_STAGES.length}`}
+              current={progressMsg || "Starting research"}
+              startedAt={startedAt}
+              stalled={stalled}
+              onKeepWaiting={touchProgress}
+              error={researchFailed ? error : undefined}
+              retryLabel={resumeSessionId ? "Resume from checkpoint" : "Try again"}
+              onRetry={() =>
+                void handleSearch(activeTopic, { resume: Boolean(resumeSessionId) })
+              }
+            />
           )}
 
-          {(phase === "results" || phase === "building") && (loading || research) && (
-            <div>
-              <div className="mb-6 border-b border-border pb-4">
-                <h2 className="font-mono text-base font-semibold break-words text-text">
-                  research: {research?.topic ?? activeTopic}
-                </h2>
-                {research && !loading && phase === "results" && (
-                  <p className="mt-1.5 font-mono text-xs text-text-muted">
-                    {research.allVideos.length} scraped · {research.rankedVideos.length}{" "}
-                    semantically relevant
-                  </p>
-                )}
+          {phase === "results" && loading && (
+            liveResearchEmpty ? (
+              <VideoResultsSkeletonList count={5} />
+            ) : (
+              <ResearchLiveView live={liveResearch} />
+            )
+          )}
+
+          {phase === "building" && loading && (
+            <KbBuildProgress
+              detail={progressMsg}
+              progress={progressPct}
+              videoCount={buildVideoCount}
+              startedAt={startedAt}
+              stalled={stalled}
+              onKeepWaiting={touchProgress}
+            />
+          )}
+
+          {research && (researchDone || phase === "building") && (
+            <>
+              {researchDone && ranked.length > 0 && (
+                <ActionDock
+                  actions={
+                    sub.loading ? (
+                      <Skeleton className="h-10 w-44" />
+                    ) : sub.canBuildKb ? (
+                      <Button
+                        onClick={() => void handleBuildKB()}
+                        disabled={selectedIds.size === 0 || kbBuildLimitReached}
+                        title={kbBuildQuotaMessage}
+                      >
+                        Build knowledge base
+                      </Button>
+                    ) : (
+                      <Link
+                        href="/pricing"
+                        className={buttonVariants({ variant: "default" })}
+                      >
+                        See plans
+                      </Link>
+                    )
+                  }
+                >
+                  {sub.canBuildKb ? (
+                    kbBuildLimitReached ? (
+                      kbBuildQuotaMessage
+                    ) : selectedIds.size === 0 ? (
+                      "Select at least one video to build a knowledge base"
+                    ) : (
+                      <>
+                        <span className="font-mono tabular-nums">{selectedIds.size}</span> of{" "}
+                        <span className="font-mono tabular-nums">{ranked.length}</span> videos selected
+                      </>
+                    )
+                  ) : (
+                    <>
+                      <span className="font-mono tabular-nums">{ranked.length}</span> relevant videos
+                      ranked. Knowledge bases are on paid plans.
+                    </>
+                  )}
+                </ActionDock>
+              )}
+
+              {buildError && (
+                <Alert variant="destructive">
+                  <WarningCircle weight="fill" aria-hidden />
+                  <AlertTitle>Couldn&apos;t build the knowledge base</AlertTitle>
+                  <AlertDescription>{buildError}</AlertDescription>
+                  <AlertAction>
+                    <Button variant="outline" size="sm" onClick={() => void handleBuildKB()}>
+                      Try again
+                    </Button>
+                  </AlertAction>
+                </Alert>
+              )}
+
+              <div className={cn(phase === "building" && "pointer-events-none opacity-60")}>
+                <ResearchResults
+                  research={research}
+                  ranked={ranked}
+                  selectable={sub.canBuildKb && phase === "results"}
+                  selectedIds={selectedIds}
+                  onToggle={toggleVideo}
+                  onSelectTop={selectTop}
+                  onSelectAll={selectAll}
+                  onClear={clearSelection}
+                  topCount={TOP_COUNT}
+                />
               </div>
 
-              {loading && phase === "results" && (
-                <ResearchProgress
-                  topic={activeTopic}
-                  stage={researchStage}
-                  detail={progressMsg}
-                  progress={progressPct}
-                />
+              {researchDone && !sub.loading && !sub.canBuildKb && ranked.length > 0 && (
+                <>
+                  <FreeTierTeaser research={research} />
+                  <UpgradePrompt
+                    title="Unlock knowledge base and chat"
+                    description={`${proName} transcribes the videos you pick, builds a knowledge base, and lets you chat with cited sources.`}
+                  />
+                </>
               )}
-
-              <ResearchLiveView live={liveResearch} />
-
-              {research && (phase === "building" || !loading) && (
-                <section className="mt-8 border-t border-border pt-8">
-                  <h3 className="mb-6 font-mono text-[13px] font-semibold text-text">
-                    Final results
-                  </h3>
-                  <ResearchResults research={research} />
-                  {sub.plan === "free" && <FreeTierTeaser research={research} />}
-                </section>
-              )}
-
-              {phase === "building" && loading && (
-                <KbBuildProgress detail={progressMsg} progress={progressPct} active={loading} />
-              )}
-
-              {phase === "results" &&
-                !loading &&
-                research &&
-                research.rankedVideos.length > 0 && (
-                  <div className="mt-8 border-t border-border pt-6">
-                    <ResearchMatchedLinks videos={research.rankedVideos} />
-                    {sub.canBuildKb ? (
-                      <div className="mt-8 border-t border-border pt-6">
-                        <p className="mb-4 font-mono text-[13px] text-text-muted">
-                          Build a knowledge base from these {research.rankedVideos.length} videos?
-                        </p>
-                        <button
-                          type="button"
-                          className="btn-primary max-sm:w-full"
-                          onClick={handleBuildKB}
-                        >
-                          build knowledge base →
-                        </button>
-                      </div>
-                    ) : (
-                      <UpgradePrompt
-                        title="Unlock knowledge base + chat"
-                        description="Free tier includes ranked video lists. Upgrade to Pro to transcribe videos, build a knowledge base, and chat with cited sources."
-                      />
-                    )}
-                  </div>
-                )}
-
-              {error && <p className="mt-4 font-mono text-[13px] text-accent">{error}</p>}
-            </div>
+            </>
           )}
-        </PhasePanel>
-      </div>
-    </div>
+        </div>
+      )}
+    </AppPage>
   );
 }

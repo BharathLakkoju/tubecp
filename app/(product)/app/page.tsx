@@ -1,10 +1,19 @@
 import Link from "next/link";
+import { MagnifyingGlass } from "@phosphor-icons/react/dist/ssr";
 import { getProductBootstrap } from "@/lib/server/product-bootstrap";
-import HeroSection from "@/components/HeroSection";
-import MobileNavToggle from "@/components/MobileNavToggle";
+import AppPage from "@/components/tubecp/AppPage";
+import { buttonVariants } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import AppResearchClient from "./AppResearchClient";
 
-export default async function AppPage({
+export default async function AppHomePage({
   searchParams,
 }: {
   searchParams: Promise<{ upgraded?: string }>;
@@ -15,23 +24,27 @@ export default async function AppPage({
 
   if (!bootstrap.session?.user) {
     return (
-      <div className="app-panel">
-        <div className="app-panel-scroll">
-          <div className="app-inline-header-row mb-4 md:hidden">
-            <MobileNavToggle />
-          </div>
-          <HeroSection
-            align="center"
-            showWordmark={false}
-            title="Sign in to start researching"
-            subtitle="Search YouTube by topic, rank relevant videos, and build chattable knowledge bases with cited sources."
-          >
-            <Link href="/sign-in" className="btn-primary" prefetch={false}>
-              sign in to continue →
+      <AppPage>
+        <Empty className="pt-16">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <MagnifyingGlass aria-hidden />
+            </EmptyMedia>
+            <EmptyTitle>
+              <h1>Sign in to start researching</h1>
+            </EmptyTitle>
+            <EmptyDescription>
+              Search YouTube by topic, rank relevant videos, and build chattable knowledge bases
+              with cited sources.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Link href="/sign-in" prefetch={false} className={buttonVariants()}>
+              Sign in
             </Link>
-          </HeroSection>
-        </div>
-      </div>
+          </EmptyContent>
+        </Empty>
+      </AppPage>
     );
   }
 

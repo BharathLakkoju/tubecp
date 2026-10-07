@@ -1,5 +1,5 @@
 import { BRAND_NAME } from "@/lib/brand";
-import { cn } from "@/lib/cn";
+import { cn } from "@/lib/utils";
 
 interface Props {
   size?: "sm" | "md" | "lg";
@@ -12,6 +12,7 @@ const sizeClasses = {
   lg: "h-[52px] max-sm:h-10",
 };
 
+/** tubecp v3 lockup (citation bracket mark + Geist wordmark). */
 export default function Wordmark({ size = "md", className }: Props) {
   return (
     <span
