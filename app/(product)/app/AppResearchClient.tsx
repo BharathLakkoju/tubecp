@@ -16,6 +16,7 @@ import JobStatus from "@/components/tubecp/JobStatus";
 import KbTile from "@/components/tubecp/KbTile";
 import type { PipelineStep } from "@/components/tubecp/PipelineRail";
 import SearchBar from "@/components/tubecp/SearchBar";
+import VideoResultsSkeletonList from "@/components/tubecp/VideoResultsSkeletonList";
 import Reveal from "@/components/motion/Reveal";
 import Stagger, { StaggerItem } from "@/components/motion/Stagger";
 import ResearchLiveView from "@/components/ResearchLiveView";
@@ -78,6 +79,11 @@ export default function AppResearchClient({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [startedAt, setStartedAt] = useState<number | undefined>();
   const [stalled, setStalled] = useState(false);
+
+  const liveResearchEmpty =
+    liveResearch.queries.length === 0 &&
+    liveResearch.allVideos.length === 0 &&
+    liveResearch.analyzedVideos.length === 0;
   const [buildVideoCount, setBuildVideoCount] = useState(0);
   const lastProgressAt = useRef(Date.now());
 
@@ -370,7 +376,13 @@ export default function AppResearchClient({
             />
           )}
 
-          {phase === "results" && loading && <ResearchLiveView live={liveResearch} />}
+          {phase === "results" && loading && (
+            liveResearchEmpty ? (
+              <VideoResultsSkeletonList count={5} />
+            ) : (
+              <ResearchLiveView live={liveResearch} />
+            )
+          )}
 
           {phase === "building" && loading && (
             <KbBuildProgress

@@ -13,14 +13,17 @@ interface Props {
 export default function DocsPage({ title, subtitle, children }: Props) {
   return (
     <MarketingLayout>
-      <div className="flex min-h-dvh flex-col">
+      <div className="flex flex-col">
         <SiteNav variant="landing" />
-        <article id="main-content" className="mx-auto w-full max-w-(--content-max) flex-1 px-4 pb-16 sm:px-6">
+        <article
+          id="main-content"
+          className="mx-auto w-full max-w-(--marketing-max) flex-1 px-4 pb-16 sm:px-6"
+        >
           <HeroSection align="center" title={title} subtitle={subtitle} />
 
           <Reveal>
-            <Card>
-              <CardContent className="prose-tubecp mx-auto w-full max-w-(--reading-max)">
+            <Card className="w-full">
+              <CardContent className="prose-tubecp w-full max-w-none">
                 {children}
               </CardContent>
             </Card>

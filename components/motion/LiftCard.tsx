@@ -29,8 +29,9 @@ export default function LiftCard({ children, className, lift = 4, spotlight = fa
       whileHover={reduced ? undefined : { y: -lift }}
       transition={spring.lift}
       onPointerMove={
-        spotlight && !reduced
+        spotlight
           ? (event) => {
+              if (reduced) return;
               const rect = event.currentTarget.getBoundingClientRect();
               event.currentTarget.style.setProperty("--mx", `${event.clientX - rect.left}px`);
               event.currentTarget.style.setProperty("--my", `${event.clientY - rect.top}px`);
@@ -38,16 +39,16 @@ export default function LiftCard({ children, className, lift = 4, spotlight = fa
           : undefined
       }
     >
-      {spotlight && !reduced && (
+      {spotlight ? (
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-0 transition-opacity duration-(--duration-base) group-hover/lift:opacity-100"
+          className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-0 transition-opacity duration-(--duration-base) group-hover/lift:opacity-100 motion-reduce:hidden"
           style={{
             background:
               "radial-gradient(240px circle at var(--mx, 50%) var(--my, 50%), color-mix(in oklch, var(--primary) 10%, transparent), transparent 70%)",
           }}
         />
-      )}
+      ) : null}
       {children}
     </m.div>
   );

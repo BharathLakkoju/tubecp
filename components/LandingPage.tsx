@@ -11,8 +11,13 @@ import Reveal from "@/components/motion/Reveal";
 import ScrollFrame from "@/components/motion/ScrollFrame";
 import Stagger, { StaggerItem } from "@/components/motion/Stagger";
 import PipelineRail from "@/components/tubecp/PipelineRail";
+import RelevanceMeter from "@/components/tubecp/RelevanceMeter";
+import VideoResultSkeleton from "@/components/tubecp/VideoResultSkeleton";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item";
+import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 const FEATURES = [
@@ -54,42 +59,121 @@ const STEPS = [
   },
 ];
 
-/** Decorative product shot for the scroll frame. Static shapes only: no invented data. */
+/**
+ * Public YouTube examples for the marketing product shot. Relevance scores are illustrative only
+ * (not output from a live tubecp research run).
+ */
+const PRODUCT_SHOT_RESULTS = [
+  {
+    rank: 1,
+    videoId: "q1D90-uGvBg",
+    title: "You're using AI agents wrong",
+    channel: "Theo - t3․gg",
+    duration: "49:22",
+    score: 94,
+    detail: "Hands-on multi-agent workflow, remote dev boxes, and shipping without babysitting threads",
+  },
+  {
+    rank: 2,
+    videoId: "_zdroS0Hc74",
+    title: "AIE Europe Keynotes & Coding Agents",
+    channel: "AI Engineer",
+    duration: "Keynote",
+    score: 88,
+    detail: "Industry keynotes on coding agents, evals, and production AI engineering",
+  },
+  {
+    rank: 3,
+    videoId: "YkOSUVzOAA4",
+    title: "T3 Stack Tutorial — FROM 0 TO PROD FOR $0",
+    channel: "Theo - t3․gg",
+    duration: "2:59:03",
+    score: 86,
+    detail: "Full-stack TypeScript walkthrough with Next.js, tRPC, Tailwind, and Prisma",
+  },
+] as const;
+
+/** Decorative product shot for the scroll frame: animated pipeline + shimmering skeletons. */
 function ProductShot() {
   return (
     <div
       aria-hidden="true"
       className="mx-auto flex w-full max-w-3xl flex-col gap-5 rounded-2xl border bg-card p-5 shadow-3 sm:p-8"
     >
+      <p className="font-mono text-caption text-foreground-secondary">
+        Example topic:{" "}
+        <span className="text-foreground">AI agents &amp; TypeScript for developers</span>
+      </p>
+
       <PipelineRail
         label="Example research pipeline"
+        className="sm:grid sm:grid-cols-2 sm:gap-x-6 sm:gap-y-2"
         steps={[
           { id: "expand", label: "Expand queries", state: "done" },
-          { id: "search", label: "Search YouTube", state: "done" },
-          { id: "analyze", label: "Analyze videos", state: "active" },
+          { id: "search", label: "Search YouTube", state: "done", count: "18/18" },
+          { id: "analyze", label: "Analyze videos", state: "active", count: "11/20" },
           { id: "rank", label: "Rank", state: "pending" },
         ]}
       />
-      <div className="flex flex-col gap-3">
-        {[0.92, 0.81, 0.67].map((score, i) => (
-          <div key={score} className="flex items-center gap-4 rounded-lg border bg-background p-3">
-            <span className="w-5 font-mono text-label tabular-nums text-muted-foreground">{i + 1}</span>
-            <div className="h-10 w-16 shrink-0 rounded-md bg-muted" />
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
-              <div className="h-2.5 w-3/4 rounded-full bg-muted" />
-              <div className="h-2 w-1/3 rounded-full bg-muted/70" />
-            </div>
-            <div className="hidden w-28 items-center gap-2 sm:flex">
-              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                <div className="h-full rounded-full bg-primary" style={{ width: `${score * 100}%` }} />
-              </div>
-              <span className="font-mono text-label tabular-nums text-foreground-secondary">
-                {Math.round(score * 100)}
+
+      <Marker className="text-body-sm">
+        <MarkerIcon>
+          <Spinner />
+        </MarkerIcon>
+        <MarkerContent className="shimmer">
+          Ranking Theo, AI Engineer, and related engineering talks…
+        </MarkerContent>
+      </Marker>
+
+      <Stagger
+        tone="app"
+        className="flex min-w-0 flex-col divide-y overflow-x-clip rounded-lg border bg-background"
+      >
+        {PRODUCT_SHOT_RESULTS.map((video, index) => (
+          <StaggerItem key={video.rank} index={index} tone="app" as="div">
+            <Item
+              variant="default"
+              className="rounded-none px-4 py-3 max-sm:flex-col max-sm:items-stretch"
+            >
+              <span
+                aria-hidden="true"
+                className="w-6 shrink-0 font-mono text-label tabular-nums text-muted-foreground max-sm:hidden"
+              >
+                {String(video.rank).padStart(2, "0")}
               </span>
-            </div>
-          </div>
+              <ItemMedia
+                variant="image"
+                className="h-[68px] w-[120px] shrink-0 overflow-hidden max-sm:aspect-video max-sm:h-auto max-sm:w-full"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`https://i.ytimg.com/vi/${video.videoId}/mqdefault.jpg`}
+                  alt=""
+                  width={120}
+                  height={68}
+                  className="size-full object-cover"
+                />
+              </ItemMedia>
+              <ItemContent className="min-w-0">
+                <ItemTitle className="line-clamp-2 whitespace-normal text-title-sm">
+                  {video.title}
+                </ItemTitle>
+                <ItemDescription className="line-clamp-1">
+                  {video.channel}
+                  <span className="font-mono tabular-nums text-muted-foreground"> · {video.duration}</span>
+                </ItemDescription>
+                <ItemDescription className="line-clamp-1 text-foreground-secondary">
+                  {video.detail}
+                </ItemDescription>
+              </ItemContent>
+              <RelevanceMeter score={video.score} className="shrink-0 max-sm:mt-2" />
+            </Item>
+          </StaggerItem>
         ))}
-      </div>
+        <StaggerItem index={3} tone="app" as="div">
+          <VideoResultSkeleton rank={4} />
+        </StaggerItem>
+      </Stagger>
     </div>
   );
 }
@@ -97,15 +181,18 @@ function ProductShot() {
 export default function LandingPage() {
   return (
     <MarketingLayout>
-      <div className="flex min-h-dvh flex-col">
+      <div className="flex flex-col">
         <SiteNav variant="landing" />
 
-        <main id="main-content" className="mx-auto w-full max-w-(--marketing-max) flex-1 px-4 pb-24 sm:px-6">
+        <main
+          id="main-content"
+          className="mx-auto w-full max-w-(--marketing-max) flex-1 px-4 pb-16 sm:px-6 sm:pb-20"
+        >
           <HeroSection
             align="center"
             animateTitle
             title="YouTube research, distilled into answers you can trust"
-            subtitle="Search a topic, get videos ranked by how well they cover it, and chat with the best ones using cited sources."
+            subtitle="Research engineering talks, conference keynotes, and deep-dive tutorials on YouTube—ranked by relevance, then chat with cited sources on paid plans."
           >
             <div className="flex w-full max-w-md flex-col gap-3 sm:flex-row sm:justify-center">
               <Link href="/app" className={cn(buttonVariants({ size: "lg" }), "sm:min-w-44")}>
@@ -177,14 +264,14 @@ export default function LandingPage() {
             </section>
           </Reveal>
 
-          <Reveal className="pt-24">
+          <Reveal className="pt-24 pb-8">
             <EvalBenchmarkSection />
           </Reveal>
 
           <Reveal>
             <section
               aria-labelledby="cta-heading"
-              className="mt-24 flex flex-col items-center gap-4 rounded-2xl border bg-card px-6 py-14 text-center"
+              className="mt-16 flex flex-col items-center gap-5 rounded-2xl border bg-card px-6 py-14 text-center sm:mt-20"
             >
               <h2 id="cta-heading" className="text-headline text-foreground">
                 Ready to research smarter?

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/components/AuthShell";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import LegalFooter from "@/components/LegalFooter";
+import SiteFooter from "@/components/SiteFooter";
 import MotionProvider from "@/components/motion/MotionProvider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toast";
@@ -57,10 +57,10 @@ export default function RootLayout({
             <TooltipProvider>
               <AuthProvider e2eBypass={e2eBypass}>
                 <div className="flex min-h-dvh flex-col overflow-x-clip">
-                  <div className="flex flex-1 flex-col overflow-x-clip">
-                    {children}
+                  <div className="flex min-h-0 flex-1 flex-col overflow-x-clip">{children}</div>
+                  <div className="relative z-10 shrink-0">
+                    <SiteFooter />
                   </div>
-                  <LegalFooter />
                 </div>
               </AuthProvider>
             </TooltipProvider>

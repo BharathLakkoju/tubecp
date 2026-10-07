@@ -373,6 +373,23 @@
 }
 
 /* ---------- 6. Utilities ---------- */
+@utility skeleton-shimmer {
+  /* Block skeletons (design system §6.10). Static muted under reduced motion. */
+  background-color: var(--muted);
+  background-image: linear-gradient(
+    90deg,
+    var(--muted) 0%,
+    color-mix(in oklch, var(--foreground) 7%, var(--muted)) 50%,
+    var(--muted) 100%
+  );
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer-bg);
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    background-image: none;
+  }
+}
+
 @utility shimmer {
   /* Streaming status text (motion pattern M13). Plain text under reduced motion. */
   background-image: linear-gradient(
@@ -395,6 +412,57 @@
   }
 }
 
+/* Marketing ambient mesh (subtle primary tints; static under reduced motion). */
+.marketing-mesh {
+  --mesh-a-x: 52%;
+  --mesh-a-y: 42%;
+  --mesh-b-x: 28%;
+  --mesh-b-y: 72%;
+  --mesh-c-x: 78%;
+  --mesh-c-y: 18%;
+  background-image:
+    radial-gradient(
+      ellipse 85% 65% at var(--mesh-a-x) var(--mesh-a-y),
+      color-mix(in oklch, var(--primary) 14%, transparent),
+      transparent 68%
+    ),
+    radial-gradient(
+      ellipse 75% 55% at var(--mesh-b-x) var(--mesh-b-y),
+      color-mix(in oklch, var(--primary) 9%, transparent),
+      transparent 62%
+    ),
+    radial-gradient(
+      ellipse 70% 50% at var(--mesh-c-x) var(--mesh-c-y),
+      color-mix(in oklch, var(--foreground) 5%, transparent),
+      transparent 58%
+    );
+}
+[data-color-scheme="dark"] .marketing-mesh {
+  background-image:
+    radial-gradient(
+      ellipse 85% 65% at var(--mesh-a-x) var(--mesh-a-y),
+      color-mix(in oklch, var(--primary) 18%, transparent),
+      transparent 68%
+    ),
+    radial-gradient(
+      ellipse 75% 55% at var(--mesh-b-x) var(--mesh-b-y),
+      color-mix(in oklch, var(--primary) 11%, transparent),
+      transparent 62%
+    ),
+    radial-gradient(
+      ellipse 70% 50% at var(--mesh-c-x) var(--mesh-c-y),
+      color-mix(in oklch, var(--foreground) 7%, transparent),
+      transparent 58%
+    );
+}
+.marketing-mesh-grain {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  mix-blend-mode: multiply;
+}
+[data-color-scheme="dark"] .marketing-mesh-grain {
+  mix-blend-mode: soft-light;
+  opacity: 0.15;
+}
 @utility page-gutter {
   padding-inline: 1rem;
   @media (min-width: 40rem) {
@@ -487,7 +555,7 @@
 }
 .prose-tubecp th,
 .prose-tubecp td {
-  @apply border-b px-3 py-2 text-left align-top;
+  @apply border-b px-4 py-3 text-left align-top;
 }
 .prose-tubecp th {
   @apply bg-muted font-semibold text-foreground-secondary;

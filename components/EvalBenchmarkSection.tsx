@@ -13,6 +13,21 @@ function isEvalBenchmarkSnapshot(data: unknown): data is EvalBenchmarkSnapshot {
   return Array.isArray(snapshot.topics) && snapshot.topics.length > 0;
 }
 
+function BenchmarkResult({ passed }: { passed: boolean }) {
+  return (
+    <span
+      className={
+        passed
+          ? "inline-flex shrink-0 items-center gap-1 text-label text-success"
+          : "inline-flex shrink-0 items-center gap-1 text-label text-destructive"
+      }
+    >
+      {passed ? <CheckCircle weight="fill" aria-hidden /> : <XCircle weight="fill" aria-hidden />}
+      {passed ? "Pass" : "Fail"}
+    </span>
+  );
+}
+
 export default function EvalBenchmarkSection() {
   const [benchmark, setBenchmark] = useState<EvalBenchmarkSnapshot | null>(null);
 
@@ -27,8 +42,8 @@ export default function EvalBenchmarkSection() {
   if (!benchmark || topics.length === 0) return null;
 
   return (
-    <section aria-labelledby="benchmark-heading" className="flex flex-col gap-6">
-      <div className="flex max-w-2xl flex-col gap-2">
+    <section aria-labelledby="benchmark-heading" className="flex flex-col gap-10">
+      <div className="flex max-w-2xl flex-col gap-3">
         <h2 id="benchmark-heading" className="text-headline text-foreground">
           Benchmarked research quality
         </h2>
@@ -38,41 +53,46 @@ export default function EvalBenchmarkSection() {
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-3">
         <StatTile label="Pass rate" value={`${benchmark.passRate}%`} />
         <StatTile label="Topics" value={`${benchmark.topicsPassed}/${benchmark.topicsTotal}`} />
         <StatTile label="Updated" value={benchmark.updatedAt} />
       </div>
 
-      <div className="overflow-x-auto rounded-xl border bg-card">
+      <ul className="flex flex-col divide-y rounded-xl border bg-card sm:hidden">
+        {topics.slice(0, 5).map((topic) => (
+          <li key={topic.id} className="flex flex-col gap-3 px-5 py-5">
+            <div className="flex items-start justify-between gap-3">
+              <p className="min-w-0 text-body-sm font-medium text-foreground">{topic.topic}</p>
+              <BenchmarkResult passed={topic.passed ?? false} />
+            </div>
+            {topic.notes ? (
+              <p className="text-body-sm text-foreground-secondary">{topic.notes}</p>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+
+      <div className="hidden rounded-xl border bg-card sm:block">
         <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead>Topic</TableHead>
-              <TableHead>Notes</TableHead>
-              <TableHead className="text-right">Result</TableHead>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="h-12 w-[38%] px-5 py-3">Topic</TableHead>
+              <TableHead className="px-5 py-3">Notes</TableHead>
+              <TableHead className="w-28 px-5 py-3 text-right">Result</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {topics.slice(0, 5).map((topic) => (
               <TableRow key={topic.id}>
-                <TableCell className="font-medium text-foreground">{topic.topic}</TableCell>
-                <TableCell className="whitespace-normal text-foreground-secondary">{topic.notes}</TableCell>
-                <TableCell className="text-right">
-                  <span
-                    className={
-                      topic.passed
-                        ? "inline-flex items-center gap-1 text-label text-success"
-                        : "inline-flex items-center gap-1 text-label text-destructive"
-                    }
-                  >
-                    {topic.passed ? (
-                      <CheckCircle weight="fill" aria-hidden />
-                    ) : (
-                      <XCircle weight="fill" aria-hidden />
-                    )}
-                    {topic.passed ? "Pass" : "Fail"}
-                  </span>
+                <TableCell className="px-5 py-4 align-top whitespace-normal font-medium text-foreground">
+                  {topic.topic}
+                </TableCell>
+                <TableCell className="px-5 py-4 align-top whitespace-normal text-body-sm leading-relaxed text-foreground-secondary">
+                  {topic.notes}
+                </TableCell>
+                <TableCell className="px-5 py-4 text-right align-top">
+                  <BenchmarkResult passed={topic.passed ?? false} />
                 </TableCell>
               </TableRow>
             ))}
@@ -80,7 +100,7 @@ export default function EvalBenchmarkSection() {
         </Table>
       </div>
 
-      <p className="text-label text-foreground-secondary">
+      <p className="pt-2 text-body-sm break-words text-foreground-secondary">
         Reproduce locally with <code className="font-mono">npm run eval</code>.{" "}
         <Link href="/api/eval/benchmark" className="underline underline-offset-2">
           View full benchmark JSON

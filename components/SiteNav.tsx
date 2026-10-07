@@ -99,6 +99,7 @@ export default function SiteNav({ variant = "landing" }: Props) {
                 {links.map((link) => (
                   <SheetClose
                     key={link.href}
+                    nativeButton={false}
                     render={
                       <Link
                         href={link.href}
@@ -113,6 +114,7 @@ export default function SiteNav({ variant = "landing" }: Props) {
 
                 <AppSignedIn>
                   <SheetClose
+                    nativeButton={false}
                     render={
                       <Link
                         href="/app"
@@ -123,6 +125,7 @@ export default function SiteNav({ variant = "landing" }: Props) {
                     Open app
                   </SheetClose>
                   <SheetClose
+                    nativeButton={false}
                     render={
                       <Link
                         href="/account"
@@ -143,6 +146,7 @@ export default function SiteNav({ variant = "landing" }: Props) {
 
                 <AppSignedOut>
                   <SheetClose
+                    nativeButton={false}
                     render={
                       <Link
                         href="/sign-in"
@@ -153,6 +157,7 @@ export default function SiteNav({ variant = "landing" }: Props) {
                     Sign in
                   </SheetClose>
                   <SheetClose
+                    nativeButton={false}
                     render={<Link href="/sign-up" className={cn(buttonVariants({ size: "lg" }), "mt-2")} />}
                   >
                     Get started
