@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const PORT = process.env.PORT ?? "3000";
+/** Dedicated port so `npm run dev` on 3000 is never reused without E2E env vars. */
+const PORT = process.env.PLAYWRIGHT_PORT ?? "3100";
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PORT}`;
 
 export default defineConfig({
@@ -26,7 +27,7 @@ export default defineConfig({
     : {
         command: "npm run build && npm run start",
         url: baseURL,
-        reuseExistingServer: !process.env.CI,
+        reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === "true",
         timeout: 120_000,
         env: {
           ...process.env,
