@@ -139,7 +139,7 @@ export default function BillingPanel() {
           </div>
           <div className="flex flex-col gap-1">
             <dt className="text-label text-foreground-secondary">
-              {isPaid ? "Renews on" : "Usage resets on"}
+              {!isPaid ? "Usage resets on" : isCanceled ? "Access until" : "Renews on"}
             </dt>
             <dd className="text-body text-foreground">
               {hasRenewal ? formatDate(data.subscription.periodEnd) : "No renewal scheduled"}

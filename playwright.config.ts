@@ -32,6 +32,11 @@ export default defineConfig({
         env: {
           ...process.env,
           PORT,
+          DATABASE_URL:
+            process.env.DATABASE_URL?.trim() ||
+            "postgresql://e2e:e2e@127.0.0.1:5432/e2e?sslmode=disable",
+          AUTH_SECRET:
+            process.env.AUTH_SECRET?.trim() || "e2e-ci-auth-secret-minimum-32-characters",
           E2E_AUTH_BYPASS: "true",
           E2E_STUB_APIS: "true",
           ADMIN_USER_IDS: "1",

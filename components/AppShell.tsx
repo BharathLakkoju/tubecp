@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Books, Plus } from "@phosphor-icons/react";
@@ -22,6 +23,7 @@ import {
   SidebarMenuItem,
   SidebarMenuSkeleton,
   SidebarProvider,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import UsageIndicator from "@/components/UsageIndicator";
 import { useKnowledgeBases } from "@/lib/hooks/useKnowledgeBases";
@@ -30,6 +32,18 @@ import { cn } from "@/lib/utils";
 
 /** Sidebar shows at most this many knowledge bases, then "View all" (design system §6.14). */
 const MAX_SIDEBAR_KBS = 8;
+
+/** Close the mobile nav sheet after route changes (design system: navigation-only overlay). */
+function SidebarMobileRouteSync() {
+  const pathname = usePathname();
+  const { isMobile, setOpenMobile } = useSidebar();
+
+  useEffect(() => {
+    if (isMobile) setOpenMobile(false);
+  }, [pathname, isMobile, setOpenMobile]);
+
+  return null;
+}
 
 /**
  * App shell (design system §6.14): shadcn Sidebar family + SidebarInset.
@@ -52,6 +66,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider style={{ "--sidebar-width": "16.5rem" } as React.CSSProperties}>
+      <SidebarMobileRouteSync />
       <a
         href="#main-content"
         className="sr-only focus-visible:not-sr-only focus-visible:fixed focus-visible:top-2 focus-visible:left-2 focus-visible:z-[60] focus-visible:rounded-md focus-visible:bg-primary focus-visible:px-3 focus-visible:py-2 focus-visible:text-label focus-visible:text-primary-foreground"

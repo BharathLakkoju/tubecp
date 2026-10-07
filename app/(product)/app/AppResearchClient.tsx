@@ -168,7 +168,7 @@ export default function AppResearchClient({
   };
 
   const handleBuildKB = async () => {
-    if (!research || !sub.canBuildKb) return;
+    if (!research || !sub.canBuildKb || kbBuildLimitReached) return;
     const chosen = ranked.filter((video) => selectedIds.has(video.videoId));
     if (chosen.length === 0) return;
 
@@ -259,6 +259,14 @@ export default function AppResearchClient({
     : `${sub.researchUsedToday} / ${sub.researchLimit} researches today`;
   const limitReached =
     !sub.loading && sub.researchLimit > 0 && sub.researchUsedToday >= sub.researchLimit;
+  const kbBuildLimitReached =
+    !sub.loading &&
+    sub.canBuildKb &&
+    sub.kbBuildsLimit > 0 &&
+    sub.kbBuildsUsed >= sub.kbBuildsLimit;
+  const kbBuildQuotaMessage = kbBuildLimitReached
+    ? `Monthly KB build limit reached (${sub.kbBuildsUsed} / ${sub.kbBuildsLimit}). Resets on your billing date or upgrade for more.`
+    : undefined;
   const proName = getPlan("pro").name;
 
   const recentKbs = knowledgeBases.slice(0, 3);
@@ -405,7 +413,8 @@ export default function AppResearchClient({
                     ) : sub.canBuildKb ? (
                       <Button
                         onClick={() => void handleBuildKB()}
-                        disabled={selectedIds.size === 0}
+                        disabled={selectedIds.size === 0 || kbBuildLimitReached}
+                        title={kbBuildQuotaMessage}
                       >
                         Build knowledge base
                       </Button>
@@ -420,7 +429,9 @@ export default function AppResearchClient({
                   }
                 >
                   {sub.canBuildKb ? (
-                    selectedIds.size === 0 ? (
+                    kbBuildLimitReached ? (
+                      kbBuildQuotaMessage
+                    ) : selectedIds.size === 0 ? (
                       "Select at least one video to build a knowledge base"
                     ) : (
                       <>
