@@ -1,21 +1,27 @@
 import type { Metadata } from "next";
-import { DM_Sans, Work_Sans } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/components/AuthShell";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import LegalFooter from "@/components/LegalFooter";
+import SiteFooter from "@/components/SiteFooter";
+import MotionProvider from "@/components/motion/MotionProvider";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/ui/toast";
 import { BRAND_NAME, BRAND_TAGLINE } from "@/lib/brand";
 import { isE2eAuthBypass } from "@/lib/e2e";
+import { cn } from "@/lib/utils";
 import "./globals.css";
 
-const dmSans = DM_Sans({
+// Evergreen type: Geist for UI, Geist Mono for data (design system §4.1).
+const geistSans = Geist({
   subsets: ["latin"],
-  variable: "--font-sans",
+  variable: "--font-geist-sans",
+  display: "swap",
 });
 
-const workSans = DM_Sans({
+const geistMono = Geist_Mono({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-mono",
+  variable: "--font-geist-mono",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -43,17 +49,23 @@ export default function RootLayout({
       data-color-scheme="light"
       data-scroll-behavior="smooth"
       suppressHydrationWarning
+      className={cn(geistSans.variable, geistMono.variable)}
     >
-      <body className={`${dmSans.variable}`}>
+      <body>
         <ThemeProvider>
-          <AuthProvider e2eBypass={e2eBypass}>
-            <div className="flex min-h-dvh flex-col overflow-x-hidden">
-              <div className="flex flex-1 flex-col overflow-x-hidden">
-                {children}
-              </div>
-              <LegalFooter />
-            </div>
-          </AuthProvider>
+          <MotionProvider>
+            <TooltipProvider>
+              <AuthProvider e2eBypass={e2eBypass}>
+                <div className="flex min-h-dvh flex-col overflow-x-clip">
+                  <div className="flex min-h-0 flex-1 flex-col overflow-x-clip">{children}</div>
+                  <div className="relative z-10 shrink-0">
+                    <SiteFooter />
+                  </div>
+                </div>
+              </AuthProvider>
+            </TooltipProvider>
+            <Toaster />
+          </MotionProvider>
         </ThemeProvider>
       </body>
     </html>

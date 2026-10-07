@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const PORT = process.env.PORT ?? "3000";
+/** Dedicated port so `npm run dev` on 3000 is never reused without E2E env vars. */
+const PORT = process.env.PLAYWRIGHT_PORT ?? "3100";
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://localhost:${PORT}`;
 
 export default defineConfig({
@@ -26,11 +27,16 @@ export default defineConfig({
     : {
         command: "npm run build && npm run start",
         url: baseURL,
-        reuseExistingServer: !process.env.CI,
+        reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === "true",
         timeout: 120_000,
         env: {
           ...process.env,
           PORT,
+          DATABASE_URL:
+            process.env.DATABASE_URL?.trim() ||
+            "postgresql://e2e:e2e@127.0.0.1:5432/e2e?sslmode=disable",
+          AUTH_SECRET:
+            process.env.AUTH_SECRET?.trim() || "e2e-ci-auth-secret-minimum-32-characters",
           E2E_AUTH_BYPASS: "true",
           E2E_STUB_APIS: "true",
           ADMIN_USER_IDS: "1",

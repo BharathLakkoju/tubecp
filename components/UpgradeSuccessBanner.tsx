@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { CheckCircle, Info } from "@phosphor-icons/react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
 import { useSubscription } from "@/lib/hooks/useSubscription";
 
 const MAX_ATTEMPTS = 20;
@@ -57,27 +61,32 @@ export default function UpgradeSuccessBanner() {
 
   if (confirmed) {
     return (
-      <div className="motion-fade-up mb-6 border border-border bg-surface px-4 py-3 text-center font-mono text-[13px] text-success">
-        upgrade successful — you can now build knowledge bases and chat.
-      </div>
+      <Alert variant="success" role="status" className="mb-6">
+        <CheckCircle weight="fill" aria-hidden />
+        <AlertTitle>Upgrade successful</AlertTitle>
+        <AlertDescription>You can now build knowledge bases and chat with them.</AlertDescription>
+      </Alert>
     );
   }
 
   if (timedOut) {
     return (
-      <div className="motion-fade-up mb-6 border border-border bg-surface px-4 py-3 text-center font-mono text-[13px] text-text-muted">
-        payment received — your plan may take a minute to activate. refresh the page or check{" "}
-        <a href="/account/billing" className="text-text underline">
-          billing
-        </a>
-        .
-      </div>
+      <Alert variant="info" role="status" className="mb-6">
+        <Info weight="fill" aria-hidden />
+        <AlertTitle>Payment received</AlertTitle>
+        <AlertDescription>
+          Your plan may take a minute to activate. Refresh the page or check{" "}
+          <Link href="/account/billing">billing</Link>.
+        </AlertDescription>
+      </Alert>
     );
   }
 
   return (
-    <div className="motion-fade-up mb-6 border border-border bg-surface px-4 py-3 text-center font-mono text-[13px] text-text-muted">
-      confirming your upgrade…
-    </div>
+    <Alert variant="default" role="status" className="mb-6">
+      <Spinner aria-hidden role="presentation" />
+      <AlertTitle>Confirming your upgrade</AlertTitle>
+      <AlertDescription>This usually takes a few seconds.</AlertDescription>
+    </Alert>
   );
 }

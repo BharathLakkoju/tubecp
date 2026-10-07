@@ -1,30 +1,40 @@
+"use client";
+
+import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
+
 interface Props {
   used: number;
   limit: number;
   label?: string;
+  className?: string;
 }
 
-export default function UsageIndicator({ used, limit, label = "used" }: Props) {
-  const segments = Math.min(limit, 10);
-  const filled = limit > 0 ? Math.round((used / limit) * segments) : 0;
+/**
+ * Usage meter (design system §6.17, §8.7): mono counts, bar turns warning at 80% and
+ * destructive at 100%. The numbers carry the meaning; color is only a reinforcement.
+ */
+export default function UsageIndicator({ used, limit, label = "used", className }: Props) {
+  const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+  const tone =
+    pct >= 100
+      ? "[&_[data-slot=progress-indicator]]:bg-destructive"
+      : pct >= 80
+        ? "[&_[data-slot=progress-indicator]]:bg-warning"
+        : "";
 
   return (
-    <div className="mb-6 flex items-center gap-3 border-y border-border py-3">
-      <span className="shrink-0 font-mono text-xs whitespace-nowrap text-text-muted">
+    <Progress
+      value={pct}
+      getAriaValueText={() => `${used} of ${limit} ${label}`}
+      className={cn("w-full gap-2", tone, className)}
+    >
+      <ProgressLabel className="font-mono tabular-nums text-foreground-secondary">
         {used} / {limit} {label}
-      </span>
-      <div className="flex flex-1 gap-0.5" aria-hidden="true">
-        {Array.from({ length: segments }, (_, i) => (
-          <span
-            key={i}
-            className={
-              i < filled
-                ? "size-2 border border-accent bg-accent transition-[background-color,border-color] duration-200 ease-out"
-                : "size-2 border border-border bg-surface transition-[background-color,border-color] duration-200 ease-out"
-            }
-          />
-        ))}
-      </div>
-    </div>
+      </ProgressLabel>
+      <ProgressValue className="sr-only">
+        {(_formatted: string | null, value: number | null) => `${Math.round(value ?? 0)}%`}
+      </ProgressValue>
+    </Progress>
   );
 }

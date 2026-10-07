@@ -1,5 +1,7 @@
-import { redirect } from "next/navigation";
+import KbListClient from "./KbListClient";
+
+export const metadata = { title: "Knowledge bases" };
 
 export default function KnowledgeBasesPage() {
-  redirect("/app");
+  return <KbListClient />;
 }

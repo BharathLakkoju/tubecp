@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { Ratelimit } from "@upstash/ratelimit";
+import { isE2eAuthBypass } from "@/lib/e2e";
 import { isProduction } from "@/lib/env";
 import { getRedis } from "@/lib/store/redis";
 
@@ -30,6 +31,8 @@ export async function rateLimitByIp(
 }
 
 export async function rateLimitApi(userId: string, action: string, maxPerMinute = 30) {
+  if (isE2eAuthBypass()) return;
+
   const redis = getRedis();
   const key = `rl:${action}:${userId}`;
 

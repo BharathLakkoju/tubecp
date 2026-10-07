@@ -2,34 +2,29 @@
 
 import { Moon, Sun } from "@phosphor-icons/react";
 import { useTheme } from "@/components/ThemeProvider";
-import { cn } from "@/lib/cn";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface Props {
   className?: string;
   showLabel?: boolean;
-  variant?: "menu" | "icon";
 }
 
-export default function ThemeSwitcher({
-  className,
-  showLabel = false,
-  variant = "menu",
-}: Props) {
+/** One-tap light/dark toggle. The account menu offers the explicit radio group. */
+export default function ThemeSwitcher({ className, showLabel = false }: Props) {
   const { colorMode, toggleColorMode } = useTheme();
   const isDark = colorMode === "dark";
 
   return (
-    <button
-      type="button"
-      className={cn(
-        variant === "menu" ? "app-menu-item" : "theme-icon-toggle",
-        className
-      )}
+    <Button
+      variant="ghost"
+      size={showLabel ? "default" : "icon"}
+      className={cn(className)}
       onClick={toggleColorMode}
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
     >
-      {isDark ? <Sun size={16} weight="regular" aria-hidden /> : <Moon size={16} weight="regular" aria-hidden />}
+      {isDark ? <Sun aria-hidden /> : <Moon aria-hidden />}
       {showLabel && <span>{isDark ? "Light mode" : "Dark mode"}</span>}
-    </button>
+    </Button>
   );
 }

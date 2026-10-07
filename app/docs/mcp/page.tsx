@@ -25,7 +25,7 @@ export default function McpDocsPage() {
       </p>
 
       <h2>What you need</h2>
-      <table className="docs-table">
+      <table>
         <thead>
           <tr>
             <th>Item</th>
@@ -107,7 +107,7 @@ export default function McpDocsPage() {
       </pre>
 
       <h2>Available tools</h2>
-      <table className="docs-table">
+      <table>
         <thead>
           <tr>
             <th>Tool</th>
@@ -143,7 +143,7 @@ export default function McpDocsPage() {
       </table>
 
       <h2>Troubleshooting</h2>
-      <table className="docs-table">
+      <table>
         <thead>
           <tr>
             <th>Symptom</th>

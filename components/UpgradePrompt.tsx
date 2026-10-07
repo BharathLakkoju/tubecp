@@ -1,26 +1,47 @@
 "use client";
 
 import Link from "next/link";
+import { LockSimple } from "@phosphor-icons/react";
+import { buttonVariants } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { getPlan } from "@/lib/plans";
+import { cn } from "@/lib/utils";
 
 interface Props {
   title: string;
   description: string;
   plan?: "pro" | "researcher";
+  className?: string;
 }
 
-export default function UpgradePrompt({ title, description, plan = "pro" }: Props) {
+/** Plan gate (design system §6.9 "Free plan gate"). Plan names come from `getPlan`. */
+export default function UpgradePrompt({ title, description, plan = "pro", className }: Props) {
+  const planName = getPlan(plan).name;
+
   return (
-    <div className="mt-8 border-t border-border pt-6 text-left">
-      <h3 className="mb-2 font-mono text-sm font-semibold text-text">{title}</h3>
-      <p className="mb-4 font-mono text-[13px] leading-relaxed text-text-muted">{description}</p>
-      <div className="flex flex-wrap items-center gap-3 max-sm:flex-col max-sm:items-stretch">
-        <Link href={`/api/checkout?plan=${plan}`} className="btn-primary max-sm:w-full">
-          upgrade to {plan === "researcher" ? "Researcher" : "Pro"} →
+    <Empty className={cn("border", className)}>
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <LockSimple aria-hidden />
+        </EmptyMedia>
+        <EmptyTitle>{title}</EmptyTitle>
+        <EmptyDescription>{description}</EmptyDescription>
+      </EmptyHeader>
+      <EmptyContent className="flex-row flex-wrap justify-center">
+        <Link href={`/api/checkout?plan=${plan}`} className={buttonVariants()}>
+          Upgrade to {planName}
         </Link>
-        <Link href="/pricing" className="font-mono text-xs text-text-muted no-underline hover:text-text">
+        <Link href="/pricing" className={buttonVariants({ variant: "link" })}>
           Compare plans
         </Link>
-      </div>
-    </div>
+      </EmptyContent>
+    </Empty>
   );
 }

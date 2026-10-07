@@ -29,7 +29,12 @@ function readStoredColorMode(): ColorMode {
 
   try {
     const raw = localStorage.getItem(THEME_STORAGE_KEY);
-    if (!raw) return DEFAULT_COLOR_MODE;
+    if (!raw) {
+      // First visit: respect the OS preference (design system §9.1).
+      return window.matchMedia?.("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : DEFAULT_COLOR_MODE;
+    }
 
     if (isColorMode(raw)) return raw;
 

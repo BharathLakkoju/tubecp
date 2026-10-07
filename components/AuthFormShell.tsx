@@ -1,6 +1,7 @@
 "use client";
 
-import FadeIn from "@/components/FadeIn";
+import Reveal from "@/components/motion/Reveal";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface Props {
   title: string;
@@ -8,18 +9,21 @@ interface Props {
   children: React.ReactNode;
 }
 
+/** Full-page auth card on its own route (repo rule `no-modals`). */
 export default function AuthFormShell({ title, subtitle, children }: Props) {
   return (
-    <div className="mx-auto flex min-h-[50dvh] max-w-[28rem] flex-col justify-center gap-8 max-md:w-full max-md:justify-start max-md:gap-6">
-      <FadeIn>
-        <header className="w-full border-b border-border pb-4 text-left">
-          <h1 className="font-mono text-lg font-semibold text-text">{title}</h1>
-          <p className="mt-2 font-mono text-[13px] leading-relaxed text-text-muted">{subtitle}</p>
-        </header>
-      </FadeIn>
-      <FadeIn delay={0.06}>
-        <div className="auth-wrap w-full">{children}</div>
-      </FadeIn>
+    <div className="mx-auto flex w-full max-w-md flex-col justify-center px-4 py-12 sm:py-16">
+      <Reveal immediate>
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              <h1 className="text-headline">{title}</h1>
+            </CardTitle>
+            <CardDescription className="text-body">{subtitle}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">{children}</CardContent>
+        </Card>
+      </Reveal>
     </div>
   );
 }

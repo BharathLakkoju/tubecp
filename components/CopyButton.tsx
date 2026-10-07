@@ -1,8 +1,9 @@
 "use client";
 
+import { Check, Copy } from "@phosphor-icons/react";
 import { useState } from "react";
-import { Copy, Check } from "@phosphor-icons/react";
-import { cn } from "@/lib/cn";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/toast";
 
 interface Props {
   text: string;
@@ -12,6 +13,10 @@ interface Props {
   disabled?: boolean;
 }
 
+/**
+ * Copy to clipboard. Feedback is both inline (icon + label swap) and a toast, since a copy is a
+ * user action (design system §6.8). Icon-only buttons carry an aria-label.
+ */
 export default function CopyButton({
   text,
   label = "Copy",
@@ -27,45 +32,55 @@ export default function CopyButton({
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
+      toast.add({ title: "Copied to clipboard", type: "success", timeout: 2000 });
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
       setCopied(false);
+      toast.add({
+        title: "Could not copy",
+        description: "Your browser blocked clipboard access. Select the text and copy it manually.",
+        type: "error",
+      });
     }
   };
 
   if (variant === "icon") {
     return (
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon-sm"
         onClick={copy}
         disabled={disabled || !text}
-        className={cn("copy-btn-icon", className)}
+        className={className}
         aria-label={copied ? "Copied" : label}
         title={copied ? "Copied" : label}
       >
-        {copied ? <Check size={14} weight="bold" aria-hidden /> : <Copy size={14} aria-hidden />}
-      </button>
+        {copied ? <Check weight="bold" aria-hidden /> : <Copy aria-hidden />}
+      </Button>
     );
   }
 
   return (
-    <button
+    <Button
       type="button"
+      variant="outline"
+      size="sm"
       onClick={copy}
       disabled={disabled || !text}
-      className={cn("app-copy-links-btn", className)}
+      className={className}
     >
       {copied ? (
         <>
-          <Check size={14} weight="bold" aria-hidden />
+          <Check data-icon="inline-start" weight="bold" aria-hidden />
           Copied
         </>
       ) : (
         <>
-          <Copy size={14} weight="regular" aria-hidden />
+          <Copy data-icon="inline-start" weight="regular" aria-hidden />
           {label}
         </>
       )}
-    </button>
+    </Button>
   );
 }

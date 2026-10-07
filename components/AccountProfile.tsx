@@ -2,10 +2,15 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { DownloadSimple, Trash } from "@phosphor-icons/react";
 import { useAuthSession } from "@/components/AuthShell";
-import LoadingSpinner from "@/components/LoadingSpinner";
 import WorkspacePanel from "@/components/WorkspacePanel";
 import McpHostedPanel from "@/components/McpHostedPanel";
+import { FormAlert, SettingsSection, TextField } from "@/components/tubecp/FormKit";
+import InlineConfirm from "@/components/tubecp/InlineConfirm";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 
 type PasswordState = "pending" | "available" | "unavailable";
 
@@ -27,7 +32,6 @@ export default function AccountProfile({ showTeamWorkspace = false }: AccountPro
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [privacyMessage, setPrivacyMessage] = useState<string | null>(null);
   const [privacyError, setPrivacyError] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
 
   const user = session?.user;
 
@@ -53,15 +57,16 @@ export default function AccountProfile({ showTeamWorkspace = false }: AccountPro
   }, [user]);
 
   if (status === "loading") {
-    return <LoadingSpinner label="Loading account..." />;
+    return (
+      <div className="flex flex-col gap-6" aria-busy="true" aria-label="Loading account">
+        <Skeleton className="h-40 w-full rounded-xl" />
+        <Skeleton className="h-56 w-full rounded-xl" />
+      </div>
+    );
   }
 
   if (!user) {
-    return (
-      <p className="font-mono text-[13px] text-text-muted">
-        You are not signed in.
-      </p>
-    );
+    return <p className="text-body text-foreground-secondary">You are not signed in.</p>;
   }
 
   const displayName = name || user.name || "";
@@ -137,180 +142,140 @@ export default function AccountProfile({ showTeamWorkspace = false }: AccountPro
   };
 
   const handleDeleteAccount = async () => {
-    const confirmed = window.confirm(
-      "Delete your account permanently? This removes your profile, subscription data, and knowledge bases."
-    );
-    if (!confirmed) return;
-
-    setDeleting(true);
     setPrivacyError(null);
     setPrivacyMessage(null);
 
     const res = await fetch("/api/user/account", { method: "DELETE" });
-    setDeleting(false);
-
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      setPrivacyError(data.error ?? "Failed to delete account");
-      return;
+      // InlineConfirm shows thrown errors inline and stays open.
+      throw new Error(data.error ?? "Failed to delete account");
     }
 
     window.location.href = "/";
   };
 
   return (
-    <div className="auth-profile">
-      <section className="auth-profile-section">
-        <h2 className="auth-profile-title">Profile</h2>
-        <dl className="auth-profile-meta">
-          <div>
-            <dt>Email</dt>
-            <dd>{user.email}</dd>
-          </div>
+    <div className="flex flex-col gap-6">
+      <SettingsSection title="Profile">
+        <dl className="flex flex-col gap-1">
+          <dt className="text-label text-foreground-secondary">Email</dt>
+          <dd className="font-mono text-body-sm break-all text-foreground">{user.email}</dd>
         </dl>
-      </section>
+      </SettingsSection>
 
-      <section className="auth-profile-section">
-        <h2 className="auth-profile-title">Display name</h2>
-        <form className="auth-form" onSubmit={handleSave}>
-          {error && (
-            <p className="border border-red-500/40 bg-red-500/10 px-4 py-3 font-mono text-[13px] text-red-600 dark:text-red-400">
-              {error}
-            </p>
-          )}
-          {message && (
-            <p className="border border-border bg-surface px-4 py-3 font-mono text-[13px] text-text-muted">
-              {message}
-            </p>
-          )}
-          <label className="auth-field">
-            <span className="auth-label">Name</span>
-            <input
-              type="text"
-              value={displayName}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={user.name ?? "Your name"}
-              disabled={saving}
-            />
-          </label>
-          <button type="submit" className="btn-primary" disabled={saving}>
-            {saving ? (
-              <span className="inline-flex items-center gap-2">
-                <LoadingSpinner size="sm" />
-                Saving...
-              </span>
-            ) : (
-              "Save changes"
-            )}
-          </button>
+      <SettingsSection title="Display name">
+        <form className="flex flex-col gap-4" onSubmit={handleSave}>
+          {error && <FormAlert kind="error">{error}</FormAlert>}
+          {message && <FormAlert kind="success">{message}</FormAlert>}
+          <TextField
+            label="Name"
+            type="text"
+            value={displayName}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={user.name ?? "Your name"}
+            disabled={saving}
+          />
+          <div>
+            <Button type="submit" disabled={saving} aria-busy={saving}>
+              {saving && <Spinner data-icon="inline-start" />}
+              {saving ? "Saving..." : "Save changes"}
+            </Button>
+          </div>
         </form>
-      </section>
+      </SettingsSection>
 
       {passwordState !== "unavailable" && (
-        <section className="auth-profile-section">
-          <h2 className="auth-profile-title">Password</h2>
+        <SettingsSection title="Password">
           {passwordState === "pending" ? (
-            <LoadingSpinner size="sm" label="Loading password settings..." />
+            <Skeleton className="h-32 w-full rounded-lg" />
           ) : (
             <>
-              <form className="auth-form" onSubmit={handlePasswordChange}>
-                {passwordError && (
-                  <p className="border border-red-500/40 bg-red-500/10 px-4 py-3 font-mono text-[13px] text-red-600 dark:text-red-400">
-                    {passwordError}
-                  </p>
-                )}
-                {passwordMessage && (
-                  <p className="border border-border bg-surface px-4 py-3 font-mono text-[13px] text-text-muted">
-                    {passwordMessage}
-                  </p>
-                )}
-                <label className="auth-field">
-                  <span className="auth-label">Current password</span>
-                  <input
-                    type="password"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    autoComplete="current-password"
-                    required
-                    disabled={passwordSaving}
-                  />
-                </label>
-                <label className="auth-field">
-                  <span className="auth-label">New password</span>
-                  <input
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    autoComplete="new-password"
-                    minLength={8}
-                    required
-                    disabled={passwordSaving}
-                  />
-                </label>
-                <button type="submit" className="btn-primary" disabled={passwordSaving}>
-                  {passwordSaving ? (
-                    <span className="inline-flex items-center gap-2">
-                      <LoadingSpinner size="sm" />
-                      Updating...
-                    </span>
-                  ) : (
-                    "Update password"
-                  )}
-                </button>
+              <form className="flex flex-col gap-4" onSubmit={handlePasswordChange}>
+                {passwordError && <FormAlert kind="error">{passwordError}</FormAlert>}
+                {passwordMessage && <FormAlert kind="success">{passwordMessage}</FormAlert>}
+                <TextField
+                  label="Current password"
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                  disabled={passwordSaving}
+                />
+                <TextField
+                  label="New password"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  autoComplete="new-password"
+                  minLength={8}
+                  required
+                  description="At least 8 characters."
+                  disabled={passwordSaving}
+                />
+                <div>
+                  <Button type="submit" disabled={passwordSaving} aria-busy={passwordSaving}>
+                    {passwordSaving && <Spinner data-icon="inline-start" />}
+                    {passwordSaving ? "Updating..." : "Update password"}
+                  </Button>
+                </div>
               </form>
-              <p className="mt-4 font-mono text-[13px] text-text-muted">
-                Signed out?{" "}
-                <Link href="/forgot-password" className="text-text underline-offset-2 hover:underline">
+              <p className="text-body-sm text-foreground-secondary">
+                Forgot it?{" "}
+                <Link
+                  href="/forgot-password"
+                  className="text-primary underline underline-offset-2"
+                >
                   Reset via email
                 </Link>
-                .
               </p>
             </>
           )}
-        </section>
+        </SettingsSection>
       )}
 
-      {showTeamWorkspace && (
-        <section className="auth-profile-section">
-          <h2 className="auth-profile-title">Team workspace</h2>
-          <WorkspacePanel />
-        </section>
-      )}
+      {showTeamWorkspace && <WorkspacePanel />}
 
-      <section className="auth-profile-section">
-        <h2 className="auth-profile-title">Hosted MCP</h2>
-        <McpHostedPanel />
-      </section>
+      <McpHostedPanel />
 
-      <section className="auth-profile-section">
-        <h2 className="auth-profile-title">Privacy</h2>
-        <p className="mb-4 font-mono text-[13px] text-text-muted">
-          Download a copy of your account data or permanently delete your account.
-        </p>
-        {privacyError && (
-          <p className="mb-4 border border-red-500/40 bg-red-500/10 px-4 py-3 font-mono text-[13px] text-red-600 dark:text-red-400">
-            {privacyError}
-          </p>
-        )}
-        {privacyMessage && (
-          <p className="mb-4 border border-border bg-surface px-4 py-3 font-mono text-[13px] text-text-muted">
-            {privacyMessage}
-          </p>
-        )}
+      <SettingsSection
+        title="Privacy"
+        description="Download a copy of your account data, or permanently delete your account."
+      >
+        {privacyError && <FormAlert kind="error">{privacyError}</FormAlert>}
+        {privacyMessage && <FormAlert kind="success">{privacyMessage}</FormAlert>}
         <div className="flex flex-wrap gap-3">
-          <button type="button" className="btn-primary" onClick={handleExportData}>
+          <Button variant="outline" onClick={handleExportData}>
+            <DownloadSimple data-icon="inline-start" aria-hidden />
             Export my data
-          </button>
-          <button
-            type="button"
-            className="border border-red-500/40 px-4 py-2 font-mono text-[13px] text-red-600 dark:text-red-400"
-            onClick={handleDeleteAccount}
-            disabled={deleting}
-          >
-            {deleting ? "Deleting..." : "Delete account"}
-          </button>
+          </Button>
         </div>
-      </section>
+      </SettingsSection>
+
+      <SettingsSection
+        title="Delete account"
+        description="This permanently removes your profile, subscription data, and knowledge bases."
+        danger
+      >
+        <InlineConfirm
+          trigger={(open) => (
+            <Button
+              variant="outline"
+              className="border-destructive/40 text-destructive hover:bg-destructive-subtle hover:text-destructive"
+              onClick={open}
+            >
+              <Trash data-icon="inline-start" aria-hidden />
+              Delete account
+            </Button>
+          )}
+          title="Delete your account permanently?"
+          description="Your profile, subscription data, and every knowledge base will be removed. This can't be undone."
+          confirmLabel="Delete account"
+          busyLabel="Deleting..."
+          onConfirm={handleDeleteAccount}
+        />
+      </SettingsSection>
     </div>
   );
 }
