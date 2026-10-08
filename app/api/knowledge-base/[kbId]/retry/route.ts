@@ -5,10 +5,9 @@ import { getUserSubscription } from "@/lib/billing/subscription";
 import { getPlan } from "@/lib/plans";
 import { rateLimitApi } from "@/lib/ratelimit";
 import {
-  createInitialBuildJob,
   knowledgeBaseBuildStatus,
+  prepareKnowledgeBaseRetry,
 } from "@/lib/services/kb-build-job";
-import { updateKnowledgeBase } from "@/lib/store";
 
 export const maxDuration = 300;
 
@@ -22,6 +21,10 @@ export async function POST(
     await rateLimitApi(userId, "kb-retry", 5);
     const kb = await assertKbAccess(kbId, userId);
 
+    if (kb.status === "building") {
+      return NextResponse.json({ error: "A build is already in progress." }, { status: 409 });
+    }
+
     if (kb.status !== "failed") {
       return NextResponse.json(
         { error: "Only failed knowledge bases can be retried." },
@@ -32,15 +35,7 @@ export async function POST(
     const sub = await getUserSubscription(userId);
     const persistent = getPlan(sub.plan).persistentKbs;
 
-    await updateKnowledgeBase(
-      kbId,
-      (current) => ({
-        ...current,
-        status: "building",
-        buildJob: createInitialBuildJob(current.rankedVideos?.length ?? 0),
-      }),
-      persistent
-    );
+    await prepareKnowledgeBaseRetry(kbId, persistent);
 
     const updated = await assertKbAccess(kbId, userId);
     return NextResponse.json({

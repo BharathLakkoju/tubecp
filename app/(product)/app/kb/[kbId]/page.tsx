@@ -3,6 +3,7 @@ import { assertKbAccess } from "@/lib/kb-access";
 import { getPlan } from "@/lib/plans";
 import { toKnowledgeBaseSummary } from "@/lib/knowledge-bases";
 import { getProductBootstrap } from "@/lib/server/product-bootstrap";
+import { repairKnowledgeBaseIfIndexed } from "@/lib/services/kb-build-job";
 import { ensureKbWelcomeMessage } from "@/lib/services/kb-chat";
 import UpgradePrompt from "@/components/UpgradePrompt";
 import AppPage from "@/components/tubecp/AppPage";
@@ -23,10 +24,13 @@ export default async function KnowledgeBaseChatPage({
   }
 
   const { kbId } = await params;
-  const [kb, messages] = await Promise.all([
-    assertKbAccess(kbId, userId),
-    ensureKbWelcomeMessage(kbId),
-  ]);
+  const plan = getPlan(bootstrap.subscription.plan);
+
+  let kb = await assertKbAccess(kbId, userId);
+  const repaired = await repairKnowledgeBaseIfIndexed(kbId, plan.persistentKbs);
+  if (repaired) {
+    kb = repaired;
+  }
 
   if (kb.status === "failed") {
     return <KbFailedPanel kb={toKnowledgeBaseSummary(kb)} />;
@@ -36,7 +40,8 @@ export default async function KnowledgeBaseChatPage({
     return <KbBuildingPanel kb={toKnowledgeBaseSummary(kb)} />;
   }
 
-  const plan = getPlan(bootstrap.subscription.plan);
+  const messages = await ensureKbWelcomeMessage(kbId);
+
   if (plan.chatMessagesPerMonth <= 0) {
     return (
       <AppPage width="reading">

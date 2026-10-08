@@ -50,8 +50,9 @@ export default function KbFailedPanel({ kb }: { kb: KnowledgeBase }) {
         <div>
           <h1 className="text-headline text-foreground">Knowledge base build failed</h1>
           <p className="mt-2 text-body text-foreground-secondary">
-            We could not index transcript content for <strong>{kb.topic}</strong>. This usually
-            means every selected video was missing captions or failed to process.
+            Build did not finish for <strong>{kb.topic}</strong>. Indexing may have completed for
+            some videos before the build failed. Retry resumes where it left off instead of starting
+            over.
           </p>
         </div>
 
