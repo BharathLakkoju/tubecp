@@ -1,12 +1,12 @@
-import { after, NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireUserId, apiError } from "@/lib/auth";
 import { assertKbAccess } from "@/lib/kb-access";
 import { getUserSubscription } from "@/lib/billing/subscription";
 import { getPlan } from "@/lib/plans";
 import { rateLimitApi } from "@/lib/ratelimit";
 import {
+  createInitialBuildJob,
   knowledgeBaseBuildStatus,
-  runKnowledgeBaseBuildJob,
 } from "@/lib/services/kb-build-job";
 import { updateKnowledgeBase } from "@/lib/store";
 
@@ -37,33 +37,18 @@ export async function POST(
       (current) => ({
         ...current,
         status: "building",
-        buildJob: {
-          totalVideos: current.rankedVideos?.length ?? 0,
-          processedVideos: 0,
-          skippedCount: 0,
-          startedAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
+        buildJob: createInitialBuildJob(current.rankedVideos?.length ?? 0),
       }),
       persistent
     );
 
-    after(() => {
-      runKnowledgeBaseBuildJob(kbId, persistent).catch((err) => {
-        console.error(`KB retry job failed for ${kbId}:`, err);
-      });
-    });
-
     const updated = await assertKbAccess(kbId, userId);
-    return NextResponse.json(
-      {
-        kb: updated,
-        buildStatus: knowledgeBaseBuildStatus(updated),
-        skippedVideos: [],
-        async: true,
-      },
-      { status: 202 }
-    );
+    return NextResponse.json({
+      kb: updated,
+      buildStatus: knowledgeBaseBuildStatus(updated),
+      skippedVideos: [],
+      async: false,
+    });
   } catch (err) {
     return apiError(err);
   }

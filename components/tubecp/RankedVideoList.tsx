@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, m } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -45,9 +45,14 @@ export default function RankedVideoList({
   maxHeightClass,
   className,
 }: Props) {
-  const [visible, setVisible] = useState(pageSize);
+  const [visible, setVisible] = useState(() => Math.min(pageSize, videos.length));
+
+  useEffect(() => {
+    setVisible((count) => Math.min(Math.max(count, pageSize), videos.length));
+  }, [videos.length, pageSize]);
+
   const shown = videos.slice(0, visible);
-  const remaining = videos.length - shown.length;
+  const remaining = videos.length - visible;
 
   return (
     <section className={cn("flex min-h-0 flex-col gap-3", className)} aria-label={title}>
@@ -105,9 +110,11 @@ export default function RankedVideoList({
           variant="ghost"
           size="sm"
           className="self-start"
-          onClick={() => setVisible((count) => count + pageSize)}
+          onClick={() => setVisible((count) => Math.min(count + pageSize, videos.length))}
         >
-          Show {Math.min(remaining, pageSize)} more
+          {remaining <= pageSize
+            ? `Show all ${videos.length}`
+            : `Show ${Math.min(remaining, pageSize)} more`}
         </Button>
       )}
     </section>

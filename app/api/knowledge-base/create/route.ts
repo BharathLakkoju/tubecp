@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createKnowledgeBase } from "@/lib/services/knowledge-base";
-import { addUserKnowledgeBase } from "@/lib/store";
+import { createInitialBuildJob } from "@/lib/services/kb-build-job";
+import { addUserKnowledgeBase, updateKnowledgeBase } from "@/lib/store";
 import { requireUserId, apiError } from "@/lib/auth";
 import { checkAndIncrementUsage, getUserSubscription } from "@/lib/billing/subscription";
 import { getPlan } from "@/lib/plans";
@@ -30,6 +31,8 @@ export async function POST(req: NextRequest) {
     const persistent = plan.persistentKbs;
 
     const kb = await createKnowledgeBase(topic, rankedVideos, userId, persistent);
+    kb.buildJob = createInitialBuildJob(rankedVideos.length);
+    await updateKnowledgeBase(kb.kbId, () => kb, persistent);
     await addUserKnowledgeBase(userId, kb.kbId);
 
     return NextResponse.json({ kbId: kb.kbId, kb });

@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 import { WarningCircle } from "@phosphor-icons/react";
 import type { KnowledgeBase } from "@/lib/types";
 import AppPage from "@/components/tubecp/AppPage";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { parseClientError } from "@/lib/client/chat";
+import { continueKnowledgeBaseBuild } from "@/lib/client/kb-build";
 
 export default function KbFailedPanel({ kb }: { kb: KnowledgeBase }) {
   const router = useRouter();
@@ -28,28 +30,15 @@ export default function KbFailedPanel({ kb }: { kb: KnowledgeBase }) {
         return;
       }
 
-      const deadline = Date.now() + 10 * 60 * 1000;
-      while (Date.now() < deadline) {
-        const statusRes = await fetch(`/api/knowledge-base/${kb.kbId}/build-status`);
-        const status = await statusRes.json();
-        if (!statusRes.ok) {
-          setError(status.error ?? "Failed to check build status");
-          return;
-        }
-        if (status.status === "ready") {
-          router.refresh();
-          return;
-        }
-        if (status.status === "failed") {
-          setError(status.error ?? "Build failed again. Try different videos.");
-          return;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+      const result = await continueKnowledgeBaseBuild(kb.kbId);
+      if (result.kb.status === "ready") {
+        router.refresh();
+        return;
       }
 
-      setError("Build is still running. Refresh this page in a moment.");
-    } catch {
-      setError("Failed to retry knowledge base build");
+      setError("Build failed again. Try different videos.");
+    } catch (err) {
+      setError(parseClientError(err));
     } finally {
       setRetrying(false);
     }
@@ -57,22 +46,34 @@ export default function KbFailedPanel({ kb }: { kb: KnowledgeBase }) {
 
   return (
     <AppPage width="reading">
-      <div className="flex flex-col gap-6 pt-6">
-        <h1 className="text-headline text-foreground">Knowledge base build failed</h1>
-        <Alert variant="destructive">
-          <WarningCircle weight="fill" aria-hidden />
-          <AlertTitle>No transcript content was indexed for {kb.topic}</AlertTitle>
-          <AlertDescription>
-            This usually means every selected video was missing captions or failed to process.
-            {error && <span className="mt-2 block font-medium">{error}</span>}
-          </AlertDescription>
-        </Alert>
+      <div className="flex flex-col gap-6">
+        <div>
+          <h1 className="text-headline text-foreground">Knowledge base build failed</h1>
+          <p className="mt-2 text-body text-foreground-secondary">
+            We could not index transcript content for <strong>{kb.topic}</strong>. This usually
+            means every selected video was missing captions or failed to process.
+          </p>
+        </div>
+
+        {error && (
+          <Alert variant="destructive">
+            <WarningCircle weight="fill" aria-hidden />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
         <div className="flex flex-wrap gap-3">
-          <Button onClick={handleRetry} disabled={retrying} aria-busy={retrying}>
-            {retrying && <Spinner data-icon="inline-start" />}
-            {retrying ? "Retrying build..." : "Retry build"}
+          <Button type="button" onClick={() => void handleRetry()} disabled={retrying}>
+            {retrying ? (
+              <span className="inline-flex items-center gap-2">
+                <Spinner />
+                Retrying build…
+              </span>
+            ) : (
+              "Retry build"
+            )}
           </Button>
-          <Link href="/app" prefetch={false} className={buttonVariants({ variant: "outline" })}>
+          <Link href="/app" className={buttonVariants({ variant: "outline" })}>
             Back to research
           </Link>
         </div>
