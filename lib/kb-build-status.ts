@@ -6,11 +6,17 @@ export function knowledgeBaseBuildStatusFromRecord(kb: KnowledgeBaseRecord) {
   const total = job?.totalVideos ?? kb.rankedVideos?.length ?? 0;
   const processed = job?.processedVideos ?? 0;
   const progress =
-    kb.status === "ready" || kb.status === "failed"
+    kb.status === "ready"
       ? 100
-      : total > 0
-        ? Math.min(99, Math.round((processed / total) * 100))
-        : 0;
+      : kb.status === "failed"
+        ? kb.chunkIds.length > 0
+          ? 100
+          : total > 0
+            ? Math.round((processed / total) * 100)
+            : 0
+        : total > 0
+          ? Math.min(99, Math.round((processed / total) * 100))
+          : 0;
 
   const estimate =
     job && kb.status === "building"

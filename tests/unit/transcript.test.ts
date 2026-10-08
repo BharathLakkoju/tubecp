@@ -2,6 +2,14 @@ import { describe, expect, it } from "vitest";
 import { TranscriptUnavailableError } from "@/lib/services/transcript";
 
 describe("TranscriptUnavailableError", () => {
+  it("maps rate limit errors to a readable reason", () => {
+    const err = new TranscriptUnavailableError(
+      "abc",
+      new Error("[YoutubeTranscript] YouTube is receiving too many requests")
+    );
+    expect(err.message).toContain("rate-limited");
+  });
+
   it("maps disabled transcript errors to a readable reason", () => {
     const err = new TranscriptUnavailableError(
       "J90BUTnYd84",
