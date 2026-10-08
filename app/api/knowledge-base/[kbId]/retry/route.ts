@@ -1,4 +1,4 @@
-import { after, NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireUserId, apiError } from "@/lib/auth";
 import { assertKbAccess } from "@/lib/kb-access";
 import { getUserSubscription } from "@/lib/billing/subscription";
@@ -7,7 +7,6 @@ import { rateLimitApi } from "@/lib/ratelimit";
 import {
   knowledgeBaseBuildStatus,
   prepareKnowledgeBaseRetry,
-  runKnowledgeBaseBuildJob,
 } from "@/lib/services/kb-build-job";
 
 export const maxDuration = 300;
@@ -38,22 +37,13 @@ export async function POST(
 
     await prepareKnowledgeBaseRetry(kbId, persistent);
 
-    after(() => {
-      runKnowledgeBaseBuildJob(kbId, persistent).catch((err) => {
-        console.error(`KB retry job failed for ${kbId}:`, err);
-      });
-    });
-
     const updated = await assertKbAccess(kbId, userId);
-    return NextResponse.json(
-      {
-        kb: updated,
-        buildStatus: knowledgeBaseBuildStatus(updated),
-        skippedVideos: [],
-        async: true,
-      },
-      { status: 202 }
-    );
+    return NextResponse.json({
+      kb: updated,
+      buildStatus: knowledgeBaseBuildStatus(updated),
+      skippedVideos: [],
+      async: false,
+    });
   } catch (err) {
     return apiError(err);
   }

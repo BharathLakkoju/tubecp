@@ -295,107 +295,26 @@ async function rankOnly(
   return { research, researchSessionId };
 }
 
-export interface SkippedKbVideo {
-  videoId: string;
-  title: string;
-  reason: string;
-}
-
-export interface BuildKnowledgeBaseResult {
-  kb: KnowledgeBase;
-  skippedVideos: SkippedKbVideo[];
-}
-
-type KbBuildStatus = {
-  status: KnowledgeBase["status"];
-  progress: number;
-  currentVideoTitle?: string;
-  skippedCount: number;
-  error?: string;
-};
-
-export async function pollKnowledgeBaseBuild(
-  kbId: string,
-  onProgress?: ProgressCallback
-): Promise<{ kb: KnowledgeBase; skippedCount: number }> {
-  const deadline = Date.now() + 10 * 60 * 1000;
-
-  while (Date.now() < deadline) {
-    const res = await fetch(`/api/knowledge-base/${kbId}/build-status`);
-    const status = (await res.json()) as KbBuildStatus & { error?: string };
-
-    if (!res.ok) {
-      throw new Error(status.error ?? `Build status failed: ${res.status}`);
-    }
-
-    const detail = status.currentVideoTitle
-      ? `Indexing "${status.currentVideoTitle.slice(0, 48)}…"`
-      : "Indexing videos on server";
-    onProgress?.(detail, Math.max(10, status.progress));
-
-    if (status.status === "ready" || status.status === "failed") {
-      const kbRes = await fetch(`/api/knowledge-base/${kbId}`);
-      const kb = (await kbRes.json()) as KnowledgeBase;
-      if (!kbRes.ok) {
-        throw new Error((kb as { error?: string }).error ?? "Failed to load knowledge base");
-      }
-      return { kb, skippedCount: status.skippedCount };
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-  }
-
-  throw new Error("Knowledge base build timed out. Check your library and retry if needed.");
-}
+export type { BuildKnowledgeBaseResult, SkippedKbVideo } from "@/lib/client/kb-build";
+export {
+  buildKnowledgeBaseFromClient,
+  continueKnowledgeBaseBuild,
+  runKbBuildDriverIfNeeded,
+} from "@/lib/client/kb-build";
 
 export async function buildKnowledgeBase(
   topic: string,
   rankedVideos: ResearchResult["rankedVideos"],
-  onProgress?: ProgressCallback
-): Promise<BuildKnowledgeBaseResult> {
-  onProgress?.("Preparing knowledge base", 5);
-
-  const res = await fetch("/api/knowledge-base/build", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ topic, rankedVideos }),
-  });
-  const data = await res.json();
-
-  if (!res.ok) {
-    const code = data.code ? `[${data.code}] ` : "";
-    throw new Error(`${code}${data.error ?? `Request failed: ${res.status}`}`);
-  }
-
-  const payload = data as {
-    kb: KnowledgeBase;
-    skippedVideos: SkippedKbVideo[];
-    async?: boolean;
-  };
-
-  if (payload.kb.status === "ready" && !payload.async) {
-    onProgress?.("Knowledge base ready!", 100);
-    return { kb: payload.kb, skippedVideos: payload.skippedVideos ?? [] };
-  }
-
-  const { kb, skippedCount } = await pollKnowledgeBaseBuild(payload.kb.kbId, onProgress);
-  const skippedVideos: SkippedKbVideo[] =
-    skippedCount > 0
-      ? [{ videoId: "", title: "", reason: `${skippedCount} video(s) skipped — no transcript` }]
-      : [];
-
-  if (kb.status === "failed") {
-    throw new Error(
-      "No videos could be indexed. Every selected video was missing a transcript or failed to index."
-    );
-  }
-
-  onProgress?.(
-    skippedCount > 0
-      ? `Knowledge base ready (${skippedCount} video${skippedCount === 1 ? "" : "s"} skipped — no transcript).`
-      : "Knowledge base ready!",
-    100
+  onProgress?: ProgressCallback,
+  options?: { onKnowledgeBaseCreated?: (kbId: string) => void }
+): Promise<import("@/lib/client/kb-build").BuildKnowledgeBaseResult> {
+  const { buildKnowledgeBaseFromClient } = await import("@/lib/client/kb-build");
+  return buildKnowledgeBaseFromClient(
+    topic,
+    rankedVideos,
+    (message, progress) => {
+      onProgress?.(message, progress);
+    },
+    options
   );
-
-  return { kb, skippedVideos };
 }

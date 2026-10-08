@@ -7,24 +7,35 @@ interface Props {
 }
 
 const sizeClasses = {
-  sm: "text-body-sm tracking-tight",
-  md: "text-title tracking-tight",
-  lg: "text-display leading-none",
+  sm: "h-6",
+  md: "h-7",
+  lg: "h-[52px] max-sm:h-10",
 };
 
-/** `[tubecp]` wordmark: Geist Mono with primary-colored brackets (design system §2.2, §4.1). */
+/** tubecp v3 lockup (citation bracket mark + Geist wordmark). */
 export default function Wordmark({ size = "md", className }: Props) {
   return (
     <span
-      className={cn(
-        "whitespace-nowrap font-mono font-semibold text-foreground [font-variant-ligatures:none]",
-        sizeClasses[size],
-        className
-      )}
+      className={cn("brand-lockup inline-flex shrink-0 items-center", sizeClasses[size], className)}
+      role="img"
+      aria-label={BRAND_NAME}
     >
-      <span className="text-primary">[</span>
-      {BRAND_NAME}
-      <span className="text-primary">]</span>
+      <img
+        src="/brand/logo-full-light.svg"
+        alt=""
+        className="brand-lockup-light h-full w-auto"
+        width={416}
+        height={103}
+        decoding="async"
+      />
+      <img
+        src="/brand/logo-full-dark.svg"
+        alt=""
+        className="brand-lockup-dark h-full w-auto"
+        width={416}
+        height={103}
+        decoding="async"
+      />
     </span>
   );
 }

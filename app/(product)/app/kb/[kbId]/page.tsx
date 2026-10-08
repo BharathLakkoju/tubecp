@@ -5,10 +5,10 @@ import { toKnowledgeBaseSummary } from "@/lib/knowledge-bases";
 import { getProductBootstrap } from "@/lib/server/product-bootstrap";
 import { repairKnowledgeBaseIfIndexed } from "@/lib/services/kb-build-job";
 import { ensureKbWelcomeMessage } from "@/lib/services/kb-chat";
-import KbBuildPolling from "@/components/KbBuildPolling";
 import UpgradePrompt from "@/components/UpgradePrompt";
 import AppPage from "@/components/tubecp/AppPage";
 import KbFailedPanel from "@/components/KbFailedPanel";
+import KbBuildingPanel from "@/components/KbBuildingPanel";
 import KbChatClient from "./KbChatClient";
 
 export default async function KnowledgeBaseChatPage({
@@ -32,22 +32,15 @@ export default async function KnowledgeBaseChatPage({
     kb = repaired;
   }
 
-  if (kb.status === "building") {
-    const summary = toKnowledgeBaseSummary(kb);
-    return (
-      <KbBuildPolling
-        kbId={kb.kbId}
-        topic={summary.topic}
-        videoCount={summary.videoIds.length}
-      />
-    );
-  }
-
-  const messages = await ensureKbWelcomeMessage(kbId);
-
   if (kb.status === "failed") {
     return <KbFailedPanel kb={toKnowledgeBaseSummary(kb)} />;
   }
+
+  if (kb.status === "building") {
+    return <KbBuildingPanel kb={toKnowledgeBaseSummary(kb)} />;
+  }
+
+  const messages = await ensureKbWelcomeMessage(kbId);
 
   if (plan.chatMessagesPerMonth <= 0) {
     return (

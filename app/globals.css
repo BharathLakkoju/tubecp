@@ -82,6 +82,18 @@
   }
 }
 
+.brand-lockup-dark {
+  display: none;
+}
+
+[data-color-scheme="dark"] .brand-lockup-light {
+  display: none;
+}
+
+[data-color-scheme="dark"] .brand-lockup-dark {
+  display: block;
+}
+
 [data-color-scheme="dark"] {
   --ev-bg: #0c0f0f;
   --ev-surface: #141817;
