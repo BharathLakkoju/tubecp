@@ -26,6 +26,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Cloudflare quick tunnel (npm run dev): browsers load trycloudflare.com, not localhost.
+  // Without this, Next.js 16 blocks /_next/* dev assets with 403 → blank page on other devices.
+  allowedDevOrigins: ["*.trycloudflare.com", "*.ngrok-free.app", "*.ngrok.io"],
   serverExternalPackages: ["googleapis"],
   experimental: {
     optimisticClientCache: false,

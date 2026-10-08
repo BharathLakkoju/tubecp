@@ -9,6 +9,7 @@ import { generateEmbeddings } from "./llm";
 import {
   saveChunk,
   saveKnowledgeBase,
+  getChunksByIds,
   getChunksForVideos,
   registerVideoChunks,
   getKnowledgeBase,
@@ -60,6 +61,41 @@ function chunkTranscript(
   }
 
   return chunks;
+}
+
+/** True when this KB already has embedded chunks for the video. */
+export async function isVideoIndexedInKnowledgeBase(
+  kb: KnowledgeBaseRecord,
+  videoId: string
+): Promise<boolean> {
+  if (kb.chunkIds.length === 0) return false;
+
+  const kbChunkSet = new Set(kb.chunkIds);
+  const chunks = await getChunksForVideos([videoId]);
+  return chunks.some((chunk) => Boolean(chunk.embedding) && kbChunkSet.has(chunk.id));
+}
+
+/** Reconcile videosIndexed / chunksIndexed from stored chunk ids (e.g. after resume or recovery). */
+export async function syncKnowledgeBaseIndexStats(
+  kbId: string,
+  persistent = false
+): Promise<KnowledgeBaseRecord | null> {
+  const kb = await getKnowledgeBase(kbId);
+  if (!kb) return null;
+
+  const chunks = await getChunksByIds(kb.chunkIds);
+  const indexedVideoIds = [...new Set(chunks.map((chunk) => chunk.videoId))];
+
+  return updateKnowledgeBase(
+    kbId,
+    (current) => ({
+      ...current,
+      videosIndexed: indexedVideoIds.length,
+      chunksIndexed: current.chunkIds.length,
+      videoIds: [...new Set([...current.videoIds, ...indexedVideoIds])],
+    }),
+    persistent
+  );
 }
 
 export async function createKnowledgeBase(

@@ -82,3 +82,14 @@ export async function ensureKbWelcomeMessage(kbId: string): Promise<ChatMessage[
   await saveKbChatMessages(kbId, [welcome]);
   return [welcome];
 }
+
+/** Update the auto-generated welcome when index stats change after a retry. */
+export async function refreshKbWelcomeMessage(kbId: string): Promise<void> {
+  const kb = await getKnowledgeBase(kbId);
+  if (!kb || kb.status !== "ready") return;
+
+  const messages = await getKbChatMessages(kbId);
+  if (messages.length !== 1 || messages[0].role !== "assistant") return;
+
+  await saveKbChatMessages(kbId, [kbWelcomeMessage(kb)]);
+}

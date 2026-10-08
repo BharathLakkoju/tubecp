@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   SidebarMenuAction,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
@@ -71,20 +70,17 @@ export default function KbSidebarItem({ kb, active }: Props) {
         isActive={active}
         title={kb.topic}
       >
-        <span className="truncate">{kb.topic}</span>
+        <span className="min-w-0 flex-1 truncate">{kb.topic}</span>
+        {kb.status === "building" && (
+          <span className="shrink-0 font-mono text-caption tabular-nums text-sidebar-foreground">
+            {pct !== null ? `${pct}%` : "…"}
+            <span className="sr-only"> building</span>
+          </span>
+        )}
+        {kb.status === "failed" && (
+          <span className="shrink-0 text-caption text-destructive">Failed</span>
+        )}
       </SidebarMenuButton>
-
-      {kb.status === "building" && (
-        <SidebarMenuBadge className="right-9">
-          {pct !== null ? `${pct}%` : "…"}
-          <span className="sr-only"> building</span>
-        </SidebarMenuBadge>
-      )}
-      {kb.status === "failed" && (
-        <SidebarMenuBadge className="right-9 text-destructive">
-          Failed
-        </SidebarMenuBadge>
-      )}
 
       <DropdownMenu>
         <DropdownMenuTrigger

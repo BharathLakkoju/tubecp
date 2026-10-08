@@ -314,7 +314,7 @@ type KbBuildStatus = {
   error?: string;
 };
 
-async function pollKnowledgeBaseBuild(
+export async function pollKnowledgeBaseBuild(
   kbId: string,
   onProgress?: ProgressCallback
 ): Promise<{ kb: KnowledgeBase; skippedCount: number }> {
