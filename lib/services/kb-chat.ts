@@ -11,6 +11,7 @@ function chatKey(kbId: string): string {
 export function kbWelcomeMessage(kb: Pick<KnowledgeBase, "topic" | "videosIndexed" | "chunksIndexed" | "totalMinutes">): ChatMessage {
   return {
     role: "assistant",
+    kind: "welcome",
     content: `Knowledge base ready! I've indexed **${kb.videosIndexed}** videos (${kb.chunksIndexed} chunks, ~${kb.totalMinutes} min) on **${kb.topic}**.\n\nAsk me anything — answers are grounded in video transcripts with sources.`,
   };
 }

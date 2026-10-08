@@ -140,4 +140,6 @@ export interface ChatMessage {
   content: string;
   sources?: ChatSource[];
   gaps?: string;
+  /** Indexed KB onboarding copy — not an LLM answer. */
+  kind?: "welcome";
 }

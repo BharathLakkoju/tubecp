@@ -9,6 +9,7 @@ import { deleteKnowledgeBase } from "@/lib/client/knowledge-base";
 import { useKnowledgeBases } from "@/lib/hooks/useKnowledgeBases";
 import { useSubscription } from "@/lib/hooks/useSubscription";
 import CopyButton from "@/components/CopyButton";
+import { isCopyableChatMessage } from "@/lib/kb-welcome";
 import MarkdownContent from "@/components/MarkdownContent";
 import AppPage from "@/components/tubecp/AppPage";
 import ChatComposer from "@/components/tubecp/ChatComposer";
@@ -130,6 +131,11 @@ export default function ChatPanel({ topic, kb, messages, stream, notice, onSend 
                     {msg.content}
                   </BubbleContent>
                 </Bubble>
+                {isCopyableChatMessage(msg) && (
+                  <MessageFooter className="px-0">
+                    <CopyButton variant="icon" text={msg.content} label="Copy prompt" />
+                  </MessageFooter>
+                )}
               </MessageContent>
             </Message>
           ) : (
@@ -153,9 +159,11 @@ export default function ChatPanel({ topic, kb, messages, stream, notice, onSend 
                   </Alert>
                 )}
 
-                <MessageFooter className="px-0">
-                  <CopyButton variant="icon" text={msg.content} label="Copy response" />
-                </MessageFooter>
+                {isCopyableChatMessage(msg) && (
+                  <MessageFooter className="px-0">
+                    <CopyButton variant="icon" text={msg.content} label="Copy response" />
+                  </MessageFooter>
+                )}
               </MessageContent>
             </Message>
           )
@@ -184,6 +192,11 @@ export default function ChatPanel({ topic, kb, messages, stream, notice, onSend 
                   </BubbleContent>
                 </Bubble>
               )}
+              {stream.content ? (
+                <MessageFooter className="px-0">
+                  <CopyButton variant="icon" text={stream.content} label="Copy response" />
+                </MessageFooter>
+              ) : null}
             </MessageContent>
           </Message>
         )}
