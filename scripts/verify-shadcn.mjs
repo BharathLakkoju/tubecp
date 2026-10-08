@@ -4,18 +4,19 @@ import { dirname, join } from "node:path";
 
 const require = createRequire(import.meta.url);
 
-let pkgPath;
+let cssPath;
 try {
-  pkgPath = dirname(require.resolve("shadcn/package.json"));
+  // shadcn@4 exports "./tailwind.css" — not "shadcn/package.json" (blocked by exports map).
+  cssPath = require.resolve("shadcn/tailwind.css");
 } catch {
   console.error(
-    "\n[postinstall] Missing package \"shadcn\". Run: npm install shadcn@4.21.4\n"
+    '\n[postinstall] Missing package "shadcn". Run: npm install shadcn@4.21.4\n'
   );
   process.exit(1);
 }
 
-const cssPath = join(pkgPath, "dist", "tailwind.css");
 if (!existsSync(cssPath)) {
+  const pkgPath = dirname(dirname(cssPath));
   console.error(
     `\n[postinstall] Wrong "shadcn" package at ${pkgPath} (no dist/tailwind.css).\n` +
       "Use the UI CLI package: npm install shadcn@4.21.4\n" +
