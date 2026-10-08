@@ -29,6 +29,8 @@ import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/u
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import type { KnowledgeBaseBuildStatus } from "@/lib/kb-build-status";
+import { formatKbBuildEta, formatKbBuildRemaining } from "@/lib/kb-build-estimate";
 
 /** Videos preselected for a knowledge base build. */
 const TOP_COUNT = 20;
@@ -85,12 +87,32 @@ export default function AppResearchClient({
     liveResearch.allVideos.length === 0 &&
     liveResearch.analyzedVideos.length === 0;
   const [buildVideoCount, setBuildVideoCount] = useState(0);
+  const [activeBuildKbId, setActiveBuildKbId] = useState<string | null>(null);
+  const [liveBuildStatus, setLiveBuildStatus] = useState<KnowledgeBaseBuildStatus | null>(null);
   const lastProgressAt = useRef(Date.now());
 
   const ranked = useMemo(
     () => [...(research?.rankedVideos ?? [])].sort((a, b) => b.relevanceScore - a.relevanceScore),
     [research]
   );
+
+  useEffect(() => {
+    if (!activeBuildKbId) return;
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/knowledge-base/${activeBuildKbId}/build-status`);
+        const data = await res.json();
+        if (res.ok) setLiveBuildStatus(data as KnowledgeBaseBuildStatus);
+      } catch {
+        // ignore polling errors during build
+      }
+    };
+
+    void poll();
+    const interval = window.setInterval(poll, 4000);
+    return () => window.clearInterval(interval);
+  }, [activeBuildKbId]);
 
   const touchProgress = () => {
     lastProgressAt.current = Date.now();
@@ -191,6 +213,12 @@ export default function AppResearchClient({
           touchProgress();
           setProgressMsg(msg);
           if (pct !== undefined) setProgressPct(pct);
+        },
+        {
+          onKnowledgeBaseCreated: (kbId) => {
+            setActiveBuildKbId(kbId);
+            void refreshKnowledgeBases({ silent: true });
+          },
         }
       );
 
@@ -216,6 +244,8 @@ export default function AppResearchClient({
     } finally {
       setLoading(false);
       setProgressMsg("");
+      setActiveBuildKbId(null);
+      setLiveBuildStatus(null);
     }
   };
 
@@ -393,14 +423,34 @@ export default function AppResearchClient({
           )}
 
           {phase === "building" && loading && (
-            <KbBuildProgress
-              detail={progressMsg}
-              progress={progressPct}
-              videoCount={buildVideoCount}
-              startedAt={startedAt}
-              stalled={stalled}
-              onKeepWaiting={touchProgress}
-            />
+            <div className="flex flex-col gap-3">
+              <KbBuildProgress
+                detail={progressMsg}
+                progress={liveBuildStatus?.progress ?? progressPct}
+                videoCount={buildVideoCount}
+                processedVideos={liveBuildStatus?.processedVideos}
+                totalVideos={liveBuildStatus?.totalVideos}
+                estimatedRemaining={formatKbBuildRemaining(
+                  liveBuildStatus?.estimatedSecondsRemaining ?? null
+                )}
+                estimatedEta={formatKbBuildEta(liveBuildStatus?.estimatedCompletionAt ?? null)}
+                startedAt={startedAt}
+                stalled={stalled}
+                onKeepWaiting={touchProgress}
+              />
+              {activeBuildKbId && (
+                <p className="text-body-sm text-foreground-secondary">
+                  <Link
+                    href={`/app/kb/${activeBuildKbId}`}
+                    className="text-primary underline-offset-2 hover:underline"
+                  >
+                    Open build status
+                  </Link>
+                  {" "}
+                  — safe to leave; progress syncs across devices.
+                </p>
+              )}
+            </div>
           )}
 
           {research && (researchDone || phase === "building") && (

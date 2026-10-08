@@ -10,6 +10,10 @@ interface Props {
   progress: number;
   /** Number of videos being indexed, when known. */
   videoCount?: number;
+  processedVideos?: number;
+  totalVideos?: number;
+  estimatedRemaining?: string | null;
+  estimatedEta?: string | null;
   startedAt?: number;
   stalled?: boolean;
   onKeepWaiting?: () => void;
@@ -26,6 +30,10 @@ export default function KbBuildProgress({
   detail,
   progress,
   videoCount,
+  processedVideos,
+  totalVideos,
+  estimatedRemaining,
+  estimatedEta,
   startedAt,
   stalled,
   onKeepWaiting,
@@ -45,14 +53,26 @@ export default function KbBuildProgress({
     { id: "ready", label: "Ready", state: progress >= 100 ? "done" : "pending" },
   ];
 
+  const progressText =
+    processedVideos !== undefined && totalVideos
+      ? `${processedVideos} of ${totalVideos} videos`
+      : videoCount
+        ? `Indexing ${videoCount} videos`
+        : "Indexing videos";
+
+  const etaParts = [estimatedRemaining, estimatedEta ? `Done about ${estimatedEta}` : null].filter(
+    Boolean
+  );
+  const currentDetail = [detail || "Preparing transcripts", ...etaParts].join(" · ");
+
   return (
     <JobStatus
       title="Building knowledge base"
       railLabel="Knowledge base build progress"
       steps={steps}
       progress={progress}
-      progressText={videoCount ? `Indexing ${videoCount} videos` : "Indexing videos"}
-      current={detail || "Preparing transcripts"}
+      progressText={progressText}
+      current={currentDetail}
       startedAt={startedAt}
       stalled={stalled}
       onKeepWaiting={onKeepWaiting}

@@ -6,6 +6,11 @@ import StatusBadge from "@/components/tubecp/StatusBadge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { formatDisplayDate } from "@/lib/format-display-date";
+import {
+  estimateKbBuildCompletion,
+  formatKbBuildEta,
+  formatKbBuildRemaining,
+} from "@/lib/kb-build-estimate";
 import type { KnowledgeBase } from "@/lib/types";
 
 function buildPercent(kb: KnowledgeBase): number {
@@ -17,6 +22,16 @@ function buildPercent(kb: KnowledgeBase): number {
 /** Knowledge base tile: whole card is one link (title link stretched via ::after). */
 export default function KbTile({ kb }: { kb: KnowledgeBase }) {
   const pct = buildPercent(kb);
+  const buildEta =
+    kb.status === "building" && kb.buildJob
+      ? (() => {
+          const est = estimateKbBuildCompletion(kb.buildJob!, kb.status);
+          return (
+            formatKbBuildRemaining(est.estimatedSecondsRemaining) ??
+            formatKbBuildEta(est.estimatedCompletionAt)
+          );
+        })()
+      : null;
 
   return (
     <LiftCard className="h-full" lift={2}>
@@ -34,7 +49,12 @@ export default function KbTile({ kb }: { kb: KnowledgeBase }) {
         </CardHeader>
         <CardContent className="mt-auto flex flex-col gap-3">
           {kb.status === "building" && (
-            <Progress value={pct} getAriaValueText={() => `Building, ${pct}%`} />
+            <>
+              <Progress value={pct} getAriaValueText={() => `Building, ${pct}%`} />
+              {buildEta && (
+                <p className="font-mono text-label text-foreground-secondary">{buildEta}</p>
+              )}
+            </>
           )}
           <div className="flex flex-wrap items-center justify-between gap-2">
             {kb.status === "ready" ? (

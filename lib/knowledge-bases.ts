@@ -10,5 +10,6 @@ export function toKnowledgeBaseSummary(kb: KnowledgeBaseRecord): KnowledgeBase {
     totalMinutes: kb.totalMinutes,
     status: kb.status,
     createdAt: kb.createdAt,
+    buildJob: kb.buildJob,
   };
 }

@@ -7,6 +7,7 @@ import { ensureKbWelcomeMessage } from "@/lib/services/kb-chat";
 import UpgradePrompt from "@/components/UpgradePrompt";
 import AppPage from "@/components/tubecp/AppPage";
 import KbFailedPanel from "@/components/KbFailedPanel";
+import KbBuildingPanel from "@/components/KbBuildingPanel";
 import KbChatClient from "./KbChatClient";
 
 export default async function KnowledgeBaseChatPage({
@@ -29,6 +30,10 @@ export default async function KnowledgeBaseChatPage({
 
   if (kb.status === "failed") {
     return <KbFailedPanel kb={toKnowledgeBaseSummary(kb)} />;
+  }
+
+  if (kb.status === "building") {
+    return <KbBuildingPanel kb={toKnowledgeBaseSummary(kb)} />;
   }
 
   const plan = getPlan(bootstrap.subscription.plan);

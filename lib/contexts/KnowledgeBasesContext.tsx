@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -14,7 +15,7 @@ interface KnowledgeBasesContextValue {
   knowledgeBases: KnowledgeBase[];
   loading: boolean;
   error: string;
-  refresh: () => Promise<void>;
+  refresh: (options?: { silent?: boolean }) => Promise<void>;
   removeKnowledgeBase: (kbId: string) => void;
 }
 
@@ -37,13 +38,15 @@ export function KnowledgeBasesProvider({
     setKnowledgeBases((current) => current.filter((kb) => kb.kbId !== kbId));
   }, []);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (options?: { silent?: boolean }) => {
     if (!canLoad) {
       setKnowledgeBases([]);
       return;
     }
 
-    setLoading(true);
+    if (!options?.silent) {
+      setLoading(true);
+    }
     setError("");
 
     try {
@@ -54,9 +57,23 @@ export function KnowledgeBasesProvider({
     } catch (err) {
       setError(String(err));
     } finally {
-      setLoading(false);
+      if (!options?.silent) {
+        setLoading(false);
+      }
     }
   }, [canLoad]);
+
+  const hasBuildingKb = knowledgeBases.some((kb) => kb.status === "building");
+
+  useEffect(() => {
+    if (!canLoad || !hasBuildingKb) return;
+
+    const interval = window.setInterval(() => {
+      void refresh({ silent: true });
+    }, 4000);
+
+    return () => window.clearInterval(interval);
+  }, [canLoad, hasBuildingKb, refresh]);
 
   const value = useMemo(
     () => ({ knowledgeBases, loading, error, refresh, removeKnowledgeBase }),

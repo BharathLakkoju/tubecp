@@ -1,6 +1,7 @@
 "use client";
 
 import { CaretRight } from "@phosphor-icons/react";
+import CopyButton from "@/components/CopyButton";
 import RankedVideoList from "@/components/tubecp/RankedVideoList";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -52,6 +53,7 @@ export default function ResearchResults({
   topCount,
 }: Props) {
   const scores = Object.fromEntries(ranked.map((video) => [video.videoId, video.relevanceScore]));
+  const rankedLinksText = ranked.map((video) => video.url).join("\n");
 
   return (
     <div className="flex flex-col gap-6">
@@ -69,17 +71,25 @@ export default function ResearchResults({
         </div>
       )}
 
-      <RankedVideoList
-        title="Best matches"
-        caption={`${ranked.length} relevant of ${research.allVideos.length} found · sorted by relevance`}
-        videos={ranked}
-        scores={scores}
-        numbered
-        selectable={selectable}
-        selectedIds={selectedIds}
-        onToggle={onToggle}
-        emptyMessage="No videos met the relevance threshold for this topic. Try a broader topic."
-      />
+      <div className="flex flex-col gap-3">
+        {ranked.length > 0 && (
+          <div className="flex justify-end">
+            <CopyButton text={rankedLinksText} label="Copy all links" />
+          </div>
+        )}
+        <RankedVideoList
+          title="Best matches"
+          caption={`${ranked.length} relevant of ${research.allVideos.length} found · sorted by relevance`}
+          videos={ranked}
+          scores={scores}
+          numbered
+          selectable={selectable}
+          selectedIds={selectedIds}
+          onToggle={onToggle}
+          pageSize={10}
+          emptyMessage="No videos met the relevance threshold for this topic. Try a broader topic."
+        />
+      </div>
 
       <div className="flex flex-col gap-1">
         <Collapsible>

@@ -7,12 +7,13 @@ import {
 } from "@/lib/services/knowledge-base";
 import { ensureKbWelcomeMessage } from "@/lib/services/kb-chat";
 import { addUserKnowledgeBase, getKnowledgeBase, updateKnowledgeBase } from "@/lib/store";
+import { knowledgeBaseBuildStatusFromRecord } from "@/lib/kb-build-status";
 import type { KbBuildJobState, KnowledgeBaseRecord, RankedVideo } from "@/lib/types";
 import type { BuildKnowledgeBaseResult, SkippedKbVideo } from "./kb-build";
 
-const INDEX_CONCURRENCY = 3;
+const INDEX_CONCURRENCY = 1;
 
-function initialBuildJob(totalVideos: number): KbBuildJobState {
+export function createInitialBuildJob(totalVideos: number): KbBuildJobState {
   const now = new Date().toISOString();
   return {
     totalVideos,
@@ -32,14 +33,14 @@ async function updateBuildJob(
     kbId,
     (current) => {
       const base: KbBuildJobState =
-        current.buildJob ?? initialBuildJob(current.rankedVideos?.length ?? 0);
+        current.buildJob ?? createInitialBuildJob(current.rankedVideos?.length ?? 0);
       const buildJob: KbBuildJobState = {
         totalVideos: patch.totalVideos ?? base.totalVideos,
         processedVideos: patch.processedVideos ?? base.processedVideos,
         skippedCount: patch.skippedCount ?? base.skippedCount,
         startedAt: patch.startedAt ?? base.startedAt,
         currentVideoTitle: patch.currentVideoTitle ?? base.currentVideoTitle,
-        error: patch.error ?? base.error,
+        error: "error" in patch ? patch.error : base.error,
         updatedAt: new Date().toISOString(),
       };
       return { ...current, buildJob };
@@ -104,7 +105,7 @@ export async function startKnowledgeBaseBuild(
   }
 
   const kb = await createKnowledgeBase(topic, rankedVideos, userId, persistent);
-  kb.buildJob = initialBuildJob(rankedVideos.length);
+  kb.buildJob = createInitialBuildJob(rankedVideos.length);
   await updateKnowledgeBase(kb.kbId, () => kb, persistent);
   await addUserKnowledgeBase(userId, kb.kbId);
   return kb;
@@ -135,7 +136,7 @@ export async function runKnowledgeBaseBuildJob(
     return result;
   } catch (err) {
     const message = err instanceof Error ? err.message : "Knowledge base build failed";
-    const base = kb.buildJob ?? initialBuildJob(kb.rankedVideos?.length ?? 0);
+    const base = kb.buildJob ?? createInitialBuildJob(kb.rankedVideos?.length ?? 0);
     await updateKnowledgeBase(
       kbId,
       (current) => ({
@@ -173,7 +174,7 @@ export async function runKnowledgeBaseRetryJob(
     (current) => ({
       ...current,
       status: "building",
-      buildJob: initialBuildJob(current.rankedVideos?.length ?? 0),
+      buildJob: createInitialBuildJob(current.rankedVideos?.length ?? 0),
     }),
     persistent
   );
@@ -182,25 +183,29 @@ export async function runKnowledgeBaseRetryJob(
 }
 
 export function knowledgeBaseBuildStatus(kb: KnowledgeBaseRecord) {
-  const job = kb.buildJob;
-  const total = job?.totalVideos ?? kb.rankedVideos?.length ?? 0;
-  const processed = job?.processedVideos ?? 0;
-  const progress =
-    kb.status === "ready" || kb.status === "failed"
-      ? 100
-      : total > 0
-        ? Math.min(99, Math.round((processed / total) * 100))
-        : 0;
+  return knowledgeBaseBuildStatusFromRecord(kb);
+}
 
-  return {
-    kbId: kb.kbId,
-    status: kb.status,
-    progress,
-    totalVideos: total,
-    processedVideos: processed,
-    currentVideoTitle: job?.currentVideoTitle,
-    skippedCount: job?.skippedCount ?? 0,
-    error: job?.error,
-    updatedAt: job?.updatedAt ?? kb.createdAt,
-  };
+export async function recordKbBuildVideoProgress(
+  kbId: string,
+  persistent: boolean,
+  videoTitle: string,
+  skipped: boolean
+): Promise<void> {
+  await updateKnowledgeBase(
+    kbId,
+    (current) => {
+      const base =
+        current.buildJob ?? createInitialBuildJob(current.rankedVideos?.length ?? 0);
+      const buildJob: KbBuildJobState = {
+        ...base,
+        processedVideos: base.processedVideos + 1,
+        skippedCount: skipped ? base.skippedCount + 1 : base.skippedCount,
+        currentVideoTitle: videoTitle,
+        updatedAt: new Date().toISOString(),
+      };
+      return { ...current, status: "building", buildJob };
+    },
+    persistent
+  );
 }

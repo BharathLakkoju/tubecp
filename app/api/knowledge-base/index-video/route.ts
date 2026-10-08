@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordKbBuildVideoProgress } from "@/lib/services/kb-build-job";
 import { indexVideoInKnowledgeBase } from "@/lib/services/knowledge-base";
 import { requireUserId, apiError } from "@/lib/auth";
 import { assertKbAccess } from "@/lib/kb-access";
@@ -29,6 +30,7 @@ export async function POST(req: NextRequest) {
     const persistent = getPlan(sub.plan).persistentKbs;
 
     const result = await indexVideoInKnowledgeBase(kbId, video, persistent);
+    await recordKbBuildVideoProgress(kbId, persistent, video.title, result.skipped);
     return NextResponse.json({
       kb: result.kb,
       skipped: result.skipped,
