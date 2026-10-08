@@ -225,6 +225,18 @@ export async function runKnowledgeBaseBuildJob(
   }
 }
 
+export async function resetKbBuildJobProgress(
+  kbId: string,
+  persistent: boolean
+): Promise<void> {
+  await updateBuildJob(kbId, persistent, {
+    processedVideos: 0,
+    skippedCount: 0,
+    currentVideoTitle: undefined,
+    error: undefined,
+  });
+}
+
 export async function prepareKnowledgeBaseRetry(
   kbId: string,
   persistent: boolean

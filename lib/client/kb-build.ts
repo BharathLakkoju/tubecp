@@ -1,5 +1,6 @@
 import type { KnowledgeBase, KnowledgeBaseRecord, RankedVideo, ResearchResult } from "@/lib/types";
 import type { KnowledgeBaseBuildStatus } from "@/lib/kb-build-status";
+import { kbBuildStartIndex } from "@/lib/kb-build-resume";
 
 export interface SkippedKbVideo {
   videoId: string;
@@ -93,6 +94,11 @@ async function indexRankedVideosForKb(
       videoTitle?: string;
     }>("/api/knowledge-base/index-video", { kbId, video });
 
+    // Reduce YouTube transcript rate limits when indexing many videos in a row.
+    if (i + 1 < total) {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
+
     try {
       const status = await fetchBuildStatus(kbId);
       onProgress?.(status.currentVideoTitle ?? video.title, status.progress, status);
@@ -162,8 +168,8 @@ async function continueKnowledgeBaseBuildInner(
     throw new Error("This knowledge base cannot be resumed because source videos were not saved.");
   }
 
-  const processed = record.buildJob?.processedVideos ?? 0;
   const total = record.rankedVideos.length;
+  const startIndex = kbBuildStartIndex(record);
 
   if (record.status === "ready") {
     return { kb: record, skippedVideos: [] };
@@ -173,21 +179,41 @@ async function continueKnowledgeBaseBuildInner(
     throw new Error("This knowledge base failed. Use retry from the failed state.");
   }
 
+  if (
+    startIndex === 0 &&
+    (record.buildJob?.processedVideos ?? 0) > 0 &&
+    record.chunkIds.length === 0
+  ) {
+    await postJson(`/api/knowledge-base/${kbId}/reset-build-progress`, {});
+  }
+
   const skippedVideos =
-    processed >= total
+    startIndex >= total
       ? []
-      : await indexRankedVideosForKb(kbId, record.rankedVideos, processed, onProgress);
+      : await indexRankedVideosForKb(kbId, record.rankedVideos, startIndex, onProgress);
 
   const kb = await finalizeKbOnServer(kbId, onProgress);
 
   if (kb.status === "failed") {
-    throw new Error(
-      "No videos could be indexed. Every selected video was missing a transcript or failed to index."
-    );
+    throw buildAllVideosSkippedError(skippedVideos, record.buildJob?.skippedCount);
   }
 
   finishBuildProgress(skippedVideos, onProgress);
   return { kb, skippedVideos };
+}
+
+function buildAllVideosSkippedError(
+  skippedVideos: SkippedKbVideo[],
+  skippedCount?: number
+): Error {
+  const count = skippedVideos.length || skippedCount;
+  const sample = skippedVideos[0]?.reason;
+  const detail =
+    count && count > 0
+      ? `${count} video${count === 1 ? "" : "s"} could not be indexed (missing transcript or fetch failed).`
+      : "No videos could be indexed. Every selected video was missing a transcript or failed to index.";
+  const hint = sample ? ` Example: ${sample}` : "";
+  return new Error(`${detail}${hint}`);
 }
 
 export async function buildKnowledgeBaseFromClient(
@@ -213,9 +239,7 @@ export async function buildKnowledgeBaseFromClient(
     const kb = await finalizeKbOnServer(kbId, onProgress);
 
     if (kb.status === "failed") {
-      throw new Error(
-        "No videos could be indexed. Every selected video was missing a transcript or failed to index."
-      );
+      throw buildAllVideosSkippedError(skippedVideos);
     }
 
     finishBuildProgress(skippedVideos, onProgress);

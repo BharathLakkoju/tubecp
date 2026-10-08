@@ -186,6 +186,23 @@ export async function indexVideoInKnowledgeBase(
 
     throw err;
   }
+  if (transcript.segments.length === 0) {
+    const updated = await updateKnowledgeBase(
+      kbId,
+      (current) => ({
+        ...current,
+        videoIds: current.videoIds.filter((id) => id !== video.videoId),
+      }),
+      persistent
+    );
+    if (!updated) throw new Error("Failed to update knowledge base");
+    return {
+      kb: updated,
+      skipped: true,
+      skipReason: `"${video.title}" skipped — transcript was empty after fetch.`,
+    };
+  }
+
   const minutes = getTranscriptDurationMinutes(transcript);
   const chunks = chunkTranscript(
     transcript.segments,
@@ -199,12 +216,16 @@ export async function indexVideoInKnowledgeBase(
       kbId,
       (current) => ({
         ...current,
-        videosIndexed: current.videosIndexed + 1,
+        videoIds: current.videoIds.filter((id) => id !== video.videoId),
       }),
       persistent
     );
     if (!updated) throw new Error("Failed to update knowledge base");
-    return { kb: updated, skipped: false };
+    return {
+      kb: updated,
+      skipped: true,
+      skipReason: `"${video.title}" skipped — transcript was too short to index.`,
+    };
   }
 
   const embeddableChunks = chunks.filter((chunk) => hasMeaningfulEmbeddingContent(chunk.text));

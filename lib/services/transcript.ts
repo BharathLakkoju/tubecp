@@ -1,6 +1,9 @@
-import { YoutubeTranscript } from "youtube-transcript";
 import type { Transcript, TranscriptSegment } from "../types";
 import { getCachedTranscript, cacheTranscript } from "../store";
+import {
+  fetchYoutubeCaptionSegments,
+  type RawCaptionSegment,
+} from "./youtube-caption-fetch";
 
 export class TranscriptUnavailableError extends Error {
   readonly videoId: string;
@@ -11,7 +14,9 @@ export class TranscriptUnavailableError extends Error {
       ? "transcripts are disabled on this video"
       : detail.includes("not available")
         ? "no transcript is available for this video"
-        : "the transcript could not be fetched";
+        : /too many requests|captcha|429/i.test(detail)
+          ? "YouTube rate-limited transcript access — try again in a few minutes"
+          : "the transcript could not be fetched";
 
     super(reason);
     this.name = "TranscriptUnavailableError";
@@ -19,25 +24,39 @@ export class TranscriptUnavailableError extends Error {
   }
 }
 
+function normalizeCaptionSegment(seg: RawCaptionSegment): TranscriptSegment {
+  const usesMilliseconds = seg.offset > 100 || seg.duration > 100;
+  return {
+    start: usesMilliseconds ? seg.offset / 1000 : seg.offset,
+    duration: usesMilliseconds ? seg.duration / 1000 : seg.duration,
+    text: seg.text,
+  };
+}
+
 export async function getTranscript(videoId: string): Promise<Transcript> {
   const cached = await getCachedTranscript(videoId);
-  if (cached) return cached;
+  if (cached && cached.segments.length > 0) return cached;
 
-  let raw;
+  let raw: RawCaptionSegment[];
   try {
-    raw = await YoutubeTranscript.fetchTranscript(videoId);
+    raw = await fetchYoutubeCaptionSegments(videoId);
   } catch (err) {
     throw new TranscriptUnavailableError(videoId, err);
   }
-  const segments: TranscriptSegment[] = raw.map((seg) => ({
-    start: seg.offset / 1000,
-    duration: seg.duration / 1000,
-    text: seg.text,
-  }));
+
+  if (raw.length === 0) {
+    throw new TranscriptUnavailableError(
+      videoId,
+      new Error("No transcripts are available for this video")
+    );
+  }
+
+  const segments = raw.map(normalizeCaptionSegment);
+  const language = raw.find((seg) => seg.lang)?.lang ?? "en";
 
   const transcript: Transcript = {
     videoId,
-    language: "en",
+    language,
     segments,
   };
 
