@@ -61,9 +61,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const { researches, loading: researchesLoading } = useResearches();
 
   const activeKbId = pathname.startsWith("/app/kb/") ? (pathname.split("/")[3] ?? null) : null;
-  const activeResearchId = pathname.startsWith("/app/researches/")
-    ? (pathname.split("/")[3] ?? null)
-    : null;
+  const activeResearchId = (() => {
+    if (pathname.startsWith("/app/researches/")) {
+      const id = pathname.split("/")[3];
+      return id ? decodeURIComponent(id) : null;
+    }
+    if (pathname.startsWith("/app/kb/")) {
+      const kbId = pathname.split("/")[3];
+      return kbId ? `kb:${kbId}` : null;
+    }
+    return null;
+  })();
   const visibleKbs = knowledgeBases.slice(0, MAX_SIDEBAR_KBS);
   const hiddenKbCount = knowledgeBases.length - visibleKbs.length;
   const visibleResearches = researches.slice(0, MAX_SIDEBAR_RESEARCHES);

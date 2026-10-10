@@ -20,17 +20,36 @@ export type KbBuildProgressCallback = (
 ) => void;
 
 const DRIVER_KEY_PREFIX = "tubecp:kb-build-driver:";
+/** Locks older than this are treated as abandoned (crashed tab, refresh mid-build). */
+const DRIVER_STALE_MS = 2 * 60 * 1000;
 
 function driverKey(kbId: string): string {
   return `${DRIVER_KEY_PREFIX}${kbId}`;
 }
 
+function readDriverLockAgeMs(key: string): number | null {
+  const raw = sessionStorage.getItem(key);
+  if (!raw) return null;
+  const started = Number(raw);
+  if (!Number.isFinite(started)) return null;
+  return Date.now() - started;
+}
+
 export function tryAcquireKbBuildDriver(kbId: string): boolean {
   if (typeof window === "undefined") return true;
   const key = driverKey(kbId);
-  if (sessionStorage.getItem(key)) return false;
+  const ageMs = readDriverLockAgeMs(key);
+  if (ageMs !== null && ageMs < DRIVER_STALE_MS) return false;
+  if (ageMs !== null) sessionStorage.removeItem(key);
   sessionStorage.setItem(key, String(Date.now()));
   return true;
+}
+
+/** User explicitly resumes indexing in this tab (clears a stale or same-tab lock). */
+export function takeOverKbBuildDriver(kbId: string): boolean {
+  if (typeof window === "undefined") return true;
+  releaseKbBuildDriver(kbId);
+  return tryAcquireKbBuildDriver(kbId);
 }
 
 export function releaseKbBuildDriver(kbId: string): void {
@@ -146,10 +165,16 @@ function finishBuildProgress(
 
 export async function continueKnowledgeBaseBuild(
   kbId: string,
-  onProgress?: KbBuildProgressCallback
+  onProgress?: KbBuildProgressCallback,
+  options?: { takeOver?: boolean }
 ): Promise<BuildKnowledgeBaseResult> {
-  if (!tryAcquireKbBuildDriver(kbId)) {
-    throw new Error("Another tab is already indexing this knowledge base.");
+  const acquired = options?.takeOver
+    ? takeOverKbBuildDriver(kbId)
+    : tryAcquireKbBuildDriver(kbId);
+  if (!acquired) {
+    throw new Error(
+      "Another tab is already indexing this knowledge base. Close the other tab or wait a moment, then try again."
+    );
   }
 
   try {

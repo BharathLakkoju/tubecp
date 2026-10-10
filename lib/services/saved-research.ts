@@ -1,12 +1,17 @@
 import { getUserSubscription } from "@/lib/billing/subscription";
 import { getPlan } from "@/lib/plans";
+import { assertResearchAccess } from "@/lib/research-access";
 import {
   addUserResearch,
+  deleteSavedResearchRecord,
   getSavedResearchRecord,
+  getKnowledgeBase,
   listUserKnowledgeBaseRecords,
   listUserSavedResearchRecords,
+  removeUserResearch,
   saveSavedResearchRecord,
 } from "@/lib/store";
+import { knowledgeBaseIdFromResearchId } from "@/lib/researches";
 import type { KnowledgeBaseRecord, RankedVideo, ResearchResult } from "@/lib/types";
 
 const KB_RESEARCH_ID_PREFIX = "kb:";
@@ -15,10 +20,7 @@ export function researchIdFromKnowledgeBase(kbId: string): string {
   return `${KB_RESEARCH_ID_PREFIX}${kbId}`;
 }
 
-export function knowledgeBaseIdFromResearchId(researchId: string): string | null {
-  if (!researchId.startsWith(KB_RESEARCH_ID_PREFIX)) return null;
-  return researchId.slice(KB_RESEARCH_ID_PREFIX.length);
-}
+export { knowledgeBaseIdFromResearchId };
 
 export function researchResultFromRankedVideos(
   topic: string,
@@ -63,7 +65,47 @@ export async function backfillSavedResearchesFromKnowledgeBases(userId: string):
 
 export async function listUserSavedResearchRecordsWithKbBackfill(userId: string) {
   await backfillSavedResearchesFromKnowledgeBases(userId);
-  return listUserSavedResearchRecords(userId);
+  const records = await listUserSavedResearchRecords(userId);
+  return pruneStaleKbMirrorResearches(userId, records);
+}
+
+async function pruneStaleKbMirrorResearches(
+  userId: string,
+  records: Awaited<ReturnType<typeof listUserSavedResearchRecords>>
+) {
+  const kept = [];
+  for (const record of records) {
+    const kbId = knowledgeBaseIdFromResearchId(record.researchId);
+    if (!kbId) {
+      kept.push(record);
+      continue;
+    }
+    const kb = await getKnowledgeBase(kbId);
+    if (kb && kb.userId === userId) {
+      kept.push(record);
+      continue;
+    }
+    await deleteSavedResearchRecord(record.researchId);
+    await removeUserResearch(userId, record.researchId);
+  }
+  return kept;
+}
+
+export async function deleteSavedResearch(researchId: string, userId: string): Promise<void> {
+  await assertResearchAccess(researchId, userId);
+  await deleteSavedResearchRecord(researchId);
+  await removeUserResearch(userId, researchId);
+}
+
+export async function deleteSavedResearchMirrorForKnowledgeBase(
+  kbId: string,
+  userId: string
+): Promise<void> {
+  const researchId = researchIdFromKnowledgeBase(kbId);
+  const record = await getSavedResearchRecord(researchId);
+  if (!record || record.userId !== userId) return;
+  await deleteSavedResearchRecord(researchId);
+  await removeUserResearch(userId, researchId);
 }
 
 export async function persistUserResearch(

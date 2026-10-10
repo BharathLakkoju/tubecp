@@ -1,6 +1,8 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { assertResearchAccess } from "@/lib/research-access";
+import { getKnowledgeBase } from "@/lib/store";
+import { knowledgeBaseIdFromResearchId } from "@/lib/researches";
 import ResearchDetailClient from "./ResearchDetailClient";
 
 export async function generateMetadata({
@@ -33,6 +35,14 @@ export default async function ResearchDetailPage({
   }
 
   const { researchId } = await params;
+
+  const kbId = knowledgeBaseIdFromResearchId(researchId);
+  if (kbId) {
+    const kb = await getKnowledgeBase(kbId);
+    if (kb && kb.userId === session.user.id) {
+      redirect(`/app/kb/${kbId}`);
+    }
+  }
 
   try {
     const record = await assertResearchAccess(researchId, session.user.id);
