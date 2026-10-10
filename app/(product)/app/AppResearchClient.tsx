@@ -27,6 +27,8 @@ import FreeTierTeaser from "@/components/FreeTierTeaser";
 import UpgradeSuccessBanner from "@/components/UpgradeSuccessBanner";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import ResearchLibrarySection from "@/components/ResearchLibrarySection";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { KnowledgeBaseBuildStatus } from "@/lib/kb-build-status";
@@ -89,6 +91,7 @@ export default function AppResearchClient({
   const [buildVideoCount, setBuildVideoCount] = useState(0);
   const [activeBuildKbId, setActiveBuildKbId] = useState<string | null>(null);
   const [liveBuildStatus, setLiveBuildStatus] = useState<KnowledgeBaseBuildStatus | null>(null);
+  const [useSpeechToText, setUseSpeechToText] = useState(false);
   const lastProgressAt = useRef(Date.now());
 
   const ranked = useMemo(
@@ -219,6 +222,7 @@ export default function AppResearchClient({
             setActiveBuildKbId(kbId);
             void refreshKnowledgeBases({ silent: true });
           },
+          useSpeechToText,
         }
       );
 
@@ -355,6 +359,8 @@ export default function AppResearchClient({
             />
           ) : null}
 
+          {sub.canBuildKb && <ResearchLibrarySection />}
+
           {sub.canBuildKb && recentKbs.length > 0 && (
             <section aria-labelledby="recent-kbs" className="flex flex-col gap-4">
               <div className="flex items-baseline justify-between gap-4">
@@ -455,6 +461,23 @@ export default function AppResearchClient({
 
           {research && (researchDone || phase === "building") && (
             <>
+              {researchDone && ranked.length > 0 && sub.canBuildKb && (
+                <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
+                  <Checkbox
+                    checked={useSpeechToText}
+                    onCheckedChange={(checked) => setUseSpeechToText(checked === true)}
+                    aria-describedby="stt-build-hint"
+                  />
+                  <span className="flex flex-col gap-1 text-body-sm">
+                    <span className="font-medium text-foreground">Use OpenRouter speech-to-text</span>
+                    <span id="stt-build-hint" className="text-foreground-secondary">
+                      Transcribe audio with Whisper via OpenRouter instead of YouTube captions.
+                      Slower and uses paid STT; choose this when captions are missing or blocked.
+                    </span>
+                  </span>
+                </label>
+              )}
+
               {researchDone && ranked.length > 0 && (
                 <ActionDock
                   actions={
@@ -466,7 +489,7 @@ export default function AppResearchClient({
                         disabled={selectedIds.size === 0 || kbBuildLimitReached}
                         title={kbBuildQuotaMessage}
                       >
-                        Build knowledge base
+                        {useSpeechToText ? "Build with speech-to-text" : "Build knowledge base"}
                       </Button>
                     ) : (
                       <Link

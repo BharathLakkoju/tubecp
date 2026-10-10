@@ -8,7 +8,7 @@ import { getPlan } from "@/lib/plans";
 import { rateLimitApi } from "@/lib/ratelimit";
 import type { RankedVideo } from "@/lib/types";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   try {
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     const sub = await getUserSubscription(userId);
     const persistent = getPlan(sub.plan).persistentKbs;
 
-    const result = await indexVideoInKnowledgeBase(kbId, video, persistent);
+    const result = await indexVideoInKnowledgeBase(kbId, video, persistent, userId);
     await recordKbBuildVideoProgress(kbId, persistent, video.title, result.skipped);
     return NextResponse.json({
       kb: result.kb,

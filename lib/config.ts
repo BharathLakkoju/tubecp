@@ -1,5 +1,9 @@
 import { isProduction } from "./env";
-import { DEFAULT_EMBEDDING_MODEL, DEFAULT_LLM_MODEL } from "./openrouter-models";
+import {
+  DEFAULT_EMBEDDING_MODEL,
+  DEFAULT_LLM_MODEL,
+  DEFAULT_STT_MODEL,
+} from "./openrouter-models";
 
 function required(name: string, value: string | undefined): string {
   if (!value) {
@@ -14,6 +18,7 @@ export const config = {
   openrouterBaseUrl: process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1",
   llmModel: process.env.LLM_MODEL ?? DEFAULT_LLM_MODEL,
   embeddingModel: process.env.EMBEDDING_MODEL ?? DEFAULT_EMBEDDING_MODEL,
+  sttModel: process.env.STT_MODEL ?? DEFAULT_STT_MODEL,
   licenseKey: process.env.LICENSE_KEY ?? "",
 };
 

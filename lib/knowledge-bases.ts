@@ -11,5 +11,6 @@ export function toKnowledgeBaseSummary(kb: KnowledgeBaseRecord): KnowledgeBase {
     status: kb.status,
     createdAt: kb.createdAt,
     buildJob: kb.buildJob,
+    buildOptions: kb.buildOptions,
   };
 }

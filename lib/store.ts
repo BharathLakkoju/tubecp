@@ -77,12 +77,22 @@ export function hashTopic(topic: string): string {
   return hash.toString(36);
 }
 
-export async function getCachedTranscript(videoId: string): Promise<Transcript | null> {
-  return get<Transcript>(`transcript:${videoId}`);
+function transcriptCacheKey(videoId: string, variant: "captions" | "stt" = "captions"): string {
+  return variant === "stt" ? `transcript:stt:${videoId}` : `transcript:${videoId}`;
 }
 
-export async function cacheTranscript(transcript: Transcript): Promise<void> {
-  await set(`transcript:${transcript.videoId}`, transcript);
+export async function getCachedTranscript(
+  videoId: string,
+  variant: "captions" | "stt" = "captions"
+): Promise<Transcript | null> {
+  return get<Transcript>(transcriptCacheKey(videoId, variant));
+}
+
+export async function cacheTranscript(
+  transcript: Transcript,
+  variant: "captions" | "stt" = "captions"
+): Promise<void> {
+  await set(transcriptCacheKey(transcript.videoId, variant), transcript);
 }
 
 export async function getCachedQueries(

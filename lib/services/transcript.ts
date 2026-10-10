@@ -1,9 +1,11 @@
-import type { Transcript, TranscriptSegment } from "../types";
+import type { KbTranscriptMode, Transcript, TranscriptSegment } from "../types";
 import { getCachedTranscript, cacheTranscript } from "../store";
 import {
   fetchYoutubeCaptionSegments,
   type RawCaptionSegment,
 } from "./youtube-caption-fetch";
+import { fetchYoutubeAudioBuffer, YoutubeAudioUnavailableError } from "./youtube-audio";
+import { transcribeAudioBuffer } from "./openrouter-stt";
 
 export class TranscriptUnavailableError extends Error {
   readonly videoId: string;
@@ -16,12 +18,19 @@ export class TranscriptUnavailableError extends Error {
         ? "no transcript is available for this video"
         : /too many requests|captcha|429/i.test(detail)
           ? "YouTube rate-limited transcript access — try again in a few minutes"
-          : "the transcript could not be fetched";
+          : /speech-to-text|STT/i.test(detail)
+            ? detail
+            : "the transcript could not be fetched";
 
     super(reason);
     this.name = "TranscriptUnavailableError";
     this.videoId = videoId;
   }
+}
+
+export interface GetTranscriptOptions {
+  mode?: KbTranscriptMode;
+  usageUserId?: string;
 }
 
 function normalizeCaptionSegment(seg: RawCaptionSegment): TranscriptSegment {
@@ -33,10 +42,7 @@ function normalizeCaptionSegment(seg: RawCaptionSegment): TranscriptSegment {
   };
 }
 
-export async function getTranscript(videoId: string): Promise<Transcript> {
-  const cached = await getCachedTranscript(videoId);
-  if (cached && cached.segments.length > 0) return cached;
-
+async function getTranscriptViaCaptions(videoId: string): Promise<Transcript> {
   let raw: RawCaptionSegment[];
   try {
     raw = await fetchYoutubeCaptionSegments(videoId);
@@ -60,8 +66,58 @@ export async function getTranscript(videoId: string): Promise<Transcript> {
     segments,
   };
 
-  await cacheTranscript(transcript);
+  await cacheTranscript(transcript, "captions");
   return transcript;
+}
+
+async function getTranscriptViaStt(
+  videoId: string,
+  usageUserId?: string
+): Promise<Transcript> {
+  try {
+    const { buffer, format } = await fetchYoutubeAudioBuffer(videoId);
+    const { segments, language } = await transcribeAudioBuffer(buffer, format, {
+      usageUserId,
+      language: "en",
+    });
+
+    if (segments.length === 0) {
+      throw new TranscriptUnavailableError(
+        videoId,
+        new Error("Speech-to-text returned no transcript text")
+      );
+    }
+
+    const transcript: Transcript = { videoId, language, segments };
+    await cacheTranscript(transcript, "stt");
+    return transcript;
+  } catch (err) {
+    if (err instanceof YoutubeAudioUnavailableError) {
+      throw new TranscriptUnavailableError(videoId, err);
+    }
+    if (err instanceof TranscriptUnavailableError) throw err;
+    throw new TranscriptUnavailableError(
+      videoId,
+      err instanceof Error ? err : new Error(String(err))
+    );
+  }
+}
+
+export async function getTranscript(
+  videoId: string,
+  options?: GetTranscriptOptions
+): Promise<Transcript> {
+  const mode = options?.mode ?? "captions";
+  const cacheVariant = mode === "stt" ? "stt" : "captions";
+
+  const cached = await getCachedTranscript(videoId, cacheVariant);
+  if (cached && cached.segments.length > 0) return cached;
+
+  if (mode === "stt") {
+    return getTranscriptViaStt(videoId, options?.usageUserId);
+  }
+
+  return getTranscriptViaCaptions(videoId);
 }
 
 export function transcriptToText(transcript: Transcript): string {

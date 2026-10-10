@@ -6,7 +6,7 @@ import { requireUserId, apiError } from "@/lib/auth";
 import { checkAndIncrementUsage, getUserSubscription } from "@/lib/billing/subscription";
 import { getPlan } from "@/lib/plans";
 import { rateLimitApi } from "@/lib/ratelimit";
-import type { RankedVideo } from "@/lib/types";
+import type { KbTranscriptMode, RankedVideo } from "@/lib/types";
 
 export const maxDuration = 10;
 
@@ -15,9 +15,11 @@ export async function POST(req: NextRequest) {
     const userId = await requireUserId();
     await rateLimitApi(userId, "kb-create", 10);
 
-    const { topic, rankedVideos } = (await req.json()) as {
+    const { topic, rankedVideos, transcriptMode, useSpeechToText } = (await req.json()) as {
       topic?: string;
       rankedVideos?: RankedVideo[];
+      transcriptMode?: KbTranscriptMode;
+      useSpeechToText?: boolean;
     };
 
     if (!topic?.trim() || !rankedVideos?.length) {
@@ -30,7 +32,15 @@ export async function POST(req: NextRequest) {
     const plan = getPlan(sub.plan);
     const persistent = plan.persistentKbs;
 
-    const kb = await createKnowledgeBase(topic, rankedVideos, userId, persistent);
+    const mode: KbTranscriptMode =
+      transcriptMode ?? (useSpeechToText ? "stt" : "captions");
+    if (mode !== "captions" && mode !== "stt") {
+      return NextResponse.json({ error: "Invalid transcriptMode" }, { status: 400 });
+    }
+
+    const kb = await createKnowledgeBase(topic, rankedVideos, userId, persistent, {
+      transcriptMode: mode,
+    });
     kb.buildJob = createInitialBuildJob(rankedVideos.length);
     await updateKnowledgeBase(kb.kbId, () => kb, persistent);
     await addUserKnowledgeBase(userId, kb.kbId);

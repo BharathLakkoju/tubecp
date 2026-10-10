@@ -220,13 +220,17 @@ export async function buildKnowledgeBaseFromClient(
   topic: string,
   rankedVideos: ResearchResult["rankedVideos"],
   onProgress?: KbBuildProgressCallback,
-  options?: { onKnowledgeBaseCreated?: (kbId: string) => void }
+  options?: {
+    onKnowledgeBaseCreated?: (kbId: string) => void;
+    useSpeechToText?: boolean;
+  }
 ): Promise<BuildKnowledgeBaseResult> {
   onProgress?.("Preparing knowledge base", 5);
 
   const { kbId } = await postJson<{ kbId: string }>("/api/knowledge-base/create", {
     topic,
     rankedVideos,
+    transcriptMode: options?.useSpeechToText ? "stt" : "captions",
   });
   options?.onKnowledgeBaseCreated?.(kbId);
 

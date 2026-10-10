@@ -4,6 +4,9 @@ import { getPlan } from "@/lib/plans";
 import { toKnowledgeBaseSummary } from "@/lib/knowledge-bases";
 import { getProductBootstrap } from "@/lib/server/product-bootstrap";
 import { repairKnowledgeBaseIfIndexed } from "@/lib/services/kb-build-job";
+import {
+  getIndexedVideoIdsForKnowledgeBase,
+} from "@/lib/services/knowledge-base";
 import { ensureKbWelcomeMessage } from "@/lib/services/kb-chat";
 import UpgradePrompt from "@/components/UpgradePrompt";
 import AppPage from "@/components/tubecp/AppPage";
@@ -32,12 +35,30 @@ export default async function KnowledgeBaseChatPage({
     kb = repaired;
   }
 
+  const sourceVideos = kb.rankedVideos ?? [];
+  const indexedVideoIds = await getIndexedVideoIdsForKnowledgeBase(kbId);
+  const kbSummary = toKnowledgeBaseSummary(kb);
+
   if (kb.status === "failed") {
-    return <KbFailedPanel kb={toKnowledgeBaseSummary(kb)} />;
+    return (
+      <KbFailedPanel
+        kb={kbSummary}
+        sourceVideos={sourceVideos}
+        indexedVideoIds={indexedVideoIds}
+        buildOptions={kb.buildOptions}
+      />
+    );
   }
 
   if (kb.status === "building") {
-    return <KbBuildingPanel kb={toKnowledgeBaseSummary(kb)} />;
+    return (
+      <KbBuildingPanel
+        kb={kbSummary}
+        sourceVideos={sourceVideos}
+        indexedVideoIds={indexedVideoIds}
+        buildOptions={kb.buildOptions}
+      />
+    );
   }
 
   const messages = await ensureKbWelcomeMessage(kbId);
@@ -54,5 +75,13 @@ export default async function KnowledgeBaseChatPage({
     );
   }
 
-  return <KbChatClient kb={toKnowledgeBaseSummary(kb)} initialMessages={messages} />;
+  return (
+    <KbChatClient
+      kb={kbSummary}
+      initialMessages={messages}
+      sourceVideos={sourceVideos}
+      indexedVideoIds={indexedVideoIds}
+      buildOptions={kb.buildOptions}
+    />
+  );
 }

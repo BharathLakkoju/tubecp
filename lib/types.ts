@@ -94,6 +94,13 @@ export interface KbBuildJobState {
   error?: string;
 }
 
+/** How transcript text is obtained during KB indexing. */
+export type KbTranscriptMode = "captions" | "stt";
+
+export interface KbBuildOptions {
+  transcriptMode: KbTranscriptMode;
+}
+
 export interface KnowledgeBase {
   kbId: string;
   topic: string;
@@ -104,6 +111,7 @@ export interface KnowledgeBase {
   status: "building" | "ready" | "failed";
   createdAt: string;
   buildJob?: KbBuildJobState;
+  buildOptions?: KbBuildOptions;
 }
 
 export interface KnowledgeBaseRecord extends KnowledgeBase {
