@@ -20,6 +20,7 @@ import {
 } from "../store";
 import { addToKbVectorIndex, deleteKbVectorIndex } from "../store/vector-index";
 import { deleteKbChatData } from "./kb-chat";
+import { deleteSavedResearchMirrorForKnowledgeBase } from "./saved-research";
 import type {
   KbBuildOptions,
   TranscriptChunk,
@@ -325,4 +326,5 @@ export async function deleteKnowledgeBase(kbId: string, userId: string): Promise
   await deleteKbChatData(kbId);
   await deleteKnowledgeBaseRecord(kbId);
   await removeUserKnowledgeBase(userId, kbId);
+  await deleteSavedResearchMirrorForKnowledgeBase(kbId, userId);
 }

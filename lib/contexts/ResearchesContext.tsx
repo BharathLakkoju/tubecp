@@ -15,6 +15,7 @@ interface ResearchesContextValue {
   loading: boolean;
   error: string;
   refresh: (options?: { silent?: boolean }) => Promise<void>;
+  removeResearch: (researchId: string) => void;
 }
 
 const ResearchesContext = createContext<ResearchesContextValue | null>(null);
@@ -31,6 +32,10 @@ export function ResearchesProvider({
   const [researches, setResearches] = useState(initialResearches);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const removeResearch = useCallback((researchId: string) => {
+    setResearches((current) => current.filter((r) => r.researchId !== researchId));
+  }, []);
 
   const refresh = useCallback(async (options?: { silent?: boolean }) => {
     if (!canLoad) {
@@ -58,8 +63,8 @@ export function ResearchesProvider({
   }, [canLoad]);
 
   const value = useMemo(
-    () => ({ researches, loading, error, refresh }),
-    [researches, loading, error, refresh]
+    () => ({ researches, loading, error, refresh, removeResearch }),
+    [researches, loading, error, refresh, removeResearch]
   );
 
   return <ResearchesContext.Provider value={value}>{children}</ResearchesContext.Provider>;

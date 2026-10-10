@@ -359,6 +359,16 @@ export async function getUserResearches(userId: string): Promise<string[]> {
   return (await get<string[]>(`user-researches:${userId}`)) ?? [];
 }
 
+export async function removeUserResearch(userId: string, researchId: string): Promise<void> {
+  const key = `user-researches:${userId}`;
+  const existing = (await get<string[]>(key)) ?? [];
+  await set(key, existing.filter((id) => id !== researchId));
+}
+
+export async function deleteSavedResearchRecord(researchId: string): Promise<void> {
+  await del(`research:${researchId}`);
+}
+
 export async function listUserSavedResearchRecords(
   userId: string
 ): Promise<SavedResearchRecord[]> {

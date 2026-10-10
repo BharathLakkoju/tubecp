@@ -11,6 +11,7 @@ import { parseClientError } from "@/lib/client/chat";
 import {
   continueKnowledgeBaseBuild,
   runKbBuildDriverIfNeeded,
+  type KbBuildProgressCallback,
 } from "@/lib/client/kb-build";
 import { useKnowledgeBases } from "@/lib/hooks/useKnowledgeBases";
 import AppPage from "@/components/tubecp/AppPage";
@@ -67,6 +68,30 @@ export default function KbBuildingPanel({
     return () => window.clearInterval(interval);
   }, [status?.status, loadStatus]);
 
+  const runBuildDriver = useCallback(
+    async (takeOver: boolean) => {
+      setDriving(true);
+      setError("");
+      try {
+        const onProgress: KbBuildProgressCallback = (_msg, _pct, live) => {
+          if (live) setStatus(live);
+        };
+        const result = takeOver
+          ? await continueKnowledgeBaseBuild(kb.kbId, onProgress, { takeOver: true })
+          : await runKbBuildDriverIfNeeded(kb.kbId, onProgress);
+        if (result?.kb.status === "ready") {
+          await refreshKnowledgeBases();
+          router.refresh();
+        }
+      } catch (err) {
+        setError(parseClientError(err));
+      } finally {
+        setDriving(false);
+      }
+    },
+    [kb.kbId, refreshKnowledgeBases, router]
+  );
+
   useEffect(() => {
     if (driverStarted.current) return;
     let cancelled = false;
@@ -75,45 +100,14 @@ export default function KbBuildingPanel({
     const run = async () => {
       const current = await loadStatus();
       if (cancelled || current.status !== "building") return;
-      setDriving(true);
-      try {
-        const result = await runKbBuildDriverIfNeeded(kb.kbId, (_msg, _pct, live) => {
-          if (live) setStatus(live);
-        });
-        if (result?.kb.status === "ready") {
-          await refreshKnowledgeBases();
-          router.refresh();
-        }
-      } catch (err) {
-        if (!cancelled) setError(parseClientError(err));
-      } finally {
-        if (!cancelled) setDriving(false);
-      }
+      await runBuildDriver(false);
     };
 
     void run();
     return () => {
       cancelled = true;
     };
-  }, [kb.kbId, loadStatus, refreshKnowledgeBases, router]);
-
-  const handleResumeHere = async () => {
-    setDriving(true);
-    setError("");
-    try {
-      const result = await continueKnowledgeBaseBuild(kb.kbId, (_msg, _pct, live) => {
-        if (live) setStatus(live);
-      });
-      if (result.kb.status === "ready") {
-        await refreshKnowledgeBases();
-        router.refresh();
-      }
-    } catch (err) {
-      setError(parseClientError(err));
-    } finally {
-      setDriving(false);
-    }
-  };
+  }, [kb.kbId, loadStatus, runBuildDriver]);
 
   if (!status) {
     return (
@@ -180,10 +174,22 @@ export default function KbBuildingPanel({
           transcriptMode={buildOptions?.transcriptMode ?? kb.buildOptions?.transcriptMode}
         />
 
-        {!driving && status.status === "building" && (
-          <Button type="button" onClick={() => void handleResumeHere()}>
-            Continue build on this device
-          </Button>
+        {status.status === "building" && (
+          <div className="flex flex-col gap-2">
+            <p className="text-body-sm text-foreground-secondary">
+              Video indexing runs in this browser tab (not on the server) so builds can pause when
+              you switch apps or open the KB on another device. Use the button below to pick up
+              where you left off.
+            </p>
+            <Button
+              type="button"
+              disabled={driving}
+              aria-busy={driving}
+              onClick={() => void runBuildDriver(true)}
+            >
+              {driving ? "Indexing on this device…" : "Continue build on this device"}
+            </Button>
+          </div>
         )}
 
         <Link href="/app/kb" className="text-label text-primary underline-offset-2 hover:underline">
