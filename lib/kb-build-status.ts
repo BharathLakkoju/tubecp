@@ -40,4 +40,7 @@ export function knowledgeBaseBuildStatusFromRecord(kb: KnowledgeBaseRecord) {
   };
 }
 
-export type KnowledgeBaseBuildStatus = ReturnType<typeof knowledgeBaseBuildStatusFromRecord>;
+export type KnowledgeBaseBuildStatus = ReturnType<typeof knowledgeBaseBuildStatusFromRecord> & {
+  /** Included on GET /api/knowledge-base/[kbId]/build-status while polling during a build. */
+  indexedVideoIds?: string[];
+};

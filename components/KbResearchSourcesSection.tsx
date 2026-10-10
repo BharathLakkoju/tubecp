@@ -82,6 +82,7 @@ export default function KbResearchSourcesSection({
         scores={scores}
         numbered
         pageSize={15}
+        copyable
       />
     </section>
   );

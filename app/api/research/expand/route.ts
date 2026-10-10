@@ -6,6 +6,7 @@ import { getResearchPipelineLimits } from "@/lib/research-limits";
 import { createResearchSession, saveResearchCheckpoint } from "@/lib/research-session";
 import { rateLimitApi } from "@/lib/ratelimit";
 import { isE2eStubMode, stubExpandedQueries, stubResearchResult } from "@/lib/e2e-stub";
+import { persistUserResearch } from "@/lib/services/saved-research";
 import {
   getCachedResearchResult,
   researchResultCacheKey,
@@ -26,6 +27,7 @@ export async function POST(req: NextRequest) {
     if (isE2eStubMode()) {
       const researchSessionId = await createResearchSession(userId);
       const research = stubResearchResult(topic.trim());
+      await persistUserResearch(userId, researchSessionId, research);
       return NextResponse.json({
         queries: stubExpandedQueries(topic.trim()),
         researchSessionId,
@@ -41,6 +43,7 @@ export async function POST(req: NextRequest) {
 
     if (cachedResearch) {
       const researchSessionId = await createResearchSession(userId);
+      await persistUserResearch(userId, researchSessionId, cachedResearch);
       return NextResponse.json({
         queries: cachedResearch.queriesUsed,
         researchSessionId,

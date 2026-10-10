@@ -87,6 +87,7 @@ export default function ResearchResults({
           selectedIds={selectedIds}
           onToggle={onToggle}
           pageSize={10}
+          copyable
           emptyMessage="No videos met the relevance threshold for this topic. Try a broader topic."
         />
       </div>

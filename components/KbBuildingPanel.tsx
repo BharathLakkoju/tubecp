@@ -36,6 +36,7 @@ export default function KbBuildingPanel({
   const router = useRouter();
   const { refresh: refreshKnowledgeBases } = useKnowledgeBases();
   const [status, setStatus] = useState<KnowledgeBaseBuildStatus | null>(null);
+  const [liveIndexedVideoIds, setLiveIndexedVideoIds] = useState(indexedVideoIds);
   const [error, setError] = useState("");
   const [driving, setDriving] = useState(false);
   const driverStarted = useRef(false);
@@ -46,8 +47,12 @@ export default function KbBuildingPanel({
     if (!res.ok) {
       throw new Error(data.error ?? "Failed to load build status");
     }
-    setStatus(data as KnowledgeBaseBuildStatus);
-    return data as KnowledgeBaseBuildStatus;
+    const next = data as KnowledgeBaseBuildStatus;
+    setStatus(next);
+    if (Array.isArray(next.indexedVideoIds)) {
+      setLiveIndexedVideoIds(next.indexedVideoIds);
+    }
+    return next;
   }, [kb.kbId]);
 
   useEffect(() => {
@@ -171,7 +176,7 @@ export default function KbBuildingPanel({
           videos={sourceVideos}
           kbId={kb.kbId}
           kbStatus={status.status}
-          indexedVideoIds={indexedVideoIds}
+          indexedVideoIds={liveIndexedVideoIds}
           transcriptMode={buildOptions?.transcriptMode ?? kb.buildOptions?.transcriptMode}
         />
 

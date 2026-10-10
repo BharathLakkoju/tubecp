@@ -9,6 +9,7 @@ import type { ResearchStage, ResearchLiveUpdate } from "@/lib/client/workflows";
 import { parseClientError } from "@/lib/client/chat";
 import { useSubscription } from "@/lib/hooks/useSubscription";
 import { useKnowledgeBases } from "@/lib/hooks/useKnowledgeBases";
+import { useResearches } from "@/lib/hooks/useResearches";
 import { getPlan } from "@/lib/plans";
 import AppPage from "@/components/tubecp/AppPage";
 import ActionDock from "@/components/tubecp/ActionDock";
@@ -28,7 +29,7 @@ import UpgradeSuccessBanner from "@/components/UpgradeSuccessBanner";
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import ResearchLibrarySection from "@/components/ResearchLibrarySection";
+import RecentResearchesSection from "@/components/RecentResearchesSection";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { KnowledgeBaseBuildStatus } from "@/lib/kb-build-status";
@@ -69,6 +70,7 @@ export default function AppResearchClient({
   const router = useRouter();
   const sub = useSubscription();
   const { knowledgeBases, refresh: refreshKnowledgeBases } = useKnowledgeBases();
+  const { refresh: refreshResearches } = useResearches();
   const [phase, setPhase] = useState<"search" | "results" | "building">("search");
   const [research, setResearch] = useState<ResearchResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -176,6 +178,7 @@ export default function AppResearchClient({
       );
       setResearch(result);
       setResumeSessionId(researchSessionId);
+      void refreshResearches({ silent: true });
       setProgressMsg("");
       const top = [...result.rankedVideos]
         .sort((a, b) => b.relevanceScore - a.relevanceScore)
@@ -359,7 +362,7 @@ export default function AppResearchClient({
             />
           ) : null}
 
-          {sub.canBuildKb && <ResearchLibrarySection />}
+          <RecentResearchesSection />
 
           {sub.canBuildKb && recentKbs.length > 0 && (
             <section aria-labelledby="recent-kbs" className="flex flex-col gap-4">

@@ -7,7 +7,9 @@ import { isE2eAuthBypass } from "@/lib/e2e";
 import { toKnowledgeBaseSummary } from "@/lib/knowledge-bases";
 import type { SubscriptionState } from "@/lib/hooks/useSubscription";
 import type { KnowledgeBase } from "@/lib/types";
-import { listUserKnowledgeBaseRecords } from "@/lib/store";
+import { toSavedResearchSummary } from "@/lib/researches";
+import { listUserKnowledgeBaseRecords, listUserSavedResearchRecords } from "@/lib/store";
+import type { SavedResearch } from "@/lib/types";
 import {
   GUEST_SUBSCRIPTION_STATE,
   subscriptionStateFromRecord,
@@ -17,6 +19,7 @@ export interface ProductBootstrap {
   session: Session | null;
   subscription: SubscriptionState;
   knowledgeBases: KnowledgeBase[];
+  researches: SavedResearch[];
 }
 
 const getCachedUserSubscription = unstable_cache(
@@ -31,12 +34,19 @@ const getCachedUserKnowledgeBases = unstable_cache(
   { revalidate: 30 }
 );
 
+const getCachedUserResearches = unstable_cache(
+  async (userId: string) => listUserSavedResearchRecords(userId),
+  ["product-user-researches"],
+  { revalidate: 30 }
+);
+
 export const getProductBootstrap = cache(async function getProductBootstrap(): Promise<ProductBootstrap> {
   if (isE2eAuthBypass()) {
     return {
       session: null,
       subscription: GUEST_SUBSCRIPTION_STATE,
       knowledgeBases: [],
+      researches: [],
     };
   }
 
@@ -48,17 +58,24 @@ export const getProductBootstrap = cache(async function getProductBootstrap(): P
       session,
       subscription: GUEST_SUBSCRIPTION_STATE,
       knowledgeBases: [],
+      researches: [],
     };
   }
 
-  const [sub, records] = await Promise.all([
+  const [sub, records, researchRecords] = await Promise.all([
     getCachedUserSubscription(userId),
     getCachedUserKnowledgeBases(userId),
+    getCachedUserResearches(userId),
   ]);
+
+  const researches = researchRecords
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map(toSavedResearchSummary);
 
   return {
     session,
     subscription: subscriptionStateFromRecord(sub),
     knowledgeBases: records.map(toKnowledgeBaseSummary),
+    researches,
   };
 });

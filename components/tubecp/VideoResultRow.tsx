@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item";
+import CopyButton from "@/components/CopyButton";
 import RelevanceMeter from "@/components/tubecp/RelevanceMeter";
 import type { RankedVideo, VideoSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -21,6 +22,8 @@ interface Props {
   selectable?: boolean;
   selected?: boolean;
   onSelectedChange?: (selected: boolean) => void;
+  /** Show a copy-link control for the video URL. */
+  copyable?: boolean;
   className?: string;
 }
 
@@ -35,6 +38,7 @@ export default function VideoResultRow({
   selectable = false,
   selected = false,
   onSelectedChange,
+  copyable = false,
   className,
 }: Props) {
   const relevance = score ?? video.relevanceScore;
@@ -81,6 +85,9 @@ export default function VideoResultRow({
           </Badge>
         )}
         {relevance !== undefined && <RelevanceMeter score={relevance} />}
+        {copyable && (
+          <CopyButton text={video.url} label="Copy link" variant="icon" className="shrink-0" />
+        )}
         <a
           href={video.url}
           target="_blank"
