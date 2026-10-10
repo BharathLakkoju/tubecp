@@ -8,7 +8,8 @@ import { toKnowledgeBaseSummary } from "@/lib/knowledge-bases";
 import type { SubscriptionState } from "@/lib/hooks/useSubscription";
 import type { KnowledgeBase } from "@/lib/types";
 import { toSavedResearchSummary } from "@/lib/researches";
-import { listUserKnowledgeBaseRecords, listUserSavedResearchRecords } from "@/lib/store";
+import { listUserKnowledgeBaseRecords } from "@/lib/store";
+import { listUserSavedResearchRecordsWithKbBackfill } from "@/lib/services/saved-research";
 import type { SavedResearch } from "@/lib/types";
 import {
   GUEST_SUBSCRIPTION_STATE,
@@ -35,7 +36,7 @@ const getCachedUserKnowledgeBases = unstable_cache(
 );
 
 const getCachedUserResearches = unstable_cache(
-  async (userId: string) => listUserSavedResearchRecords(userId),
+  async (userId: string) => listUserSavedResearchRecordsWithKbBackfill(userId),
   ["product-user-researches"],
   { revalidate: 30 }
 );
