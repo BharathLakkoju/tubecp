@@ -30,6 +30,7 @@
   "dependencies": {
     "@auth/neon-adapter": "^1.11.3",
     "@base-ui/react": "^1.8.0",
+    "@distube/ytdl-core": "^4.16.12",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@neondatabase/serverless": "^1.2.0",
     "@phosphor-icons/react": "^2.1.10",

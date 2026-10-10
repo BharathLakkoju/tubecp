@@ -20,7 +20,12 @@ import {
 } from "../store";
 import { addToKbVectorIndex, deleteKbVectorIndex } from "../store/vector-index";
 import { deleteKbChatData } from "./kb-chat";
-import type { TranscriptChunk, KnowledgeBaseRecord, RankedVideo } from "../types";
+import type {
+  KbBuildOptions,
+  TranscriptChunk,
+  KnowledgeBaseRecord,
+  RankedVideo,
+} from "../types";
 
 const WORDS_PER_CHUNK = 200;
 const OVERLAP_WORDS = 40;
@@ -98,11 +103,19 @@ export async function syncKnowledgeBaseIndexStats(
   );
 }
 
+export async function getIndexedVideoIdsForKnowledgeBase(kbId: string): Promise<string[]> {
+  const kb = await getKnowledgeBase(kbId);
+  if (!kb?.chunkIds.length) return [];
+  const chunks = await getChunksByIds(kb.chunkIds);
+  return [...new Set(chunks.map((chunk) => chunk.videoId))];
+}
+
 export async function createKnowledgeBase(
   topic: string,
   rankedVideos: RankedVideo[],
   userId: string,
-  persistent = false
+  persistent = false,
+  buildOptions?: KbBuildOptions
 ): Promise<KnowledgeBaseRecord> {
   const kb: KnowledgeBaseRecord = {
     kbId: uuidv4(),
@@ -116,6 +129,7 @@ export async function createKnowledgeBase(
     totalMinutes: 0,
     status: "building",
     createdAt: new Date().toISOString(),
+    buildOptions: buildOptions ?? { transcriptMode: "captions" },
   };
 
   await saveKnowledgeBase(kb, persistent);
@@ -131,7 +145,8 @@ export interface IndexVideoResult {
 export async function indexVideoInKnowledgeBase(
   kbId: string,
   video: RankedVideo,
-  persistent = false
+  persistent = false,
+  userId?: string
 ): Promise<IndexVideoResult> {
   const kb = await getKnowledgeBase(kbId);
   if (!kb) throw new Error(`Knowledge base not found: ${kbId}`);
@@ -161,9 +176,14 @@ export async function indexVideoInKnowledgeBase(
     return { kb: updated, skipped: false };
   }
 
+  const transcriptMode = kb.buildOptions?.transcriptMode ?? "captions";
+
   let transcript;
   try {
-    transcript = await getTranscript(video.videoId);
+    transcript = await getTranscript(video.videoId, {
+      mode: transcriptMode,
+      usageUserId: userId,
+    });
   } catch (err) {
     if (err instanceof TranscriptUnavailableError) {
       const updated = await updateKnowledgeBase(

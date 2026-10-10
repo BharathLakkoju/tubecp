@@ -306,7 +306,10 @@ export async function buildKnowledgeBase(
   topic: string,
   rankedVideos: ResearchResult["rankedVideos"],
   onProgress?: ProgressCallback,
-  options?: { onKnowledgeBaseCreated?: (kbId: string) => void }
+  options?: {
+    onKnowledgeBaseCreated?: (kbId: string) => void;
+    useSpeechToText?: boolean;
+  }
 ): Promise<import("@/lib/client/kb-build").BuildKnowledgeBaseResult> {
   const { buildKnowledgeBaseFromClient } = await import("@/lib/client/kb-build");
   return buildKnowledgeBaseFromClient(

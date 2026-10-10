@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { KnowledgeBase } from "@/lib/types";
+import type { KbBuildOptions, KnowledgeBase, RankedVideo } from "@/lib/types";
+import KbResearchSourcesSection from "@/components/KbResearchSourcesSection";
 import type { KnowledgeBaseBuildStatus } from "@/lib/kb-build-status";
 import { formatKbBuildEta, formatKbBuildRemaining } from "@/lib/kb-build-estimate";
 import { parseClientError } from "@/lib/client/chat";
@@ -21,9 +22,17 @@ import { WarningCircle } from "@phosphor-icons/react";
 
 interface Props {
   kb: KnowledgeBase;
+  sourceVideos?: RankedVideo[];
+  indexedVideoIds?: string[];
+  buildOptions?: KbBuildOptions;
 }
 
-export default function KbBuildingPanel({ kb }: Props) {
+export default function KbBuildingPanel({
+  kb,
+  sourceVideos = [],
+  indexedVideoIds = [],
+  buildOptions,
+}: Props) {
   const router = useRouter();
   const { refresh: refreshKnowledgeBases } = useKnowledgeBases();
   const [status, setStatus] = useState<KnowledgeBaseBuildStatus | null>(null);
@@ -156,6 +165,15 @@ export default function KbBuildingPanel({ kb }: Props) {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
+
+        <KbResearchSourcesSection
+          topic={kb.topic}
+          videos={sourceVideos}
+          kbId={kb.kbId}
+          kbStatus={status.status}
+          indexedVideoIds={indexedVideoIds}
+          transcriptMode={buildOptions?.transcriptMode ?? kb.buildOptions?.transcriptMode}
+        />
 
         {!driving && status.status === "building" && (
           <Button type="button" onClick={() => void handleResumeHere()}>

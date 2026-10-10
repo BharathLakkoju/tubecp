@@ -4,7 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { WarningCircle } from "@phosphor-icons/react";
-import type { KnowledgeBase } from "@/lib/types";
+import type { KbBuildOptions, KnowledgeBase, RankedVideo } from "@/lib/types";
+import KbResearchSourcesSection from "@/components/KbResearchSourcesSection";
 import AppPage from "@/components/tubecp/AppPage";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -12,7 +13,17 @@ import { Spinner } from "@/components/ui/spinner";
 import { parseClientError } from "@/lib/client/chat";
 import { continueKnowledgeBaseBuild } from "@/lib/client/kb-build";
 
-export default function KbFailedPanel({ kb }: { kb: KnowledgeBase }) {
+export default function KbFailedPanel({
+  kb,
+  sourceVideos = [],
+  indexedVideoIds = [],
+  buildOptions,
+}: {
+  kb: KnowledgeBase;
+  sourceVideos?: RankedVideo[];
+  indexedVideoIds?: string[];
+  buildOptions?: KbBuildOptions;
+}) {
   const router = useRouter();
   const [retrying, setRetrying] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,6 +73,15 @@ export default function KbFailedPanel({ kb }: { kb: KnowledgeBase }) {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
+
+        <KbResearchSourcesSection
+          topic={kb.topic}
+          videos={sourceVideos}
+          kbId={kb.kbId}
+          kbStatus={kb.status}
+          indexedVideoIds={indexedVideoIds}
+          transcriptMode={buildOptions?.transcriptMode ?? kb.buildOptions?.transcriptMode}
+        />
 
         <div className="flex flex-wrap gap-3">
           <Button type="button" onClick={() => void handleRetry()} disabled={retrying}>

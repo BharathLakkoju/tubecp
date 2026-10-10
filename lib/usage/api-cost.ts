@@ -6,6 +6,7 @@ type UsageService = "openrouter" | "youtube";
 type UsageRecord = {
   openrouterChatTokens: number;
   openrouterEmbeddingInputs: number;
+  openrouterSttSeconds: number;
   youtubeQuotaUnits: number;
 };
 
@@ -23,6 +24,7 @@ function emptyUsage(): UsageRecord {
   return {
     openrouterChatTokens: 0,
     openrouterEmbeddingInputs: 0,
+    openrouterSttSeconds: 0,
     youtubeQuotaUnits: 0,
   };
 }
@@ -32,10 +34,11 @@ async function readUsage(userId: string): Promise<UsageRecord> {
   const key = usageKey(userId);
 
   if (redis) {
-    return (await redis.get<UsageRecord>(key)) ?? emptyUsage();
+    const record = await redis.get<Partial<UsageRecord>>(key);
+    return { ...emptyUsage(), ...record };
   }
 
-  return memoryUsage.get(key) ?? emptyUsage();
+  return { ...emptyUsage(), ...memoryUsage.get(key) };
 }
 
 async function writeUsage(userId: string, record: UsageRecord): Promise<void> {
@@ -70,6 +73,17 @@ export async function recordOpenRouterEmbeddingUsage(
 
   const usage = await readUsage(userId);
   usage.openrouterEmbeddingInputs += inputCount;
+  await writeUsage(userId, usage);
+}
+
+export async function recordOpenRouterSttUsage(
+  userId: string | undefined,
+  seconds: number
+): Promise<void> {
+  if (!userId || seconds <= 0) return;
+
+  const usage = await readUsage(userId);
+  usage.openrouterSttSeconds += Math.ceil(seconds);
   await writeUsage(userId, usage);
 }
 
