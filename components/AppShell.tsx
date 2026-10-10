@@ -3,10 +3,11 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Books, Plus } from "@phosphor-icons/react";
+import { Books, MagnifyingGlass, Plus } from "@phosphor-icons/react";
 import { useAuthSession } from "@/components/AuthShell";
 import AppAccountMenu from "@/components/AppAccountMenu";
 import KbSidebarItem from "@/components/KbSidebarItem";
+import ResearchSidebarItem from "@/components/ResearchSidebarItem";
 import Wordmark from "@/components/Wordmark";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -27,11 +28,13 @@ import {
 } from "@/components/ui/sidebar";
 import UsageIndicator from "@/components/UsageIndicator";
 import { useKnowledgeBases } from "@/lib/hooks/useKnowledgeBases";
+import { useResearches } from "@/lib/hooks/useResearches";
 import { useSubscription } from "@/lib/hooks/useSubscription";
 import { cn } from "@/lib/utils";
 
 /** Sidebar shows at most this many knowledge bases, then "View all" (design system §6.14). */
 const MAX_SIDEBAR_KBS = 8;
+const MAX_SIDEBAR_RESEARCHES = 8;
 
 /** Close the mobile nav sheet after route changes (design system: navigation-only overlay). */
 function SidebarMobileRouteSync() {
@@ -55,10 +58,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const sub = useSubscription();
   const { data: session } = useAuthSession();
   const { knowledgeBases, loading } = useKnowledgeBases();
+  const { researches, loading: researchesLoading } = useResearches();
 
   const activeKbId = pathname.startsWith("/app/kb/") ? (pathname.split("/")[3] ?? null) : null;
+  const activeResearchId = pathname.startsWith("/app/researches/")
+    ? (pathname.split("/")[3] ?? null)
+    : null;
   const visibleKbs = knowledgeBases.slice(0, MAX_SIDEBAR_KBS);
-  const hiddenCount = knowledgeBases.length - visibleKbs.length;
+  const hiddenKbCount = knowledgeBases.length - visibleKbs.length;
+  const visibleResearches = researches.slice(0, MAX_SIDEBAR_RESEARCHES);
+  const hiddenResearchCount = researches.length - visibleResearches.length;
 
   const usage = sub.canBuildKb
     ? { used: sub.kbBuildsUsed, limit: sub.kbBuildsLimit, label: "KB builds" }
@@ -91,6 +100,51 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         <SidebarContent>
           <SidebarGroup>
+            <SidebarGroupLabel render={<Link href="/app/researches" prefetch={false} />}>
+              <MagnifyingGlass aria-hidden className="mr-2" />
+              Researches
+            </SidebarGroupLabel>
+            <SidebarGroupAction render={<Link href="/app" prefetch={false} />} aria-label="New research">
+              <Plus aria-hidden />
+            </SidebarGroupAction>
+
+            <SidebarMenu aria-label="Researches">
+              {researchesLoading && researches.length === 0 && (
+                <>
+                  <SidebarMenuItem>
+                    <SidebarMenuSkeleton />
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuSkeleton />
+                  </SidebarMenuItem>
+                </>
+              )}
+              {!researchesLoading && researches.length === 0 && (
+                <li className="px-2 py-2 text-label text-muted-foreground">No researches yet</li>
+              )}
+              {visibleResearches.map((research) => (
+                <ResearchSidebarItem
+                  key={research.researchId}
+                  research={research}
+                  active={activeResearchId === research.researchId}
+                />
+              ))}
+              {hiddenResearchCount > 0 && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    render={<Link href="/app/researches" prefetch={false} />}
+                    size="sm"
+                    className="text-foreground-secondary"
+                  >
+                    View all{" "}
+                    <span className="font-mono tabular-nums">({researches.length})</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+            </SidebarMenu>
+          </SidebarGroup>
+
+          <SidebarGroup>
             <SidebarGroupLabel render={<Link href="/app/kb" prefetch={false} />}>
               <Books aria-hidden className="mr-2" />
               Knowledge bases
@@ -119,7 +173,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 {visibleKbs.map((kb) => (
                   <KbSidebarItem key={kb.kbId} kb={kb} active={activeKbId === kb.kbId} />
                 ))}
-                {hiddenCount > 0 && (
+                {hiddenKbCount > 0 && (
                   <SidebarMenuItem>
                     <SidebarMenuButton
                       render={<Link href="/app/kb" prefetch={false} />}

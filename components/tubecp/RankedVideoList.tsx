@@ -24,6 +24,7 @@ interface Props {
   pageSize?: number;
   /** Cap the list height and scroll inside (live research panels). */
   maxHeightClass?: string;
+  copyable?: boolean;
   className?: string;
 }
 
@@ -43,6 +44,7 @@ export default function RankedVideoList({
   onToggle,
   pageSize = 20,
   maxHeightClass,
+  copyable = false,
   className,
 }: Props) {
   const [visible, setVisible] = useState(() => Math.min(pageSize, videos.length));
@@ -96,6 +98,7 @@ export default function RankedVideoList({
                       selectable={selectable}
                       selected={selectedIds?.has(video.videoId) ?? false}
                       onSelectedChange={(selected) => onToggle?.(video.videoId, selected)}
+                      copyable={copyable}
                     />
                   </m.div>
                 ))}

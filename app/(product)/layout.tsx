@@ -14,6 +14,7 @@ export default async function ProductLayout({
       session={bootstrap.session}
       subscription={bootstrap.subscription}
       knowledgeBases={bootstrap.knowledgeBases}
+      researches={bootstrap.researches}
     >
       <AppShell>{children}</AppShell>
     </ProductBootstrap>

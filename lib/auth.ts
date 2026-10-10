@@ -7,6 +7,7 @@ import { PolarSubscriptionError } from "@/lib/billing/polar-subscription";
 import { EmailDeliveryError } from "@/lib/email";
 import { AdminAccessError } from "@/lib/admin";
 import { KbAccessError } from "@/lib/kb-access";
+import { ResearchAccessError } from "@/lib/research-access";
 import { ResearchSessionError } from "@/lib/research-session";
 import { WorkspaceError } from "@/lib/workspaces";
 
@@ -43,6 +44,10 @@ export function apiError(err: unknown, fallback = "Internal server error") {
   }
   if (err instanceof KbAccessError) {
     return NextResponse.json({ error: err.message, code: err.code }, { status: 403 });
+  }
+  if (err instanceof ResearchAccessError) {
+    const status = err.message === "Research not found" ? 404 : 403;
+    return NextResponse.json({ error: err.message, code: err.code }, { status });
   }
   if (err instanceof ResearchSessionError) {
     return NextResponse.json({ error: err.message, code: err.code }, { status: 400 });

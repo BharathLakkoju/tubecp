@@ -5,6 +5,7 @@ import { getUserSubscription } from "@/lib/billing/subscription";
 import { getResearchPipelineLimits } from "@/lib/research-limits";
 import { assertResearchSession, saveResearchCheckpoint } from "@/lib/research-session";
 import { rateLimitApi } from "@/lib/ratelimit";
+import { persistUserResearch } from "@/lib/services/saved-research";
 import { cacheResearchResult, researchResultCacheKey } from "@/lib/store";
 import type { VideoAnalysis, VideoCandidate } from "@/lib/types";
 
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest) {
         result,
         updatedAt: new Date().toISOString(),
       });
+      await persistUserResearch(userId, researchSessionId, result);
     }
 
     return NextResponse.json(result);

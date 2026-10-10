@@ -1,4 +1,10 @@
-import type { ResearchResult, Transcript, TranscriptChunk, KnowledgeBaseRecord } from "./types";
+import type {
+  ResearchResult,
+  SavedResearchRecord,
+  Transcript,
+  TranscriptChunk,
+  KnowledgeBaseRecord,
+} from "./types";
 import { getRedis, hasRedis } from "./store/redis";
 
 const memory = new Map<string, unknown>();
@@ -319,4 +325,49 @@ export async function listUserKnowledgeBaseRecords(
 
   const records = await mget<KnowledgeBaseRecord>(ids.map((kbId) => `kb:${kbId}`));
   return records.filter((kb): kb is KnowledgeBaseRecord => kb !== null && kb.userId === userId);
+}
+
+function savedResearchTtl(persistent: boolean): number | undefined {
+  return persistent ? undefined : 72 * 60 * 60;
+}
+
+export async function saveSavedResearchRecord(
+  record: SavedResearchRecord,
+  persistent = false
+): Promise<void> {
+  await set(`research:${record.researchId}`, record, savedResearchTtl(persistent));
+}
+
+export async function getSavedResearchRecord(
+  researchId: string
+): Promise<SavedResearchRecord | null> {
+  return get<SavedResearchRecord>(`research:${researchId}`);
+}
+
+export async function addUserResearch(
+  userId: string,
+  researchId: string,
+  persistent = false
+): Promise<void> {
+  const key = `user-researches:${userId}`;
+  const existing = (await get<string[]>(key)) ?? [];
+  const next = [researchId, ...existing.filter((id) => id !== researchId)].slice(0, 100);
+  await set(key, next, savedResearchTtl(persistent));
+}
+
+export async function getUserResearches(userId: string): Promise<string[]> {
+  return (await get<string[]>(`user-researches:${userId}`)) ?? [];
+}
+
+export async function listUserSavedResearchRecords(
+  userId: string
+): Promise<SavedResearchRecord[]> {
+  const ids = await getUserResearches(userId);
+  if (ids.length === 0) return [];
+
+  const records = await mget<SavedResearchRecord>(ids.map((id) => `research:${id}`));
+  return records.filter(
+    (record): record is SavedResearchRecord =>
+      record !== null && record.userId === userId
+  );
 }

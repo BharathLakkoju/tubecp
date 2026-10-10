@@ -66,6 +66,20 @@ export interface ResearchResult {
   rankedVideos: RankedVideo[];
 }
 
+/** Saved research summary for lists and navigation. */
+export interface SavedResearch {
+  researchId: string;
+  topic: string;
+  createdAt: string;
+  rankedVideoCount: number;
+  videosSearched: number;
+}
+
+export interface SavedResearchRecord extends SavedResearch {
+  userId: string;
+  result: ResearchResult;
+}
+
 /** Partial research data streamed to the UI as each pipeline step completes. */
 export interface ResearchLiveState {
   queries: string[];
