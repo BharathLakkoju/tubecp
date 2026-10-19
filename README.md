@@ -21,11 +21,10 @@ cp .env.example .env.local
 # Fill in: YOUTUBE_API_KEY, OPENROUTER_API_KEY, DATABASE_URL, AUTH_SECRET, OAuth keys
 
 npm run db:migrate   # first time: migrates legacy Better Auth schema (if any) + creates Auth.js tables
-npm run dev          # local + public HTTPS tunnel URL in the terminal
-npm run dev:local    # localhost only
+npm run dev
 ```
 
-Open http://localhost:3000 — or use the **public URL** printed when `npm run dev` starts (works from your phone or any network). For Google/GitHub sign-in on that URL, run `npm run auth:urls <public-url>` and update `.env.local` + OAuth redirect URIs.
+Open http://localhost:3000.
 
 ## Deploy to Vercel
 

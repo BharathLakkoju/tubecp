@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { KbBuildOptions, KnowledgeBase, RankedVideo } from "@/lib/types";
@@ -8,11 +8,7 @@ import KbResearchSourcesSection from "@/components/KbResearchSourcesSection";
 import type { KnowledgeBaseBuildStatus } from "@/lib/kb-build-status";
 import { formatKbBuildEta, formatKbBuildRemaining } from "@/lib/kb-build-estimate";
 import { parseClientError } from "@/lib/client/chat";
-import {
-  continueKnowledgeBaseBuild,
-  runKbBuildDriverIfNeeded,
-  type KbBuildProgressCallback,
-} from "@/lib/client/kb-build";
+import { isKbBuildStatusStale } from "@/lib/kb-build-stale";
 import { useKnowledgeBases } from "@/lib/hooks/useKnowledgeBases";
 import AppPage from "@/components/tubecp/AppPage";
 import JobStatus from "@/components/tubecp/JobStatus";
@@ -39,8 +35,7 @@ export default function KbBuildingPanel({
   const [status, setStatus] = useState<KnowledgeBaseBuildStatus | null>(null);
   const [liveIndexedVideoIds, setLiveIndexedVideoIds] = useState(indexedVideoIds);
   const [error, setError] = useState("");
-  const [driving, setDriving] = useState(false);
-  const driverStarted = useRef(false);
+  const [kicking, setKicking] = useState(false);
 
   const loadStatus = useCallback(async () => {
     const res = await fetch(`/api/knowledge-base/${kb.kbId}/build-status`);
@@ -63,51 +58,34 @@ export default function KbBuildingPanel({
   useEffect(() => {
     if (!status || status.status !== "building") return;
     const interval = window.setInterval(() => {
-      loadStatus().catch(() => undefined);
-    }, 4000);
+      void loadStatus()
+        .then((next) => {
+          if (next.status === "ready" || next.status === "failed") {
+            void refreshKnowledgeBases();
+            router.refresh();
+          }
+        })
+        .catch(() => undefined);
+    }, 3000);
     return () => window.clearInterval(interval);
-  }, [status?.status, loadStatus]);
+  }, [status?.status, loadStatus, refreshKnowledgeBases, router]);
 
-  const runBuildDriver = useCallback(
-    async (takeOver: boolean) => {
-      setDriving(true);
-      setError("");
-      try {
-        const onProgress: KbBuildProgressCallback = (_msg, _pct, live) => {
-          if (live) setStatus(live);
-        };
-        const result = takeOver
-          ? await continueKnowledgeBaseBuild(kb.kbId, onProgress, { takeOver: true })
-          : await runKbBuildDriverIfNeeded(kb.kbId, onProgress);
-        if (result?.kb.status === "ready") {
-          await refreshKnowledgeBases();
-          router.refresh();
-        }
-      } catch (err) {
-        setError(parseClientError(err));
-      } finally {
-        setDriving(false);
+  const kickServerBuild = async () => {
+    setKicking(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/knowledge-base/${kb.kbId}/kick-build`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "Failed to resume server build");
       }
-    },
-    [kb.kbId, refreshKnowledgeBases, router]
-  );
-
-  useEffect(() => {
-    if (driverStarted.current) return;
-    let cancelled = false;
-    driverStarted.current = true;
-
-    const run = async () => {
-      const current = await loadStatus();
-      if (cancelled || current.status !== "building") return;
-      await runBuildDriver(false);
-    };
-
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, [kb.kbId, loadStatus, runBuildDriver]);
+      await loadStatus();
+    } catch (err) {
+      setError(parseClientError(err));
+    } finally {
+      setKicking(false);
+    }
+  };
 
   if (!status) {
     return (
@@ -143,7 +121,8 @@ export default function KbBuildingPanel({
           <p className="font-mono text-label text-foreground-secondary">Knowledge base</p>
           <h1 className="text-headline text-foreground">{kb.topic}</h1>
           <p className="mt-2 text-body-sm text-foreground-secondary">
-            Progress is saved in your account — you can leave and return from any device.
+            Indexing runs on the server. You can close this page — progress is saved in your
+            account and updates when you return.
           </p>
         </div>
 
@@ -153,9 +132,20 @@ export default function KbBuildingPanel({
           steps={steps}
           progress={status.progress}
           progressText={`${status.processedVideos} of ${status.totalVideos} videos`}
-          current={detailParts.join(" · ") || (driving ? "Indexing on this device…" : "Waiting to resume")}
+          current={detailParts.join(" · ") || "Indexing on server…"}
           startedAt={new Date(status.startedAt).getTime()}
         />
+
+        {status.status === "building" && isKbBuildStatusStale(status) && (
+          <Alert>
+            <WarningCircle weight="fill" aria-hidden />
+            <AlertTitle>Build may have paused</AlertTitle>
+            <AlertDescription>
+              No progress recently. Use Resume server indexing to continue from the last saved
+              video.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {error && (
           <Alert variant="destructive">
@@ -175,21 +165,15 @@ export default function KbBuildingPanel({
         />
 
         {status.status === "building" && (
-          <div className="flex flex-col gap-2">
-            <p className="text-body-sm text-foreground-secondary">
-              Video indexing runs in this browser tab (not on the server) so builds can pause when
-              you switch apps or open the KB on another device. Use the button below to pick up
-              where you left off.
-            </p>
-            <Button
-              type="button"
-              disabled={driving}
-              aria-busy={driving}
-              onClick={() => void runBuildDriver(true)}
-            >
-              {driving ? "Indexing on this device…" : "Continue build on this device"}
-            </Button>
-          </div>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={kicking}
+            aria-busy={kicking}
+            onClick={() => void kickServerBuild()}
+          >
+            {kicking ? "Starting…" : "Resume server indexing"}
+          </Button>
         )}
 
         <Link href="/app/kb" className="text-label text-primary underline-offset-2 hover:underline">

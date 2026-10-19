@@ -4,8 +4,7 @@
   "private": true,
   "description": "Turn YouTube research topics into chattable knowledge bases",
   "scripts": {
-    "dev": "tsx scripts/dev-with-tunnel.ts",
-    "dev:local": "next dev",
+    "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -62,18 +61,17 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0",
+    "@playwright/test": "^1.64.1",
     "@types/bcryptjs": "^3.0.0",
     "@types/express": "^5.0.6",
-    "@types/node": "^26.6.4",
+    "@types/node": "^26.6.5",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "@vitest/coverage-v8": "^5.0.3",
-    "cloudflared": "^0.7.3",
+    "@vitest/coverage-v8": "^5.0.5",
     "tsx": "^4.23.15",
     "typescript": "^5.8.3",
-    "vite": "^8.3.3",
-    "vitest": "^5.0.3"
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5"
   },
   "engines": {
     "node": ">=20"

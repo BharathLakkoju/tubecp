@@ -43,7 +43,8 @@ export function apiError(err: unknown, fallback = "Internal server error") {
     return NextResponse.json({ error: err.message, code: err.code }, { status: 401 });
   }
   if (err instanceof KbAccessError) {
-    return NextResponse.json({ error: err.message, code: err.code }, { status: 403 });
+    const status = err.message === "Knowledge base not found" ? 404 : 403;
+    return NextResponse.json({ error: err.message, code: err.code }, { status });
   }
   if (err instanceof ResearchAccessError) {
     const status = err.message === "Research not found" ? 404 : 403;

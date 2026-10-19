@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCaptionBody } from "@/lib/services/youtube-caption-fetch";
+import { parseCaptionBody, parseYtInitialPlayerResponse } from "@/lib/services/youtube-caption-fetch";
 
 describe("parseCaptionBody", () => {
   it("parses srv3-style timedtext XML", () => {
@@ -20,5 +20,20 @@ describe("parseCaptionBody", () => {
     expect(segments).toHaveLength(1);
     expect(segments[0].text).toBe("AWS overview");
     expect(segments[0].offset).toBe(500);
+  });
+});
+
+describe("parseYtInitialPlayerResponse", () => {
+  it("reads caption tracks from inline player response JSON", () => {
+    const player = {
+      captions: {
+        playerCaptionsTracklistRenderer: {
+          captionTracks: [{ baseUrl: "https://www.youtube.com/api/timedtext?v=abc", languageCode: "en" }],
+        },
+      },
+    };
+    const html = `<script>var ytInitialPlayerResponse = ${JSON.stringify(player)};</script>`;
+    const parsed = parseYtInitialPlayerResponse(html);
+    expect(parsed?.captions?.playerCaptionsTracklistRenderer?.captionTracks).toHaveLength(1);
   });
 });

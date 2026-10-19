@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
-import { assertKbAccess } from "@/lib/kb-access";
+import { notFound, redirect } from "next/navigation";
+import { assertKbAccess, KbAccessError } from "@/lib/kb-access";
 import { getPlan } from "@/lib/plans";
 import { toKnowledgeBaseSummary } from "@/lib/knowledge-bases";
 import { getProductBootstrap } from "@/lib/server/product-bootstrap";
@@ -29,7 +29,16 @@ export default async function KnowledgeBaseChatPage({
   const { kbId } = await params;
   const plan = getPlan(bootstrap.subscription.plan);
 
-  let kb = await assertKbAccess(kbId, userId);
+  let kb;
+  try {
+    kb = await assertKbAccess(kbId, userId);
+  } catch (err) {
+    if (err instanceof KbAccessError) {
+      notFound();
+    }
+    throw err;
+  }
+
   const repaired = await repairKnowledgeBaseIfIndexed(kbId, plan.persistentKbs);
   if (repaired) {
     kb = repaired;

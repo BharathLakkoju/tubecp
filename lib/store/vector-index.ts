@@ -1,4 +1,5 @@
 import { cosineSimilarity } from "@/lib/services/llm";
+import { getDevMemoryStore } from "@/lib/store/dev-memory";
 import { getRedis } from "@/lib/store/redis";
 
 export type KbVectorEntry = {
@@ -10,8 +11,28 @@ const IVF_BUCKET_BITS = 8;
 const IVF_BUCKET_COUNT = 1 << IVF_BUCKET_BITS;
 const IVF_FULL_SCAN_THRESHOLD = 48;
 
-const memoryIndexes = new Map<string, KbVectorEntry[]>();
-const memoryBucketIndexes = new Map<string, Map<number, KbVectorEntry[]>>();
+const FLAT_INDEX_KEY = "__tubecpDevVectorFlat";
+const BUCKET_INDEX_KEY = "__tubecpDevVectorBuckets";
+
+function devFlatIndexes(): Map<string, KbVectorEntry[]> {
+  const store = getDevMemoryStore();
+  let map = store.get(FLAT_INDEX_KEY) as Map<string, KbVectorEntry[]> | undefined;
+  if (!map) {
+    map = new Map();
+    store.set(FLAT_INDEX_KEY, map);
+  }
+  return map;
+}
+
+function devBucketIndexes(): Map<string, Map<number, KbVectorEntry[]>> {
+  const store = getDevMemoryStore();
+  let map = store.get(BUCKET_INDEX_KEY) as Map<string, Map<number, KbVectorEntry[]>> | undefined;
+  if (!map) {
+    map = new Map();
+    store.set(BUCKET_INDEX_KEY, map);
+  }
+  return map;
+}
 
 function indexKey(kbId: string): string {
   return `kb-vidx:${kbId}`;
@@ -89,7 +110,7 @@ async function readFlatIndex(kbId: string): Promise<KbVectorEntry[]> {
   if (redis) {
     return (await redis.get<KbVectorEntry[]>(indexKey(kbId))) ?? [];
   }
-  return memoryIndexes.get(kbId) ?? [];
+  return devFlatIndexes().get(kbId) ?? [];
 }
 
 async function writeFlatIndex(kbId: string, entries: KbVectorEntry[]): Promise<void> {
@@ -98,7 +119,7 @@ async function writeFlatIndex(kbId: string, entries: KbVectorEntry[]): Promise<v
     await redis.set(indexKey(kbId), entries);
     return;
   }
-  memoryIndexes.set(kbId, entries);
+  devFlatIndexes().set(kbId, entries);
 }
 
 async function readBucketIndex(kbId: string): Promise<Map<number, KbVectorEntry[]>> {
@@ -107,7 +128,7 @@ async function readBucketIndex(kbId: string): Promise<Map<number, KbVectorEntry[
     const record = await redis.get<Record<string, KbVectorEntry[]>>(bucketIndexKey(kbId));
     return record ? recordToBuckets(record) : new Map();
   }
-  return memoryBucketIndexes.get(kbId) ?? new Map();
+  return devBucketIndexes().get(kbId) ?? new Map();
 }
 
 async function writeBucketIndex(
@@ -119,7 +140,7 @@ async function writeBucketIndex(
     await redis.set(bucketIndexKey(kbId), bucketsToRecord(buckets));
     return;
   }
-  memoryBucketIndexes.set(kbId, buckets);
+  devBucketIndexes().set(kbId, buckets);
 }
 
 function scoreEntries(
@@ -212,6 +233,6 @@ export async function deleteKbVectorIndex(kbId: string): Promise<void> {
     await redis.del(bucketIndexKey(kbId));
     return;
   }
-  memoryIndexes.delete(kbId);
-  memoryBucketIndexes.delete(kbId);
+  devFlatIndexes().delete(kbId);
+  devBucketIndexes().delete(kbId);
 }

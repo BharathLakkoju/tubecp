@@ -90,7 +90,8 @@ describe("kb-build-job", () => {
     expect(indexVideoInKnowledgeBase).toHaveBeenCalledWith(
       "kb-1",
       expect.objectContaining({ videoId: "b" }),
-      false
+      false,
+      "user-1"
     );
   });
 });

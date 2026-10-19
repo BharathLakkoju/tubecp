@@ -10,7 +10,8 @@ import {
 import { ensureKbWelcomeMessage, refreshKbWelcomeMessage } from "@/lib/services/kb-chat";
 import { addUserKnowledgeBase, getKnowledgeBase, updateKnowledgeBase } from "@/lib/store";
 import { knowledgeBaseBuildStatusFromRecord } from "@/lib/kb-build-status";
-import type { KbBuildJobState, KnowledgeBaseRecord, RankedVideo } from "@/lib/types";
+import { kbIndexPaceDelayMs } from "@/lib/kb-index-pace";
+import type { KbBuildJobState, KbBuildOptions, KnowledgeBaseRecord, RankedVideo } from "@/lib/types";
 import type { BuildKnowledgeBaseResult, SkippedKbVideo } from "./kb-build";
 
 const INDEX_CONCURRENCY = 1;
@@ -86,6 +87,8 @@ export async function executeKnowledgeBaseBuild(
   const kb = await getKnowledgeBase(kbId);
   if (!kb) throw new Error(`Knowledge base not found: ${kbId}`);
 
+  const usageUserId = kb.userId;
+
   const skippedVideos: SkippedKbVideo[] = [];
   const pending: RankedVideo[] = [];
 
@@ -115,8 +118,11 @@ export async function executeKnowledgeBaseBuild(
   const results = await mapWithConcurrency(
     pending,
     INDEX_CONCURRENCY,
-    async (video) => {
-      const result = await indexVideoInKnowledgeBase(kbId, video, persistent);
+    async (video, index) => {
+      if (index > 0) {
+        await new Promise((resolve) => setTimeout(resolve, kbIndexPaceDelayMs()));
+      }
+      const result = await indexVideoInKnowledgeBase(kbId, video, persistent, usageUserId);
       processed += 1;
       await updateBuildJob(kbId, persistent, {
         processedVideos: processed,
@@ -153,14 +159,15 @@ export async function startKnowledgeBaseBuild(
   topic: string,
   rankedVideos: RankedVideo[],
   userId: string,
-  persistent: boolean
+  persistent: boolean,
+  buildOptions?: KbBuildOptions
 ): Promise<KnowledgeBaseRecord> {
   if (isE2eStubMode()) {
     const { kb } = await stubKnowledgeBaseBuild(topic, rankedVideos, userId, persistent);
     return kb;
   }
 
-  const kb = await createKnowledgeBase(topic, rankedVideos, userId, persistent);
+  const kb = await createKnowledgeBase(topic, rankedVideos, userId, persistent, buildOptions);
   kb.buildJob = createInitialBuildJob(rankedVideos.length);
   await updateKnowledgeBase(kb.kbId, () => kb, persistent);
   await addUserKnowledgeBase(userId, kb.kbId);

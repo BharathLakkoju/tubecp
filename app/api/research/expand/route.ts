@@ -69,6 +69,14 @@ export async function POST(req: NextRequest) {
       updatedAt: new Date().toISOString(),
     });
 
+    await persistUserResearch(userId, researchSessionId, {
+      topic: topic.trim(),
+      queriesUsed: queries,
+      videosSearched: 0,
+      allVideos: [],
+      rankedVideos: [],
+    });
+
     return NextResponse.json({ queries, researchSessionId, cached });
   } catch (err) {
     return apiError(err);

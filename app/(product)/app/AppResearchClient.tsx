@@ -174,7 +174,10 @@ export default function AppResearchClient({
           if (stage) setResearchStage(stage);
           if (live) mergeLiveResearch(live);
         },
-        options?.resume ? resumeSessionId ?? undefined : undefined
+        options?.resume ? resumeSessionId ?? undefined : undefined,
+        () => {
+          void refreshResearches({ silent: true });
+        }
       );
       setResearch(result);
       setResumeSessionId(researchSessionId);
