@@ -132,8 +132,28 @@ function parseBalancedJsonObject(html: string, startIndex: number): unknown | nu
   if (html[startIndex] !== "{") return null;
 
   let depth = 0;
+  let inString = false;
+  let escaped = false;
+
   for (let i = startIndex; i < html.length; i++) {
     const char = html[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === '"') inString = false;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
     if (char === "{") depth++;
     else if (char === "}") {
       depth--;
@@ -149,19 +169,28 @@ function parseBalancedJsonObject(html: string, startIndex: number): unknown | nu
   return null;
 }
 
+function jsonStartAfterMarker(html: string, markerAt: number, marker: string): number {
+  let index = markerAt + marker.length;
+  while (html[index] === " " || html[index] === "\n" || html[index] === "\t") index++;
+  return index;
+}
+
 export function parseYtInitialPlayerResponse(html: string): {
   captions?: { playerCaptionsTracklistRenderer?: { captionTracks?: CaptionTrack[] } };
 } | null {
-  const markers = ["var ytInitialPlayerResponse = ", "ytInitialPlayerResponse = "];
+  const markers = ["var ytInitialPlayerResponse =", "ytInitialPlayerResponse ="];
   for (const marker of markers) {
-    const startIndex = html.indexOf(marker);
-    if (startIndex === -1) continue;
-    const jsonStart = startIndex + marker.length;
-    const parsed = parseBalancedJsonObject(html, jsonStart);
-    if (parsed && typeof parsed === "object") {
-      return parsed as {
-        captions?: { playerCaptionsTracklistRenderer?: { captionTracks?: CaptionTrack[] } };
-      };
+    let from = 0;
+    while (from < html.length) {
+      const startIndex = html.indexOf(marker, from);
+      if (startIndex === -1) break;
+      const parsed = parseBalancedJsonObject(html, jsonStartAfterMarker(html, startIndex, marker));
+      if (parsed && typeof parsed === "object") {
+        return parsed as {
+          captions?: { playerCaptionsTracklistRenderer?: { captionTracks?: CaptionTrack[] } };
+        };
+      }
+      from = startIndex + marker.length;
     }
   }
   return null;
@@ -220,13 +249,17 @@ async function fetchCaptionTracks(
         videoId,
       }),
     });
+    if (resp.status === 429) {
+      throw new Error("YouTube is receiving too many requests");
+    }
     if (!resp.ok) return null;
     const data = (await resp.json()) as {
       captions?: { playerCaptionsTracklistRenderer?: { captionTracks?: CaptionTrack[] } };
     };
     const tracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
     return Array.isArray(tracks) && tracks.length > 0 ? tracks : null;
-  } catch {
+  } catch (err) {
+    if (isRateLimitedError(err)) throw err;
     return null;
   }
 }
@@ -265,6 +298,9 @@ async function fetchSegmentsFromTrack(
         Origin: "https://www.youtube.com",
       },
     });
+    if (resp.status === 429) {
+      throw new Error("YouTube is receiving too many requests");
+    }
     if (!resp.ok) continue;
     const body = await resp.text();
     const segments = parseCaptionBody(body, lang);
@@ -291,10 +327,8 @@ async function fetchViaInnertube(videoId: string): Promise<RawCaptionSegment[] |
     const tracks = await fetchCaptionTracks(videoId, client);
     if (!tracks) continue;
 
-    for (const lang of [...LANG_PREFERENCE, undefined]) {
-      const segments = await fetchSegmentsFromTracks(tracks, videoId, lang);
-      if (segments.length > 0) return segments;
-    }
+    const segments = await fetchSegmentsFromTracks(tracks, videoId);
+    if (segments.length > 0) return segments;
   }
   return null;
 }
@@ -319,10 +353,8 @@ async function fetchViaWatchPage(videoId: string): Promise<RawCaptionSegment[] |
     const tracks = player?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
     if (!Array.isArray(tracks) || tracks.length === 0) return null;
 
-    for (const lang of [...LANG_PREFERENCE, undefined]) {
-      const segments = await fetchSegmentsFromTracks(tracks, videoId, lang);
-      if (segments.length > 0) return segments;
-    }
+    const segments = await fetchSegmentsFromTracks(tracks, videoId);
+    if (segments.length > 0) return segments;
   } catch (err) {
     if (isRateLimitedError(err)) throw err;
   }
@@ -330,8 +362,6 @@ async function fetchViaWatchPage(videoId: string): Promise<RawCaptionSegment[] |
 }
 
 async function fetchViaYoutubeTranscriptPackage(videoId: string): Promise<RawCaptionSegment[] | null> {
-  let lastRateLimit: unknown;
-
   for (const lang of [...LANG_PREFERENCE, undefined]) {
     try {
       const raw = await YoutubeTranscript.fetchTranscript(videoId, lang ? { lang } : undefined);
@@ -344,42 +374,39 @@ async function fetchViaYoutubeTranscriptPackage(videoId: string): Promise<RawCap
         }));
       }
     } catch (err) {
-      if (isRateLimitedError(err)) {
-        lastRateLimit = err;
-        continue;
-      }
+      if (isRateLimitedError(err)) throw err;
     }
   }
 
-  if (lastRateLimit) throw lastRateLimit;
   return null;
 }
 
 export async function fetchYoutubeCaptionSegments(videoId: string): Promise<RawCaptionSegment[]> {
-  const maxAttempts = 5;
-  let lastError: unknown;
+  const strategies = [fetchViaInnertube, fetchViaWatchPage, fetchViaYoutubeTranscriptPackage];
+  let rateLimit: unknown;
+  let answered = false;
 
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    try {
-      const fromInnertube = await fetchViaInnertube(videoId);
-      if (fromInnertube?.length) return fromInnertube;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    rateLimit = undefined;
+    answered = false;
 
-      const fromWatchPage = await fetchViaWatchPage(videoId);
-      if (fromWatchPage?.length) return fromWatchPage;
-
-      const fromPackage = await fetchViaYoutubeTranscriptPackage(videoId);
-      if (fromPackage?.length) return fromPackage;
-
-      throw new Error("No transcripts are available for this video");
-    } catch (err) {
-      lastError = err;
-      if (isRateLimitedError(err) && attempt < maxAttempts - 1) {
-        await sleep(2000 * (attempt + 1));
-        continue;
+    for (const strategy of strategies) {
+      try {
+        const segments = await strategy(videoId);
+        answered = true;
+        if (segments?.length) return segments;
+      } catch (err) {
+        if (!isRateLimitedError(err)) throw err;
+        rateLimit = err;
       }
-      break;
     }
+
+    if (!rateLimit || answered) break;
+    if (attempt === 0) await sleep(2000);
   }
 
-  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  if (rateLimit && !answered) {
+    throw rateLimit instanceof Error ? rateLimit : new Error(String(rateLimit));
+  }
+  throw new Error("No transcripts are available for this video");
 }

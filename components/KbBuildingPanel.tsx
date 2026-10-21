@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { KbBuildOptions, KnowledgeBase, RankedVideo } from "@/lib/types";
@@ -36,6 +36,7 @@ export default function KbBuildingPanel({
   const [liveIndexedVideoIds, setLiveIndexedVideoIds] = useState(indexedVideoIds);
   const [error, setError] = useState("");
   const [kicking, setKicking] = useState(false);
+  const lastKickAt = useRef(0);
 
   const loadStatus = useCallback(async () => {
     const res = await fetch(`/api/knowledge-base/${kb.kbId}/build-status`);
@@ -55,27 +56,12 @@ export default function KbBuildingPanel({
     loadStatus().catch((err) => setError(parseClientError(err)));
   }, [loadStatus]);
 
-  useEffect(() => {
-    if (!status || status.status !== "building") return;
-    const interval = window.setInterval(() => {
-      void loadStatus()
-        .then((next) => {
-          if (next.status === "ready" || next.status === "failed") {
-            void refreshKnowledgeBases();
-            router.refresh();
-          }
-        })
-        .catch(() => undefined);
-    }, 3000);
-    return () => window.clearInterval(interval);
-  }, [status?.status, loadStatus, refreshKnowledgeBases, router]);
-
-  const kickServerBuild = async () => {
+  const kickServerBuild = useCallback(async () => {
     setKicking(true);
     setError("");
     try {
       const res = await fetch(`/api/knowledge-base/${kb.kbId}/kick-build`, { method: "POST" });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         throw new Error(data.error ?? "Failed to resume server build");
       }
@@ -85,7 +71,31 @@ export default function KbBuildingPanel({
     } finally {
       setKicking(false);
     }
-  };
+  }, [kb.kbId, loadStatus]);
+
+  useEffect(() => {
+    if (!status || status.status !== "building") return;
+    const interval = window.setInterval(() => {
+      void loadStatus()
+        .then((next) => {
+          if (next.status === "ready" || next.status === "failed") {
+            void refreshKnowledgeBases();
+            router.refresh();
+            return;
+          }
+          if (
+            next.status === "building" &&
+            isKbBuildStatusStale(next) &&
+            Date.now() - lastKickAt.current > 30_000
+          ) {
+            lastKickAt.current = Date.now();
+            void kickServerBuild();
+          }
+        })
+        .catch(() => undefined);
+    }, 3000);
+    return () => window.clearInterval(interval);
+  }, [status?.status, loadStatus, refreshKnowledgeBases, router, kickServerBuild]);
 
   if (!status) {
     return (
@@ -164,7 +174,7 @@ export default function KbBuildingPanel({
           transcriptMode={buildOptions?.transcriptMode ?? kb.buildOptions?.transcriptMode}
         />
 
-        {status.status === "building" && (
+        {status.status === "building" && isKbBuildStatusStale(status) && (
           <Button
             type="button"
             variant="outline"

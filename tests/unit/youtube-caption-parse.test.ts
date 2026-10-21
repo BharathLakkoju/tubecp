@@ -36,4 +36,31 @@ describe("parseYtInitialPlayerResponse", () => {
     const parsed = parseYtInitialPlayerResponse(html);
     expect(parsed?.captions?.playerCaptionsTracklistRenderer?.captionTracks).toHaveLength(1);
   });
+
+  it("keeps braces that appear inside JSON strings", () => {
+    const player = {
+      videoDetails: { shortDescription: "see } { this" },
+      captions: {
+        playerCaptionsTracklistRenderer: {
+          captionTracks: [{ baseUrl: "https://www.youtube.com/api/timedtext?v=abc", languageCode: "en" }],
+        },
+      },
+    };
+    const html = `<script>var ytInitialPlayerResponse = ${JSON.stringify(player)};</script>`;
+    const parsed = parseYtInitialPlayerResponse(html);
+    expect(parsed?.captions?.playerCaptionsTracklistRenderer?.captionTracks?.[0]?.languageCode).toBe("en");
+  });
+
+  it("skips a non-object assignment and reads the next player response", () => {
+    const player = {
+      captions: {
+        playerCaptionsTracklistRenderer: {
+          captionTracks: [{ baseUrl: "https://www.youtube.com/api/timedtext?v=abc", languageCode: "en" }],
+        },
+      },
+    };
+    const html = `var ytInitialPlayerResponse = null;var ytInitialPlayerResponse = ${JSON.stringify(player)};`;
+    const parsed = parseYtInitialPlayerResponse(html);
+    expect(parsed?.captions?.playerCaptionsTracklistRenderer?.captionTracks).toHaveLength(1);
+  });
 });

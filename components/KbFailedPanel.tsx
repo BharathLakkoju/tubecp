@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { parseClientError } from "@/lib/client/chat";
-import { pollKnowledgeBaseBuild, skippedVideosFromCount } from "@/lib/client/kb-build-poll";
+import { kbBuildFailureMessage, pollKnowledgeBaseBuild } from "@/lib/client/kb-build-poll";
 
 export default function KbFailedPanel({
   kb,
@@ -42,7 +42,7 @@ export default function KbFailedPanel({
       }
 
       const videoCount = sourceVideos.length || kb.videoIds.length;
-      const { kb: polled, skippedCount } = await pollKnowledgeBaseBuild(kb.kbId, {
+      const { kb: polled, skippedCount, error: buildError } = await pollKnowledgeBaseBuild(kb.kbId, {
         videoCount,
       });
 
@@ -51,11 +51,7 @@ export default function KbFailedPanel({
         return;
       }
 
-      if (skippedCount > 0) {
-        setError(skippedVideosFromCount(skippedCount)[0]?.reason ?? "Some videos were skipped.");
-      } else {
-        setError("Build failed again. Try different videos.");
-      }
+      setError(kbBuildFailureMessage(buildError ?? polled.buildJob?.error, skippedCount));
     } catch (err) {
       setError(parseClientError(err));
     } finally {

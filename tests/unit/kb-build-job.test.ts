@@ -40,11 +40,36 @@ vi.mock("@/lib/services/kb-chat", () => ({
   refreshKbWelcomeMessage: vi.fn(async () => undefined),
 }));
 
+vi.mock("@/lib/store/redis", () => ({
+  getRedis: () => null,
+  hasRedis: () => false,
+}));
+
+vi.mock("@/lib/kb-index-pace", () => ({
+  kbIndexPaceDelayMs: () => 0,
+}));
+
+vi.mock("@/lib/services/kb-build-continue", () => ({
+  scheduleKbBuildContinuation: vi.fn(async () => undefined),
+  isKbBuildContinuation: () => false,
+  KB_BUILD_CONTINUATION_HEADER: "x-kb-build-continuation",
+}));
+
 import { repairKnowledgeBaseIfIndexed, runKnowledgeBaseBuildJob } from "@/lib/services/kb-build-job";
-import { indexVideoInKnowledgeBase } from "@/lib/services/knowledge-base";
+import { scheduleKbBuildContinuation } from "@/lib/services/kb-build-continue";
+import { indexVideoInKnowledgeBase, isVideoIndexedInKnowledgeBase } from "@/lib/services/knowledge-base";
+import { acquireKbBuildLock, releaseKbBuildLock } from "@/lib/services/kb-build-lock";
+import { getDevMemoryStore } from "@/lib/store/dev-memory";
 
 describe("kb-build-job", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
+    for (const key of [...getDevMemoryStore().keys()]) {
+      if (String(key).startsWith("kb-build-")) getDevMemoryStore().delete(key);
+    }
+    vi.mocked(isVideoIndexedInKnowledgeBase).mockImplementation(async (kb, videoId) =>
+      kb.chunkIds.some((id) => id.startsWith(videoId))
+    );
     store.kb = {
       kbId: "kb-1",
       topic: "test",
@@ -93,5 +118,43 @@ describe("kb-build-job", () => {
       false,
       "user-1"
     );
+    expect(scheduleKbBuildContinuation).not.toHaveBeenCalled();
+  });
+
+  it("indexes one video per invocation and schedules the next", async () => {
+    vi.mocked(indexVideoInKnowledgeBase).mockResolvedValue({
+      kb: store.kb!,
+      skipped: false,
+    });
+    store.kb = {
+      ...store.kb!,
+      status: "building",
+      chunkIds: [],
+      videosIndexed: 0,
+      chunksIndexed: 0,
+    };
+
+    const result = await runKnowledgeBaseBuildJob("kb-1", false);
+
+    expect(result.kb.status).toBe("building");
+    expect(indexVideoInKnowledgeBase).toHaveBeenCalledTimes(1);
+    expect(indexVideoInKnowledgeBase).toHaveBeenCalledWith(
+      "kb-1",
+      expect.objectContaining({ videoId: "a" }),
+      false,
+      "user-1"
+    );
+    expect(scheduleKbBuildContinuation).toHaveBeenCalledWith("kb-1");
+  });
+
+  it("does not index while another runner holds the lock", async () => {
+    const owner = await acquireKbBuildLock("kb-1");
+    store.kb = { ...store.kb!, status: "building", chunkIds: [] };
+
+    const result = await runKnowledgeBaseBuildJob("kb-1", false);
+
+    expect(result.busy).toBe(true);
+    expect(indexVideoInKnowledgeBase).not.toHaveBeenCalled();
+    if (owner) await releaseKbBuildLock("kb-1", owner);
   });
 });

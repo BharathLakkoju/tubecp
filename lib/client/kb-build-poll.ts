@@ -1,5 +1,6 @@
 import type { KnowledgeBase } from "@/lib/types";
 import type { KnowledgeBaseBuildStatus } from "@/lib/kb-build-status";
+import { isKbBuildStatusStale } from "@/lib/kb-build-stale";
 import type { BuildKnowledgeBaseResult, SkippedKbVideo } from "@/lib/client/kb-build";
 
 function buildPollDeadlineMs(videoCount: number): number {
@@ -14,8 +15,9 @@ export async function pollKnowledgeBaseBuild(
     videoCount?: number;
     onProgress?: (message: string, progress?: number, status?: KnowledgeBaseBuildStatus) => void;
   }
-): Promise<{ kb: KnowledgeBase; skippedCount: number }> {
+): Promise<{ kb: KnowledgeBase; skippedCount: number; error?: string }> {
   const deadline = Date.now() + buildPollDeadlineMs(options?.videoCount ?? 10);
+  let lastKickAt = 0;
 
   while (Date.now() < deadline) {
     const res = await fetch(`/api/knowledge-base/${kbId}/build-status`);
@@ -36,7 +38,12 @@ export async function pollKnowledgeBaseBuild(
       if (!kbRes.ok) {
         throw new Error((kb as { error?: string }).error ?? "Failed to load knowledge base");
       }
-      return { kb, skippedCount: status.skippedCount ?? 0 };
+      return { kb, skippedCount: status.skippedCount ?? 0, error: status.error };
+    }
+
+    if (isKbBuildStatusStale(status) && Date.now() - lastKickAt > 30_000) {
+      lastKickAt = Date.now();
+      await fetch(`/api/knowledge-base/${kbId}/kick-build`, { method: "POST" }).catch(() => undefined);
     }
 
     await new Promise((resolve) => setTimeout(resolve, 2000));
@@ -45,6 +52,18 @@ export async function pollKnowledgeBaseBuild(
   throw new Error(
     "Knowledge base build timed out. Open the knowledge base from your library to check progress or retry."
   );
+}
+
+export function kbBuildFailureMessage(error: string | undefined, skippedCount: number): string {
+  const detail = error?.trim();
+  if (detail) return detail;
+  if (skippedCount > 0) {
+    return (
+      skippedVideosFromCount(skippedCount)[0]?.reason ??
+      "Some videos were skipped."
+    );
+  }
+  return "Knowledge base build failed. Retry to continue from the last saved video.";
 }
 
 export function skippedVideosFromCount(count: number): SkippedKbVideo[] {
@@ -98,7 +117,7 @@ export async function buildKnowledgeBaseOnServer(
     return { kb: payload.kb, skippedVideos: payload.skippedVideos ?? [] };
   }
 
-  const { kb, skippedCount } = await pollKnowledgeBaseBuild(payload.kb.kbId, {
+  const { kb, skippedCount, error } = await pollKnowledgeBaseBuild(payload.kb.kbId, {
     videoCount: rankedVideos.length,
     onProgress: options?.onProgress,
   });
@@ -107,9 +126,7 @@ export async function buildKnowledgeBaseOnServer(
     payload.skippedVideos?.length ? payload.skippedVideos : skippedVideosFromCount(skippedCount);
 
   if (kb.status === "failed") {
-    throw new Error(
-      "No videos could be indexed. Every selected video was missing a transcript or failed to index."
-    );
+    throw new Error(kbBuildFailureMessage(error ?? kb.buildJob?.error, skippedCount));
   }
 
   options?.onProgress?.("Knowledge base ready!", 100);

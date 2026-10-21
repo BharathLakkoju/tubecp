@@ -103,6 +103,10 @@ export interface KbBuildJobState {
   processedVideos: number;
   currentVideoTitle?: string;
   skippedCount: number;
+  /** Videos that failed indexing and must not be retried by the next step. */
+  skippedVideoIds?: string[];
+  /** Per-video failures so a transient error is retried once, then skipped. */
+  attemptCounts?: Record<string, number>;
   startedAt: string;
   updatedAt: string;
   error?: string;

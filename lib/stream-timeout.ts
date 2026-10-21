@@ -7,19 +7,26 @@ export async function consumeWithIdleTimeout<T>(
   const started = Date.now();
   const iterator = iterable[Symbol.asyncIterator]();
 
-  while (true) {
-    if (options.maxMs !== undefined && Date.now() - started > options.maxMs) {
-      throw new Error("Download timed out");
+  try {
+    while (true) {
+      if (options.maxMs !== undefined && Date.now() - started > options.maxMs) {
+        throw new Error("Download timed out");
+      }
+
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const next = await Promise.race([
+        iterator.next(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error("Download stalled")), options.idleMs);
+        }),
+      ]).finally(() => {
+        if (timer !== undefined) clearTimeout(timer);
+      });
+
+      if (next.done) return;
+      await onItem(next.value);
     }
-
-    const next = await Promise.race([
-      iterator.next(),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Download stalled")), options.idleMs)
-      ),
-    ]);
-
-    if (next.done) break;
-    await onItem(next.value);
+  } finally {
+    await iterator.return?.().catch(() => undefined);
   }
 }

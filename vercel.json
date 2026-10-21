@@ -2,6 +2,18 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "functions": {
+    "app/api/knowledge-base/build/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/knowledge-base/index-video/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/knowledge-base/[kbId]/kick-build/route.ts": {
+      "maxDuration": 300
+    },
+    "app/api/knowledge-base/[kbId]/retry/route.ts": {
+      "maxDuration": 300
+    },
     "app/api/**/*.ts": {
       "maxDuration": 60
     }

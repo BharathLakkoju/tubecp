@@ -1,8 +1,11 @@
 import type { KnowledgeBaseBuildStatus } from "@/lib/kb-build-status";
 import type { KnowledgeBaseRecord } from "@/lib/types";
 
-/** No build-job heartbeat for this long → likely abandoned tab or hung request. */
-export const KB_BUILD_STALE_MS = 20 * 60 * 1000;
+/**
+ * No build heartbeat for this long → the invocation that was indexing a video is gone.
+ * Slightly above the lock TTL so a live step is not treated as paused.
+ */
+export const KB_BUILD_STALE_MS = 90 * 1000;
 
 export function kbBuildLastActivityMs(record: KnowledgeBaseRecord): number {
   const raw = record.buildJob?.updatedAt ?? record.createdAt;

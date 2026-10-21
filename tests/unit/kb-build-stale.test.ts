@@ -34,6 +34,23 @@ describe("kb-build-stale", () => {
     ).toBe(true);
   });
 
+  it("treats a recent building update as still active", () => {
+    const recent = new Date(Date.now() - 30 * 1000).toISOString();
+    expect(
+      isKbBuildStatusStale({
+        kbId: "k",
+        topic: "t",
+        status: "building",
+        progress: 50,
+        totalVideos: 10,
+        processedVideos: 5,
+        skippedCount: 0,
+        startedAt: recent,
+        updatedAt: recent,
+      })
+    ).toBe(false);
+  });
+
   it("detects finalize-needed from polled build status", () => {
     expect(
       kbBuildStatusNeedsFinalize({
