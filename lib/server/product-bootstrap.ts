@@ -7,7 +7,7 @@ import { isE2eAuthBypass } from "@/lib/e2e";
 import { toKnowledgeBaseSummary } from "@/lib/knowledge-bases";
 import type { SubscriptionState } from "@/lib/hooks/useSubscription";
 import type { KnowledgeBase } from "@/lib/types";
-import { toSavedResearchSummary } from "@/lib/researches";
+import { listableSavedResearches, toSavedResearchSummary } from "@/lib/researches";
 import { listUserKnowledgeBaseRecords } from "@/lib/store";
 import { listUserSavedResearchRecordsWithKbBackfill } from "@/lib/services/saved-research";
 import type { SavedResearch } from "@/lib/types";
@@ -69,7 +69,7 @@ export const getProductBootstrap = cache(async function getProductBootstrap(): P
     getCachedUserResearches(userId),
   ]);
 
-  const researches = researchRecords
+  const researches = listableSavedResearches(researchRecords)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .map(toSavedResearchSummary);
 

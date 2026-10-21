@@ -27,7 +27,19 @@ export async function buildKnowledgeBaseFromVideos(
   if (kb.status === "ready") {
     return { kb, skippedVideos: [] };
   }
-  return runKnowledgeBaseBuildJob(kb.kbId, persistent);
+  return runKnowledgeBaseBuildToCompletion(kb.kbId, persistent);
+}
+
+async function runKnowledgeBaseBuildToCompletion(
+  kbId: string,
+  persistent: boolean
+): Promise<BuildKnowledgeBaseResult> {
+  const limit = 40;
+  let result = await runKnowledgeBaseBuildJob(kbId, persistent, { chain: false });
+  for (let step = 0; result.kb.status === "building" && !result.busy && step < limit; step += 1) {
+    result = await runKnowledgeBaseBuildJob(kbId, persistent, { chain: false });
+  }
+  return result;
 }
 
 export async function resumeKnowledgeBaseBuild(

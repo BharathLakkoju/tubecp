@@ -60,7 +60,8 @@ export type RunResearchResult = {
 export async function runResearch(
   topic: string,
   onProgress?: ProgressCallback,
-  resumeSessionId?: string
+  resumeSessionId?: string,
+  onResearchSession?: (researchSessionId: string) => void
 ): Promise<RunResearchResult> {
   if (resumeSessionId) {
     const checkpoint = await getCheckpoint(resumeSessionId);
@@ -70,7 +71,14 @@ export async function runResearch(
     }
 
     if (checkpoint && checkpoint.topic === topic && checkpoint.stage !== "expanded") {
-      return resumeFromCheckpoint(topic, resumeSessionId, checkpoint, onProgress);
+      onResearchSession?.(resumeSessionId);
+      return resumeFromCheckpoint(
+        topic,
+        resumeSessionId,
+        checkpoint,
+        onProgress,
+        onResearchSession
+      );
     }
   }
 
@@ -81,6 +89,8 @@ export async function runResearch(
     cached?: boolean;
     research?: ResearchResult;
   }>("/api/research/expand", { topic });
+
+  onResearchSession?.(expandRes.researchSessionId);
 
   if (expandRes.research) {
     onProgress?.("expanded", 10, "expanding", { queries: expandRes.research.queriesUsed });
@@ -114,7 +124,8 @@ async function resumeFromCheckpoint(
   topic: string,
   researchSessionId: string,
   checkpoint: ResearchCheckpoint,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
+  onResearchSession?: (researchSessionId: string) => void
 ): Promise<RunResearchResult> {
   if (checkpoint.stage === "searched" && checkpoint.queries && checkpoint.candidates) {
     onProgress?.("resuming from search", 18, "searching", {
@@ -150,7 +161,7 @@ async function resumeFromCheckpoint(
     return continueResearch(topic, researchSessionId, checkpoint.queries, onProgress);
   }
 
-  return runResearch(topic, onProgress);
+  return runResearch(topic, onProgress, undefined, onResearchSession);
 }
 
 async function continueResearch(
@@ -301,7 +312,9 @@ export {
   continueKnowledgeBaseBuild,
   runKbBuildDriverIfNeeded,
 } from "@/lib/client/kb-build";
+export { pollKnowledgeBaseBuild, buildKnowledgeBaseOnServer } from "@/lib/client/kb-build-poll";
 
+/** Server-driven KB build (indexing runs after POST /api/knowledge-base/build). */
 export async function buildKnowledgeBase(
   topic: string,
   rankedVideos: ResearchResult["rankedVideos"],
@@ -311,13 +324,12 @@ export async function buildKnowledgeBase(
     useSpeechToText?: boolean;
   }
 ): Promise<import("@/lib/client/kb-build").BuildKnowledgeBaseResult> {
-  const { buildKnowledgeBaseFromClient } = await import("@/lib/client/kb-build");
-  return buildKnowledgeBaseFromClient(
-    topic,
-    rankedVideos,
-    (message, progress) => {
+  const { buildKnowledgeBaseOnServer } = await import("@/lib/client/kb-build-poll");
+  return buildKnowledgeBaseOnServer(topic, rankedVideos, {
+    useSpeechToText: options?.useSpeechToText,
+    onKnowledgeBaseCreated: options?.onKnowledgeBaseCreated,
+    onProgress: (message, progress) => {
       onProgress?.(message, progress);
     },
-    options
-  );
+  });
 }

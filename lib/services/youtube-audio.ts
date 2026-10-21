@@ -1,7 +1,12 @@
 import ytdl from "@distube/ytdl-core";
+import { consumeWithIdleTimeout } from "../stream-timeout";
 
 /** OpenRouter / Whisper inline upload limit is ~25 MB. */
 export const STT_MAX_AUDIO_BYTES = 24 * 1024 * 1024;
+
+/** Keep audio download within index-video server budget (300s on Vercel). */
+const STT_DOWNLOAD_MAX_MS = 240_000;
+const STT_DOWNLOAD_IDLE_MS = 45_000;
 
 export class YoutubeAudioUnavailableError extends Error {
   readonly videoId: string;
@@ -39,17 +44,35 @@ export async function fetchYoutubeAudioBuffer(
     const chunks: Buffer[] = [];
     let size = 0;
 
-    for await (const chunk of stream) {
-      const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-      size += buf.length;
-      if (size > maxBytes) {
-        stream.destroy();
-        throw new YoutubeAudioUnavailableError(
-          videoId,
-          new Error("Audio exceeds the speech-to-text size limit for this video")
-        );
-      }
-      chunks.push(buf);
+    try {
+      await consumeWithIdleTimeout(
+        stream,
+        (chunk) => {
+          const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+          size += buf.length;
+          if (size > maxBytes) {
+            stream.destroy();
+            throw new YoutubeAudioUnavailableError(
+              videoId,
+              new Error("Audio exceeds the speech-to-text size limit for this video")
+            );
+          }
+          chunks.push(buf);
+        },
+        { idleMs: STT_DOWNLOAD_IDLE_MS, maxMs: STT_DOWNLOAD_MAX_MS }
+      );
+    } catch (err) {
+      stream.destroy();
+      if (err instanceof YoutubeAudioUnavailableError) throw err;
+      const message = err instanceof Error ? err.message : String(err);
+      throw new YoutubeAudioUnavailableError(
+        videoId,
+        new Error(
+          message.includes("timed out") || message.includes("stalled")
+            ? "Audio download timed out for this video"
+            : message
+        )
+      );
     }
 
     if (chunks.length === 0) {

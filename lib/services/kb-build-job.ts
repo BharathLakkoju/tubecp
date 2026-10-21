@@ -1,4 +1,3 @@
-import { mapWithConcurrency } from "@/lib/concurrency";
 import { isE2eStubMode, stubKnowledgeBaseBuild } from "@/lib/e2e-stub";
 import {
   createKnowledgeBase,
@@ -10,10 +9,20 @@ import {
 import { ensureKbWelcomeMessage, refreshKbWelcomeMessage } from "@/lib/services/kb-chat";
 import { addUserKnowledgeBase, getKnowledgeBase, updateKnowledgeBase } from "@/lib/store";
 import { knowledgeBaseBuildStatusFromRecord } from "@/lib/kb-build-status";
-import type { KbBuildJobState, KnowledgeBaseRecord, RankedVideo } from "@/lib/types";
-import type { BuildKnowledgeBaseResult, SkippedKbVideo } from "./kb-build";
+import { kbIndexPaceDelayMs } from "@/lib/kb-index-pace";
+import { scheduleKbBuildContinuation } from "@/lib/services/kb-build-continue";
+import {
+  acquireKbBuildLock,
+  clearKbBuildHeartbeat,
+  refreshKbBuildLock,
+  releaseKbBuildLock,
+  writeKbBuildHeartbeat,
+} from "@/lib/services/kb-build-lock";
+import type { KbBuildJobState, KbBuildOptions, KnowledgeBaseRecord, RankedVideo } from "@/lib/types";
+import type { BuildKnowledgeBaseResult } from "./kb-build";
 
-const INDEX_CONCURRENCY = 1;
+const MAX_VIDEO_ATTEMPTS = 2;
+const HEARTBEAT_MS = 20_000;
 
 export function createInitialBuildJob(totalVideos: number): KbBuildJobState {
   const now = new Date().toISOString();
@@ -41,8 +50,12 @@ async function updateBuildJob(
         processedVideos: patch.processedVideos ?? base.processedVideos,
         skippedCount: patch.skippedCount ?? base.skippedCount,
         startedAt: patch.startedAt ?? base.startedAt,
-        currentVideoTitle: patch.currentVideoTitle ?? base.currentVideoTitle,
+        currentVideoTitle:
+          "currentVideoTitle" in patch ? patch.currentVideoTitle : base.currentVideoTitle,
         error: "error" in patch ? patch.error : base.error,
+        skippedVideoIds:
+          "skippedVideoIds" in patch ? patch.skippedVideoIds : base.skippedVideoIds,
+        attemptCounts: "attemptCounts" in patch ? patch.attemptCounts : base.attemptCounts,
         updatedAt: new Date().toISOString(),
       };
       return { ...current, buildJob };
@@ -78,151 +91,199 @@ export async function repairKnowledgeBaseIfIndexed(
   return ready;
 }
 
-export async function executeKnowledgeBaseBuild(
-  kbId: string,
-  rankedVideos: RankedVideo[],
-  persistent: boolean
-): Promise<BuildKnowledgeBaseResult> {
-  const kb = await getKnowledgeBase(kbId);
-  if (!kb) throw new Error(`Knowledge base not found: ${kbId}`);
-
-  const skippedVideos: SkippedKbVideo[] = [];
-  const pending: RankedVideo[] = [];
-
-  for (const video of rankedVideos) {
-    const current = await getKnowledgeBase(kbId);
-    if (current && (await isVideoIndexedInKnowledgeBase(current, video.videoId))) {
-      continue;
-    }
-    pending.push(video);
-  }
-
-  const total = rankedVideos.length;
-  let processed = total - pending.length;
-
-  await updateBuildJob(kbId, persistent, {
-    totalVideos: total,
-    processedVideos: processed,
-    error: undefined,
-  });
-
-  if (pending.length === 0) {
-    await syncKnowledgeBaseIndexStats(kbId, persistent);
-    const ready = await finalizeKnowledgeBase(kbId, persistent);
-    return { kb: ready, skippedVideos };
-  }
-
-  const results = await mapWithConcurrency(
-    pending,
-    INDEX_CONCURRENCY,
-    async (video) => {
-      const result = await indexVideoInKnowledgeBase(kbId, video, persistent);
-      processed += 1;
-      await updateBuildJob(kbId, persistent, {
-        processedVideos: processed,
-        currentVideoTitle: video.title,
-      });
-      return result;
-    }
-  );
-
-  for (let i = 0; i < results.length; i++) {
-    const result = results[i];
-    const video = pending[i];
-    if (result.skipped) {
-      skippedVideos.push({
-        videoId: video.videoId,
-        title: video.title,
-        reason: result.skipReason ?? "Transcript unavailable",
-      });
-    }
-  }
-
-  await syncKnowledgeBaseIndexStats(kbId, persistent);
-  await updateBuildJob(kbId, persistent, {
-    processedVideos: total,
-    skippedCount: skippedVideos.length,
-    currentVideoTitle: undefined,
-  });
-
-  const ready = await finalizeKnowledgeBase(kbId, persistent);
-  return { kb: ready, skippedVideos };
-}
-
 export async function startKnowledgeBaseBuild(
   topic: string,
   rankedVideos: RankedVideo[],
   userId: string,
-  persistent: boolean
+  persistent: boolean,
+  buildOptions?: KbBuildOptions
 ): Promise<KnowledgeBaseRecord> {
   if (isE2eStubMode()) {
     const { kb } = await stubKnowledgeBaseBuild(topic, rankedVideos, userId, persistent);
     return kb;
   }
 
-  const kb = await createKnowledgeBase(topic, rankedVideos, userId, persistent);
+  const kb = await createKnowledgeBase(topic, rankedVideos, userId, persistent, buildOptions);
   kb.buildJob = createInitialBuildJob(rankedVideos.length);
   await updateKnowledgeBase(kb.kbId, () => kb, persistent);
   await addUserKnowledgeBase(userId, kb.kbId);
   return kb;
 }
 
+export type KbBuildJobResult = BuildKnowledgeBaseResult & { busy?: boolean };
+
+async function pendingBuildVideos(kb: KnowledgeBaseRecord): Promise<RankedVideo[]> {
+  const skipped = new Set(kb.buildJob?.skippedVideoIds ?? []);
+  const pending: RankedVideo[] = [];
+
+  for (const video of kb.rankedVideos ?? []) {
+    if (skipped.has(video.videoId)) continue;
+    const current = await getKnowledgeBase(kb.kbId);
+    if (current && (await isVideoIndexedInKnowledgeBase(current, video.videoId))) continue;
+    pending.push(video);
+  }
+
+  return pending;
+}
+
+async function finishKnowledgeBaseBuild(
+  kbId: string,
+  persistent: boolean,
+  total: number,
+  skippedIds: string[]
+): Promise<BuildKnowledgeBaseResult> {
+  await syncKnowledgeBaseIndexStats(kbId, persistent);
+  const ready = await finalizeKnowledgeBase(kbId, persistent);
+  if (ready.status === "ready") {
+    await completeReadyKnowledgeBase(kbId, persistent);
+  }
+
+  const failed = ready.status === "failed";
+  const existingError = (await getKnowledgeBase(kbId))?.buildJob?.error?.trim();
+  await updateBuildJob(kbId, persistent, {
+    processedVideos: total,
+    skippedCount: skippedIds.length,
+    skippedVideoIds: skippedIds,
+    currentVideoTitle: undefined,
+    error: failed
+      ? existingError ||
+        "No videos could be indexed. Every selected video was missing a transcript or failed to index."
+      : undefined,
+  });
+
+  const kb = (await getKnowledgeBase(kbId)) ?? ready;
+  return { kb, skippedVideos: [] };
+}
+
+/**
+ * Index one pending video, then hand the next video to a new invocation.
+ * One step stays inside a single route duration instead of the whole library.
+ */
 export async function runKnowledgeBaseBuildJob(
   kbId: string,
-  persistent: boolean
-): Promise<BuildKnowledgeBaseResult> {
+  persistent: boolean,
+  options?: { chain?: boolean }
+): Promise<KbBuildJobResult> {
   const kb = await getKnowledgeBase(kbId);
   if (!kb?.rankedVideos?.length) {
     throw new Error(`Knowledge base not found or missing source videos: ${kbId}`);
   }
+  if (kb.status !== "building") {
+    return { kb, skippedVideos: [] };
+  }
+
+  const owner = await acquireKbBuildLock(kbId);
+  if (!owner) {
+    return { kb, skippedVideos: [], busy: true };
+  }
+
+  const heartbeat = setInterval(() => {
+    void refreshKbBuildLock(kbId, owner);
+    void writeKbBuildHeartbeat(kbId);
+  }, HEARTBEAT_MS);
+
+  let result: KbBuildJobResult = { kb, skippedVideos: [] };
+  let chainNext = false;
+  try {
+    await writeKbBuildHeartbeat(kbId);
+    result = await runOneKnowledgeBaseBuildStep(kbId, persistent, kb.userId);
+    chainNext = options?.chain !== false && result.kb.status === "building" && !result.busy;
+    if (chainNext) {
+      await new Promise((resolve) => setTimeout(resolve, kbIndexPaceDelayMs()));
+    }
+    return result;
+  } finally {
+    clearInterval(heartbeat);
+    await releaseKbBuildLock(kbId, owner);
+    await clearKbBuildHeartbeat(kbId);
+    if (chainNext) {
+      await scheduleKbBuildContinuation(kbId);
+    }
+  }
+}
+
+async function runOneKnowledgeBaseBuildStep(
+  kbId: string,
+  persistent: boolean,
+  usageUserId: string
+): Promise<KbBuildJobResult> {
+  const kb = await getKnowledgeBase(kbId);
+  if (!kb?.rankedVideos?.length) {
+    throw new Error(`Knowledge base not found or missing source videos: ${kbId}`);
+  }
+  if (kb.status !== "building") {
+    return { kb, skippedVideos: [] };
+  }
+
+  const skippedIds = [...(kb.buildJob?.skippedVideoIds ?? [])];
+  const attempts = { ...(kb.buildJob?.attemptCounts ?? {}) };
+  const pending = await pendingBuildVideos(kb);
+  const total = kb.rankedVideos.length;
+  const processedDone = total - pending.length;
+
+  if (pending.length === 0) {
+    return finishKnowledgeBaseBuild(kbId, persistent, total, skippedIds);
+  }
+
+  const video = pending[0];
+  await updateBuildJob(kbId, persistent, {
+    totalVideos: total,
+    processedVideos: processedDone,
+    currentVideoTitle: video.title,
+    error: undefined,
+  });
+
+  let skipped = false;
+  let reason: string | undefined;
 
   try {
-    const result = await executeKnowledgeBaseBuild(kbId, kb.rankedVideos, persistent);
-
-    if (result.kb.status === "ready") {
-      await completeReadyKnowledgeBase(kbId, persistent);
-    }
-
-    await updateBuildJob(kbId, persistent, {
-      processedVideos: kb.rankedVideos.length,
-      skippedCount: result.skippedVideos.length,
-      currentVideoTitle: undefined,
-      error: undefined,
-    });
-
-    return result;
+    const indexed = await indexVideoInKnowledgeBase(kbId, video, persistent, usageUserId);
+    skipped = indexed.skipped;
+    reason = indexed.skipReason;
+    if (skipped) skippedIds.push(video.videoId);
+    delete attempts[video.videoId];
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Knowledge base build failed";
-    const current = await getKnowledgeBase(kbId);
-
-    if (current?.chunkIds.length) {
-      await syncKnowledgeBaseIndexStats(kbId, persistent);
-      const ready = await finalizeKnowledgeBase(kbId, persistent);
-      await completeReadyKnowledgeBase(kbId, persistent);
+    const message = err instanceof Error ? err.message : "Indexing failed";
+    const nextAttempt = (attempts[video.videoId] ?? 0) + 1;
+    if (nextAttempt < MAX_VIDEO_ATTEMPTS) {
+      attempts[video.videoId] = nextAttempt;
       await updateBuildJob(kbId, persistent, {
-        processedVideos: kb.rankedVideos.length,
-        currentVideoTitle: undefined,
+        attemptCounts: attempts,
+        currentVideoTitle: video.title,
         error: undefined,
       });
-      return { kb: ready, skippedVideos: [] };
+      const current = (await getKnowledgeBase(kbId)) ?? kb;
+      return { kb: current, skippedVideos: [] };
     }
 
-    const base = kb.buildJob ?? createInitialBuildJob(kb.rankedVideos?.length ?? 0);
-    await updateKnowledgeBase(
-      kbId,
-      (record) => ({
-        ...record,
-        status: "failed",
-        buildJob: {
-          ...base,
-          error: message,
-          updatedAt: new Date().toISOString(),
-        },
-      }),
-      persistent
-    );
-    throw err;
+    skipped = true;
+    skippedIds.push(video.videoId);
+    reason = `"${video.title}" skipped — ${message}`;
+    delete attempts[video.videoId];
   }
+
+  const doneCount = processedDone + 1;
+  await updateBuildJob(kbId, persistent, {
+    processedVideos: doneCount,
+    skippedCount: skippedIds.length,
+    skippedVideoIds: skippedIds,
+    attemptCounts: attempts,
+    currentVideoTitle: undefined,
+    error: skipped ? reason : undefined,
+  });
+
+  if (pending.length > 1) {
+    const current = (await getKnowledgeBase(kbId)) ?? kb;
+    return {
+      kb: current,
+      skippedVideos:
+        skipped && reason
+          ? [{ videoId: video.videoId, title: video.title, reason }]
+          : [],
+    };
+  }
+
+  return finishKnowledgeBaseBuild(kbId, persistent, total, skippedIds);
 }
 
 export async function resetKbBuildJobProgress(
@@ -269,7 +330,12 @@ export async function runKnowledgeBaseRetryJob(
 
   await prepareKnowledgeBaseRetry(kbId, persistent);
 
-  return runKnowledgeBaseBuildJob(kbId, persistent);
+  const limit = 40;
+  let result = await runKnowledgeBaseBuildJob(kbId, persistent, { chain: false });
+  for (let step = 0; result.kb.status === "building" && !result.busy && step < limit; step += 1) {
+    result = await runKnowledgeBaseBuildJob(kbId, persistent, { chain: false });
+  }
+  return result;
 }
 
 export function knowledgeBaseBuildStatus(kb: KnowledgeBaseRecord) {

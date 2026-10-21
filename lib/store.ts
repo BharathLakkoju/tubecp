@@ -5,9 +5,8 @@ import type {
   TranscriptChunk,
   KnowledgeBaseRecord,
 } from "./types";
+import { getDevMemoryStore } from "./store/dev-memory";
 import { getRedis, hasRedis } from "./store/redis";
-
-const memory = new Map<string, unknown>();
 const RESEARCH_RESULT_TTL_SECONDS = 48 * 60 * 60;
 /** Upstash Redis limits each request to 10MB — batch mget to stay under. */
 const MGET_BATCH_SIZE = 24;
@@ -30,7 +29,7 @@ async function get<T>(key: string): Promise<T | null> {
   if (redis) {
     return (await redis.get<T>(key)) ?? null;
   }
-  return (memory.get(key) as T) ?? null;
+  return (getDevMemoryStore().get(key) as T) ?? null;
 }
 
 async function mget<T>(keys: string[]): Promise<(T | null)[]> {
@@ -49,7 +48,7 @@ async function mget<T>(keys: string[]): Promise<(T | null)[]> {
     return results;
   }
 
-  return keys.map((key) => (memory.get(key) as T) ?? null);
+  return keys.map((key) => (getDevMemoryStore().get(key) as T) ?? null);
 }
 
 async function set(key: string, value: unknown, ttlSeconds?: number): Promise<void> {
@@ -62,7 +61,7 @@ async function set(key: string, value: unknown, ttlSeconds?: number): Promise<vo
     }
     return;
   }
-  memory.set(key, value);
+  getDevMemoryStore().set(key, value);
 }
 
 async function del(key: string): Promise<void> {
@@ -71,7 +70,7 @@ async function del(key: string): Promise<void> {
     await redis.del(key);
     return;
   }
-  memory.delete(key);
+  getDevMemoryStore().delete(key);
 }
 
 export function hashTopic(topic: string): string {

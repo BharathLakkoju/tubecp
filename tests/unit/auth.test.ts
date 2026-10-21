@@ -53,6 +53,11 @@ describe("apiError", () => {
     expect(res.status).toBe(403);
   });
 
+  it("maps missing KbAccessError to 404", async () => {
+    const res = apiError(new KbAccessError("Knowledge base not found"));
+    expect(res.status).toBe(404);
+  });
+
   it("maps usage limits to 403", async () => {
     const res = apiError(new UsageLimitError("limit"));
     expect(res.status).toBe(403);

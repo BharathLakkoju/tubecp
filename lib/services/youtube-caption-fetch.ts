@@ -2,6 +2,10 @@ import { YoutubeTranscript } from "youtube-transcript";
 
 const INNERTUBE_API_URL = "https://www.youtube.com/youtubei/v1/player?prettyPrint=false";
 
+const WATCH_PAGE_USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36";
+
+/** Mobile Innertube clients expose caption tracks; WEB/TV often return none on server IPs. */
 const INNERTUBE_CLIENTS = [
   {
     clientName: "ANDROID",
@@ -9,16 +13,10 @@ const INNERTUBE_CLIENTS = [
     userAgent: "com.google.android.youtube/20.10.38 (Linux; U; Android 14)",
   },
   {
-    clientName: "WEB",
-    clientVersion: "2.20250326.01.00",
+    clientName: "IOS",
+    clientVersion: "20.10.4",
     userAgent:
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
-  },
-  {
-    clientName: "TVHTML5_SIMPLY_EMBEDDED_PLAYER",
-    clientVersion: "2.0",
-    userAgent:
-      "Mozilla/5.0 (ChromiumStylePlatform) Cobalt/Version/gles Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      "com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_3_1 like Mac OS X)",
   },
 ] as const;
 
@@ -130,6 +128,103 @@ export function parseCaptionBody(body: string, lang: string): RawCaptionSegment[
 
 type CaptionTrack = { baseUrl?: string; languageCode?: string };
 
+function parseBalancedJsonObject(html: string, startIndex: number): unknown | null {
+  if (html[startIndex] !== "{") return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = startIndex; i < html.length; i++) {
+    const char = html[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === '"') inString = false;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+    if (char === "{") depth++;
+    else if (char === "}") {
+      depth--;
+      if (depth === 0) {
+        try {
+          return JSON.parse(html.slice(startIndex, i + 1));
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function jsonStartAfterMarker(html: string, markerAt: number, marker: string): number {
+  let index = markerAt + marker.length;
+  while (html[index] === " " || html[index] === "\n" || html[index] === "\t") index++;
+  return index;
+}
+
+export function parseYtInitialPlayerResponse(html: string): {
+  captions?: { playerCaptionsTracklistRenderer?: { captionTracks?: CaptionTrack[] } };
+} | null {
+  const markers = ["var ytInitialPlayerResponse =", "ytInitialPlayerResponse ="];
+  for (const marker of markers) {
+    let from = 0;
+    while (from < html.length) {
+      const startIndex = html.indexOf(marker, from);
+      if (startIndex === -1) break;
+      const parsed = parseBalancedJsonObject(html, jsonStartAfterMarker(html, startIndex, marker));
+      if (parsed && typeof parsed === "object") {
+        return parsed as {
+          captions?: { playerCaptionsTracklistRenderer?: { captionTracks?: CaptionTrack[] } };
+        };
+      }
+      from = startIndex + marker.length;
+    }
+  }
+  return null;
+}
+
+function orderedCaptionTracks(tracks: CaptionTrack[], preferredLang?: string): CaptionTrack[] {
+  const withUrl = tracks.filter((track) => track.baseUrl);
+  const ordered: CaptionTrack[] = [];
+  const seen = new Set<string>();
+
+  const push = (track: CaptionTrack | undefined) => {
+    if (!track?.baseUrl) return;
+    const key = `${track.languageCode ?? ""}:${track.baseUrl}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    ordered.push(track);
+  };
+
+  if (preferredLang) {
+    push(withUrl.find((track) => track.languageCode === preferredLang));
+  }
+  for (const code of LANG_PREFERENCE) {
+    push(withUrl.find((track) => track.languageCode === code));
+  }
+  for (const track of withUrl) {
+    if (track.languageCode?.startsWith("en")) push(track);
+  }
+  for (const track of withUrl) {
+    push(track);
+  }
+
+  return ordered;
+}
+
 async function fetchCaptionTracks(
   videoId: string,
   client: (typeof INNERTUBE_CLIENTS)[number]
@@ -154,53 +249,58 @@ async function fetchCaptionTracks(
         videoId,
       }),
     });
+    if (resp.status === 429) {
+      throw new Error("YouTube is receiving too many requests");
+    }
     if (!resp.ok) return null;
     const data = (await resp.json()) as {
       captions?: { playerCaptionsTracklistRenderer?: { captionTracks?: CaptionTrack[] } };
     };
     const tracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
     return Array.isArray(tracks) && tracks.length > 0 ? tracks : null;
-  } catch {
+  } catch (err) {
+    if (isRateLimitedError(err)) throw err;
     return null;
   }
 }
 
-function pickCaptionTrack(tracks: CaptionTrack[], preferredLang?: string): CaptionTrack | null {
-  if (preferredLang) {
-    const exact = tracks.find((track) => track.languageCode === preferredLang);
-    if (exact?.baseUrl) return exact;
-  }
-
-  for (const code of LANG_PREFERENCE) {
-    const track = tracks.find((t) => t.languageCode === code);
-    if (track?.baseUrl) return track;
-  }
-
-  const english = tracks.find((t) => t.languageCode?.startsWith("en"));
-  if (english?.baseUrl) return english;
-
-  return tracks.find((t) => t.baseUrl) ?? null;
+function isTrustedCaptionHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return host === "youtube.com" || host.endsWith(".youtube.com");
 }
 
-async function fetchSegmentsFromTrack(track: CaptionTrack): Promise<RawCaptionSegment[]> {
+async function fetchSegmentsFromTrack(
+  track: CaptionTrack,
+  videoId: string
+): Promise<RawCaptionSegment[]> {
   const baseUrl = track.baseUrl;
   if (!baseUrl) return [];
 
   const lang = track.languageCode ?? "en";
-  const captionUrl = new URL(baseUrl);
-  if (!captionUrl.hostname.endsWith(".youtube.com")) {
+  try {
+    const captionUrl = new URL(baseUrl);
+    if (!isTrustedCaptionHost(captionUrl.hostname)) {
+      return [];
+    }
+  } catch {
     return [];
   }
 
+  const watchReferer = `https://www.youtube.com/watch?v=${videoId}`;
   const attempts = [baseUrl, `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}fmt=json3`];
 
   for (const url of attempts) {
     const resp = await fetch(url, {
       headers: {
-        "User-Agent": INNERTUBE_CLIENTS[1].userAgent,
+        "User-Agent": WATCH_PAGE_USER_AGENT,
         "Accept-Language": "en-US,en;q=0.9",
+        Referer: watchReferer,
+        Origin: "https://www.youtube.com",
       },
     });
+    if (resp.status === 429) {
+      throw new Error("YouTube is receiving too many requests");
+    }
     if (!resp.ok) continue;
     const body = await resp.text();
     const segments = parseCaptionBody(body, lang);
@@ -210,17 +310,53 @@ async function fetchSegmentsFromTrack(track: CaptionTrack): Promise<RawCaptionSe
   return [];
 }
 
+async function fetchSegmentsFromTracks(
+  tracks: CaptionTrack[],
+  videoId: string,
+  preferredLang?: string
+): Promise<RawCaptionSegment[]> {
+  for (const track of orderedCaptionTracks(tracks, preferredLang)) {
+    const segments = await fetchSegmentsFromTrack(track, videoId);
+    if (segments.length > 0) return segments;
+  }
+  return [];
+}
+
 async function fetchViaInnertube(videoId: string): Promise<RawCaptionSegment[] | null> {
   for (const client of INNERTUBE_CLIENTS) {
     const tracks = await fetchCaptionTracks(videoId, client);
     if (!tracks) continue;
 
-    for (const lang of [...LANG_PREFERENCE, undefined]) {
-      const track = pickCaptionTrack(tracks, lang);
-      if (!track) continue;
-      const segments = await fetchSegmentsFromTrack(track);
-      if (segments.length > 0) return segments;
+    const segments = await fetchSegmentsFromTracks(tracks, videoId);
+    if (segments.length > 0) return segments;
+  }
+  return null;
+}
+
+async function fetchViaWatchPage(videoId: string): Promise<RawCaptionSegment[] | null> {
+  try {
+    const resp = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+      headers: {
+        "User-Agent": WATCH_PAGE_USER_AGENT,
+        "Accept-Language": "en-US,en;q=0.9",
+        Accept: "text/html,application/xhtml+xml",
+      },
+    });
+    if (!resp.ok) return null;
+
+    const html = await resp.text();
+    if (html.includes('class="g-recaptcha"')) {
+      throw new Error("YouTube is receiving too many requests");
     }
+
+    const player = parseYtInitialPlayerResponse(html);
+    const tracks = player?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+    if (!Array.isArray(tracks) || tracks.length === 0) return null;
+
+    const segments = await fetchSegmentsFromTracks(tracks, videoId);
+    if (segments.length > 0) return segments;
+  } catch (err) {
+    if (isRateLimitedError(err)) throw err;
   }
   return null;
 }
@@ -228,10 +364,7 @@ async function fetchViaInnertube(videoId: string): Promise<RawCaptionSegment[] |
 async function fetchViaYoutubeTranscriptPackage(videoId: string): Promise<RawCaptionSegment[] | null> {
   for (const lang of [...LANG_PREFERENCE, undefined]) {
     try {
-      const raw = await YoutubeTranscript.fetchTranscript(
-        videoId,
-        lang ? { lang } : undefined
-      );
+      const raw = await YoutubeTranscript.fetchTranscript(videoId, lang ? { lang } : undefined);
       if (raw.length > 0) {
         return raw.map((seg) => ({
           text: seg.text,
@@ -240,35 +373,40 @@ async function fetchViaYoutubeTranscriptPackage(videoId: string): Promise<RawCap
           lang: seg.lang ?? lang ?? "en",
         }));
       }
-    } catch {
-      // try next language / strategy
+    } catch (err) {
+      if (isRateLimitedError(err)) throw err;
     }
   }
+
   return null;
 }
 
 export async function fetchYoutubeCaptionSegments(videoId: string): Promise<RawCaptionSegment[]> {
-  const maxAttempts = 4;
-  let lastError: unknown;
+  const strategies = [fetchViaInnertube, fetchViaWatchPage, fetchViaYoutubeTranscriptPackage];
+  let rateLimit: unknown;
+  let answered = false;
 
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    try {
-      const fromPackage = await fetchViaYoutubeTranscriptPackage(videoId);
-      if (fromPackage?.length) return fromPackage;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    rateLimit = undefined;
+    answered = false;
 
-      const fromInnertube = await fetchViaInnertube(videoId);
-      if (fromInnertube?.length) return fromInnertube;
-
-      throw new Error("No transcripts are available for this video");
-    } catch (err) {
-      lastError = err;
-      if (isRateLimitedError(err) && attempt < maxAttempts - 1) {
-        await sleep(1500 * (attempt + 1));
-        continue;
+    for (const strategy of strategies) {
+      try {
+        const segments = await strategy(videoId);
+        answered = true;
+        if (segments?.length) return segments;
+      } catch (err) {
+        if (!isRateLimitedError(err)) throw err;
+        rateLimit = err;
       }
-      break;
     }
+
+    if (!rateLimit || answered) break;
+    if (attempt === 0) await sleep(2000);
   }
 
-  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  if (rateLimit && !answered) {
+    throw rateLimit instanceof Error ? rateLimit : new Error(String(rateLimit));
+  }
+  throw new Error("No transcripts are available for this video");
 }

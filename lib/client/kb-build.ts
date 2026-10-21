@@ -1,6 +1,9 @@
 import type { KnowledgeBase, KnowledgeBaseRecord, RankedVideo, ResearchResult } from "@/lib/types";
 import type { KnowledgeBaseBuildStatus } from "@/lib/kb-build-status";
+import { kbBuildNeedsFinalize } from "@/lib/kb-build-stale";
 import { kbBuildStartIndex } from "@/lib/kb-build-resume";
+import { KB_INDEX_VIDEO_TIMEOUT_MS, postJsonWithTimeout } from "@/lib/client/fetch-json";
+import { kbIndexPaceDelayMs } from "@/lib/kb-index-pace";
 
 export interface SkippedKbVideo {
   videoId: string;
@@ -20,8 +23,8 @@ export type KbBuildProgressCallback = (
 ) => void;
 
 const DRIVER_KEY_PREFIX = "tubecp:kb-build-driver:";
-/** Locks older than this are treated as abandoned (crashed tab, refresh mid-build). */
-const DRIVER_STALE_MS = 2 * 60 * 1000;
+/** Locks older than this are treated as abandoned (must exceed a single index-video request). */
+const DRIVER_STALE_MS = 10 * 60 * 1000;
 
 function driverKey(kbId: string): string {
   return `${DRIVER_KEY_PREFIX}${kbId}`;
@@ -57,7 +60,15 @@ export function releaseKbBuildDriver(kbId: string): void {
   sessionStorage.removeItem(driverKey(kbId));
 }
 
-async function postJson<T>(url: string, body: unknown): Promise<T> {
+function touchKbBuildDriver(kbId: string): void {
+  if (typeof window === "undefined") return;
+  sessionStorage.setItem(driverKey(kbId), String(Date.now()));
+}
+
+async function postJson<T>(url: string, body: unknown, timeoutMs?: number): Promise<T> {
+  if (timeoutMs !== undefined) {
+    return postJsonWithTimeout<T>(url, body, timeoutMs);
+  }
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -98,24 +109,47 @@ async function indexRankedVideosForKb(
   const skippedVideos: SkippedKbVideo[] = [];
   const total = rankedVideos.length;
 
-  for (let i = startIndex; i < total; i++) {
+  for (let i = startIndex; i < total; ) {
     const video = rankedVideos[i];
+    touchKbBuildDriver(kbId);
     onProgress?.(
       `${video.title.slice(0, 72)}${video.title.length > 72 ? "…" : ""} · ${i + 1}/${total}`,
       10 + Math.round((i / total) * 85)
     );
 
-    const result = await postJson<{
+    let result: {
       kb: KnowledgeBase;
       skipped?: boolean;
       skipReason?: string;
       videoId?: string;
       videoTitle?: string;
-    }>("/api/knowledge-base/index-video", { kbId, video });
+    };
+    try {
+      result = await postJson(
+        "/api/knowledge-base/index-video",
+        { kbId, video },
+        KB_INDEX_VIDEO_TIMEOUT_MS
+      );
+    } catch (err) {
+      const record = await fetchKbRecord(kbId);
+      const serverIndex = kbBuildStartIndex(record);
+      if (serverIndex > i) {
+        i = serverIndex;
+        continue;
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      skippedVideos.push({
+        videoId: video.videoId,
+        title: video.title,
+        reason: `"${video.title}" skipped — ${message}`,
+      });
+      i += 1;
+      continue;
+    }
 
     // Reduce YouTube transcript rate limits when indexing many videos in a row.
     if (i + 1 < total) {
-      await new Promise((resolve) => setTimeout(resolve, 400));
+      await new Promise((resolve) => setTimeout(resolve, kbIndexPaceDelayMs()));
     }
 
     try {
@@ -135,6 +169,8 @@ async function indexRankedVideosForKb(
         reason,
       });
     }
+
+    i += 1;
   }
 
   return skippedVideos;
@@ -194,7 +230,11 @@ async function continueKnowledgeBaseBuildInner(
   }
 
   const total = record.rankedVideos.length;
-  const startIndex = kbBuildStartIndex(record);
+  let startIndex = kbBuildStartIndex(record);
+
+  if (kbBuildNeedsFinalize(record)) {
+    startIndex = total;
+  }
 
   if (record.status === "ready") {
     return { kb: record, skippedVideos: [] };
@@ -281,10 +321,10 @@ export async function buildKnowledgeBaseFromClient(
 export async function runKbBuildDriverIfNeeded(
   kbId: string,
   onProgress?: KbBuildProgressCallback
-): Promise<BuildKnowledgeBaseResult | null> {
+): Promise<BuildKnowledgeBaseResult | "locked" | null> {
   const status = await fetchBuildStatus(kbId);
   if (status.status !== "building") return null;
-  if (!tryAcquireKbBuildDriver(kbId)) return null;
+  if (!tryAcquireKbBuildDriver(kbId)) return "locked";
 
   try {
     return await continueKnowledgeBaseBuildInner(kbId, onProgress);

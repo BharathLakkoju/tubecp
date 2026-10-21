@@ -9,7 +9,7 @@ import {
   runKnowledgeBaseBuildJob,
   startKnowledgeBaseBuild,
 } from "@/lib/services/kb-build-job";
-import type { RankedVideo } from "@/lib/types";
+import type { KbTranscriptMode, RankedVideo } from "@/lib/types";
 
 export const maxDuration = 300;
 
@@ -18,9 +18,11 @@ export async function POST(req: NextRequest) {
     const userId = await requireUserId();
     await rateLimitApi(userId, "kb-build", 5);
 
-    const { topic, rankedVideos } = (await req.json()) as {
+    const { topic, rankedVideos, transcriptMode, useSpeechToText } = (await req.json()) as {
       topic?: string;
       rankedVideos?: RankedVideo[];
+      transcriptMode?: KbTranscriptMode;
+      useSpeechToText?: boolean;
     };
 
     if (!topic?.trim() || !rankedVideos?.length) {
@@ -34,7 +36,15 @@ export async function POST(req: NextRequest) {
     const sub = await getUserSubscription(userId);
     const persistent = getPlan(sub.plan).persistentKbs;
 
-    const kb = await startKnowledgeBaseBuild(topic, rankedVideos, userId, persistent);
+    const mode: KbTranscriptMode =
+      transcriptMode ?? (useSpeechToText ? "stt" : "captions");
+    if (mode !== "captions" && mode !== "stt") {
+      return NextResponse.json({ error: "Invalid transcriptMode" }, { status: 400 });
+    }
+
+    const kb = await startKnowledgeBaseBuild(topic, rankedVideos, userId, persistent, {
+      transcriptMode: mode,
+    });
 
     if (kb.status === "ready") {
       await ensureKbWelcomeMessage(kb.kbId);
