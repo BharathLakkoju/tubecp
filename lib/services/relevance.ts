@@ -8,6 +8,7 @@ import {
   combineScores,
   preRankCandidates,
 } from "./semantic";
+import { buildMetadataOnlyAnalysis, scoreMetadataOnly } from "./metadata-analysis";
 import { getCachedAnalysis, cacheAnalysis, hashTopic } from "../store";
 import { isStrongYouTubeMatch, topicKeywordScore } from "./research-scoring";
 import { toVideoSummary } from "../youtube";
@@ -66,6 +67,15 @@ function parseAnalysisJson(
   }
 }
 
+async function cacheAndReturn(
+  topicHash: string,
+  videoId: string,
+  analysis: VideoAnalysis
+): Promise<VideoAnalysis> {
+  await cacheAnalysis(topicHash, videoId, analysis);
+  return analysis;
+}
+
 export async function analyzeVideo(
   video: VideoCandidate,
   topic: string
@@ -74,13 +84,30 @@ export async function analyzeVideo(
   const cached = await getCachedAnalysis(topicHash, video.videoId);
   if (cached) return cached;
 
-  const topicEmb = await getTopicEmbedding(topic);
-  const embeddingMetaScore = await scoreMetadataRelevance(topic, video, topicEmb);
+  let topicEmb: number[];
+  try {
+    topicEmb = await getTopicEmbedding(topic);
+  } catch (err) {
+    console.warn(`Topic embedding failed for analyze (${video.videoId}), metadata-only:`, err);
+    return cacheAndReturn(
+      topicHash,
+      video.videoId,
+      buildMetadataOnlyAnalysis(video, topic)
+    );
+  }
+
   const keywordScore = topicKeywordScore(topic, `${video.title} ${video.description ?? ""}`);
-  let metadataScore = Math.min(
-    100,
-    Math.round(embeddingMetaScore * 0.55 + keywordScore * 0.45)
-  );
+  let metadataScore = scoreMetadataOnly(video, topic).metadataScore;
+
+  try {
+    const embeddingMetaScore = await scoreMetadataRelevance(topic, video, topicEmb);
+    metadataScore = Math.min(
+      100,
+      Math.round(embeddingMetaScore * 0.55 + keywordScore * 0.45)
+    );
+  } catch (err) {
+    console.warn(`Metadata embedding failed for ${video.videoId}, keyword-only metadata:`, err);
+  }
 
   if (video.searchRank && video.searchRank <= 5) {
     metadataScore = Math.min(100, metadataScore + 12);
@@ -103,6 +130,13 @@ export async function analyzeVideo(
     semanticScore = Math.round(metadataScore * 0.85);
   }
 
+  const signalFallback = () =>
+    buildMetadataOnlyAnalysis(video, topic, {
+      keywordScore,
+      metadataScore,
+      semanticScore,
+    });
+
   const searchContext =
     video.searchRank !== undefined
       ? `YouTube search rank: #${video.searchRank} (appeared in ${video.matchedQueries ?? 1} queries)`
@@ -119,10 +153,19 @@ Transcript relevance (embedding): ${semanticScore}/100
 Most relevant transcript excerpts:
 ${transcriptText || "(no transcript available)"}`;
 
-  const response = await generateText(ANALYSIS_SYSTEM, userPrompt, {
-    maxTokens: 1000,
-    temperature: 0.1,
-  });
+  let response: string;
+  try {
+    response = await generateText(ANALYSIS_SYSTEM, userPrompt, {
+      maxTokens: 1000,
+      temperature: 0.1,
+      timeoutMs: 20_000,
+      retries: 1,
+      retryBackoffMs: 400,
+    });
+  } catch (err) {
+    console.warn(`LLM analyze failed for ${video.videoId}, metadata-only:`, err);
+    return cacheAndReturn(topicHash, video.videoId, signalFallback());
+  }
 
   const parsed = parseAnalysisJson(response, video.videoId);
 
@@ -157,8 +200,7 @@ ${transcriptText || "(no transcript available)"}`;
     evidence: parsed?.evidence ?? [],
   };
 
-  await cacheAnalysis(topicHash, video.videoId, analysis);
-  return analysis;
+  return cacheAndReturn(topicHash, video.videoId, analysis);
 }
 
 export { preRankCandidates };
