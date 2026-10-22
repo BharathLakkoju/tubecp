@@ -17,8 +17,8 @@
  */
 @import "tailwindcss";
 @import "tw-animate-css";
-/* PostCSS resolves subpath exports poorly; use dist path (requires shadcn@4.x, not the empty shadcn@1 package). */
-@import "../node_modules/shadcn/dist/tailwind.css";
+/* Vendored from shadcn@4.21.4 dist/tailwind.css — refresh via `npx shadcn@4.21.4` when upgrading the CLI. */
+@import "./shadcn-tailwind.css";
 
 @custom-variant dark (&:where([data-color-scheme="dark"], [data-color-scheme="dark"] *));
 

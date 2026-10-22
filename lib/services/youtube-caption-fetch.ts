@@ -62,10 +62,11 @@ function logCaptionStrategy(
   console.warn(parts.join(" "));
 }
 
-function playabilityLabel(data: {
-  playabilityStatus?: { status?: string; reason?: string };
-}): string | undefined {
-  const status = data?.playabilityStatus;
+function playabilityLabel(data: unknown): string | undefined {
+  const status =
+    data && typeof data === "object"
+      ? (data as { playabilityStatus?: { status?: string; reason?: string } }).playabilityStatus
+      : undefined;
   if (!status) return undefined;
   return [status.status, status.reason].filter(Boolean).join(": ");
 }

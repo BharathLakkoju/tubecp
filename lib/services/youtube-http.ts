@@ -19,11 +19,11 @@ async function proxiedFetch(url: string, init?: RequestInit): Promise<Response> 
   }
 
   const response = await undiciFetch(url, {
-    ...init,
+    ...(init as object),
     dispatcher: proxyAgent,
   });
 
-  return response as Response;
+  return response as unknown as Response;
 }
 
 export async function youtubeHttpFetch(
