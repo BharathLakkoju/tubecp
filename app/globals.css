@@ -257,9 +257,9 @@
   --radius-xl: calc(var(--radius) * 1.4);
   --radius-2xl: calc(var(--radius) * 1.8);
 
-  /* next/font sets --font-geist-sans / --font-geist-mono on <html>. Never --font-sans: var(--font-sans). */
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, "SFMono-Regular", monospace;
+  /* next/font sets --font-ibm-plex-sans / --font-ibm-plex-mono on <html>. Never --font-sans: var(--font-sans). */
+  --font-sans: var(--font-ibm-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-ibm-plex-mono), ui-monospace, "SFMono-Regular", monospace;
 
   --shadow-1: var(--elev-1);
   --shadow-2: var(--elev-2);

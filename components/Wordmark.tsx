@@ -12,7 +12,7 @@ const sizeClasses = {
   lg: "h-[52px] max-sm:h-10",
 };
 
-/** tubecp v3 lockup (citation bracket mark + Geist wordmark). */
+/** tubecp v3 lockup (citation bracket mark + wordmark). */
 export default function Wordmark({ size = "md", className }: Props) {
   return (
     <span
