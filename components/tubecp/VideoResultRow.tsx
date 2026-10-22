@@ -24,6 +24,8 @@ interface Props {
   onSelectedChange?: (selected: boolean) => void;
   /** Show a copy-link control for the video URL. */
   copyable?: boolean;
+  /** Side panel / wide sheet: keep actions on one row. */
+  layout?: "default" | "panel";
   className?: string;
 }
 
@@ -39,6 +41,7 @@ export default function VideoResultRow({
   selected = false,
   onSelectedChange,
   copyable = false,
+  layout = "default",
   className,
 }: Props) {
   const relevance = score ?? video.relevanceScore;
@@ -49,7 +52,10 @@ export default function VideoResultRow({
       variant="default"
       data-selected={selectable ? selected : undefined}
       className={cn(
-        "relative rounded-none px-4 py-3 max-sm:flex-col max-sm:items-start",
+        "relative rounded-none px-4 py-3",
+        layout === "panel"
+          ? "flex-nowrap items-start gap-4"
+          : "max-sm:flex-col max-sm:items-start",
         "data-[selected=true]:bg-primary-subtle",
         "data-[selected=true]:before:absolute data-[selected=true]:before:inset-y-0 data-[selected=true]:before:left-0 data-[selected=true]:before:w-0.5 data-[selected=true]:before:bg-primary data-[selected=true]:before:content-['']",
         className
@@ -78,7 +84,12 @@ export default function VideoResultRow({
           <ItemDescription className="text-foreground-secondary">{video.whyRelevant}</ItemDescription>
         )}
       </ItemContent>
-      <ItemActions className="shrink-0 gap-3 max-sm:w-full max-sm:flex-wrap">
+      <ItemActions
+        className={cn(
+          "shrink-0 gap-3",
+          layout === "panel" ? "flex-nowrap self-start" : "max-sm:w-full max-sm:flex-wrap"
+        )}
+      >
         {video.discussionLevel && (
           <Badge variant="secondary">
             {video.discussionLevel === "substantial" ? "Substantial" : "Brief"}

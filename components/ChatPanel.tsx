@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { DotsThree, DownloadSimple, Info, Trash } from "@phosphor-icons/react";
+import { DotsThree, DownloadSimple, FilmStrip, Info, Trash } from "@phosphor-icons/react";
 import type { KnowledgeBase, ChatMessage } from "@/lib/types";
 import type { KbChatStreamState } from "@/lib/hooks/useKbChatStream";
 import { deleteKnowledgeBase } from "@/lib/client/knowledge-base";
@@ -35,6 +35,9 @@ interface Props {
   messages: ChatMessage[];
   stream?: KbChatStreamState | null;
   notice?: string | null;
+  onViewSkipped?: () => void;
+  researchVideoCount?: number;
+  onOpenResearchSources?: () => void;
   onSend: (message: string) => void;
 }
 
@@ -42,7 +45,17 @@ interface Props {
  * Chat surface (design system 8.5): glass header with stats and a menu, a readable message
  * column, evidence under every answer, and a sticky composer. The page scrolls (no inner scroller).
  */
-export default function ChatPanel({ topic, kb, messages, stream, notice, onSend }: Props) {
+export default function ChatPanel({
+  topic,
+  kb,
+  messages,
+  stream,
+  notice,
+  onViewSkipped,
+  researchVideoCount = 0,
+  onOpenResearchSources,
+  onSend,
+}: Props) {
   const router = useRouter();
   const sub = useSubscription();
   const { removeKnowledgeBase } = useKnowledgeBases();
@@ -80,7 +93,13 @@ export default function ChatPanel({ topic, kb, messages, stream, notice, onSend 
         >
           <DotsThree weight="bold" aria-hidden />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuContent align="end" className="w-52">
+          {researchVideoCount > 0 && onOpenResearchSources && (
+            <DropdownMenuItem onClick={onOpenResearchSources}>
+              <FilmStrip aria-hidden />
+              Research videos ({researchVideoCount})
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem render={<a href={`/api/knowledge-base/${kb.kbId}/export`} download />}>
             <DownloadSimple aria-hidden />
             Export
@@ -111,7 +130,20 @@ export default function ChatPanel({ topic, kb, messages, stream, notice, onSend 
         <Alert variant="info">
           <Info weight="fill" aria-hidden />
           <AlertTitle>Some videos were skipped</AlertTitle>
-          <AlertDescription>{notice}</AlertDescription>
+          <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span>{notice}</span>
+            {onViewSkipped && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0 self-start sm:self-center"
+                onClick={onViewSkipped}
+              >
+                View skipped videos
+              </Button>
+            )}
+          </AlertDescription>
         </Alert>
       )}
 
