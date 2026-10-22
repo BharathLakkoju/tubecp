@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import { AuthProvider } from "@/components/AuthShell";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import SiteFooter from "@/components/SiteFooter";
@@ -11,16 +11,18 @@ import { isE2eAuthBypass } from "@/lib/e2e";
 import { cn } from "@/lib/utils";
 import "./globals.css";
 
-// Evergreen type: Geist for UI, Geist Mono for data (design system §4.1).
-const geistSans = Geist({
+// Evergreen type: IBM Plex Sans for UI, IBM Plex Mono for data (design system §4.1).
+const ibmPlexSans = IBM_Plex_Sans({
   subsets: ["latin"],
-  variable: "--font-geist-sans",
+  weight: "variable",
+  variable: "--font-ibm-plex-sans",
   display: "swap",
 });
 
-const geistMono = Geist_Mono({
+const ibmPlexMono = IBM_Plex_Mono({
   subsets: ["latin"],
-  variable: "--font-geist-mono",
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-ibm-plex-mono",
   display: "swap",
 });
 
@@ -53,7 +55,7 @@ export default function RootLayout({
       data-color-scheme="light"
       data-scroll-behavior="smooth"
       suppressHydrationWarning
-      className={cn(geistSans.variable, geistMono.variable)}
+      className={cn(ibmPlexSans.variable, ibmPlexMono.variable)}
     >
       <body>
         <ThemeProvider>
