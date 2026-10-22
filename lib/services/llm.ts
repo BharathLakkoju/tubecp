@@ -11,7 +11,7 @@ type LlmUsageOptions = {
 
 const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
 
-function isRetryableError(err: unknown): boolean {
+export function isRetryableLlmError(err: unknown): boolean {
   if (!err || typeof err !== "object") return false;
   const status = (err as { status?: number }).status;
   if (status && RETRYABLE_STATUSES.has(status)) return true;
@@ -19,15 +19,28 @@ function isRetryableError(err: unknown): boolean {
   return /\b(429|502|503|504)\b/.test(message) || /rate limit/i.test(message);
 }
 
-async function withRetry<T>(fn: () => Promise<T>, retries = 4): Promise<T> {
+type WithRetryOptions = {
+  retries?: number;
+  backoffMs?: number;
+};
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  retriesOrOptions: number | WithRetryOptions = 4
+): Promise<T> {
+  const retries =
+    typeof retriesOrOptions === "number" ? retriesOrOptions : (retriesOrOptions.retries ?? 4);
+  const baseBackoff =
+    typeof retriesOrOptions === "object" ? (retriesOrOptions.backoffMs ?? 1500) : 1500;
+
   let lastErr: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       return await fn();
     } catch (err) {
       lastErr = err;
-      if (!isRetryableError(err) || attempt === retries) break;
-      await new Promise((resolve) => setTimeout(resolve, 1500 * 2 ** attempt));
+      if (!isRetryableLlmError(err) || attempt === retries) break;
+      await new Promise((resolve) => setTimeout(resolve, baseBackoff * 2 ** attempt));
     }
   }
   throw lastErr;
@@ -52,12 +65,21 @@ class OpenRouterError extends Error {
   }
 }
 
-async function openRouterPost<T>(path: string, body: unknown): Promise<T> {
+type OpenRouterPostOptions = {
+  timeoutMs?: number;
+};
+
+async function openRouterPost<T>(
+  path: string,
+  body: unknown,
+  options?: OpenRouterPostOptions
+): Promise<T> {
   const url = `${config.openrouterBaseUrl.replace(/\/$/, "")}${path}`;
   const response = await fetch(url, {
     method: "POST",
     headers: openRouterHeaders(),
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(options?.timeoutMs ?? 15_000),
   });
 
   if (!response.ok) {
@@ -75,24 +97,47 @@ function estimateTokens(...parts: string[]): number {
   return parts.reduce((sum, part) => sum + Math.ceil(part.length / 4), 0);
 }
 
+export type GenerateTextOptions = {
+  temperature?: number;
+  maxTokens?: number;
+  /** Per-request OpenRouter timeout (default 15s). */
+  timeoutMs?: number;
+  /** Number of retries after the first attempt (default 4). */
+  retries?: number;
+  /** Base backoff between retries in ms (default 1500). */
+  retryBackoffMs?: number;
+} & LlmUsageOptions;
+
 export async function generateText(
   systemPrompt: string,
   userPrompt: string,
-  options?: { temperature?: number; maxTokens?: number } & LlmUsageOptions
+  options?: GenerateTextOptions
 ): Promise<string> {
-  const data = await withRetry(() =>
-    openRouterPost<{
-      choices?: Array<{ message?: { content?: string } }>;
-      usage?: { total_tokens?: number; prompt_tokens?: number; completion_tokens?: number };
-    }>("/chat/completions", {
-      model: config.llmModel,
-      temperature: options?.temperature ?? 0.3,
-      max_tokens: options?.maxTokens ?? 2000,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-    })
+  const timeoutMs = options?.timeoutMs ?? 15_000;
+  const retryOpts: WithRetryOptions = {
+    retries: options?.retries ?? 4,
+    backoffMs: options?.retryBackoffMs ?? 1500,
+  };
+
+  const data = await withRetry(
+    () =>
+      openRouterPost<{
+        choices?: Array<{ message?: { content?: string } }>;
+        usage?: { total_tokens?: number; prompt_tokens?: number; completion_tokens?: number };
+      }>(
+        "/chat/completions",
+        {
+          model: config.llmModel,
+          temperature: options?.temperature ?? 0.3,
+          max_tokens: options?.maxTokens ?? 2000,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+        },
+        { timeoutMs }
+      ),
+    retryOpts
   );
 
   const content = data.choices?.[0]?.message?.content ?? "";

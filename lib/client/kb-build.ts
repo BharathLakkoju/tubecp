@@ -2,7 +2,11 @@ import type { KnowledgeBase, KnowledgeBaseRecord, RankedVideo, ResearchResult } 
 import type { KnowledgeBaseBuildStatus } from "@/lib/kb-build-status";
 import { kbBuildNeedsFinalize } from "@/lib/kb-build-stale";
 import { kbBuildStartIndex } from "@/lib/kb-build-resume";
-import { KB_INDEX_VIDEO_TIMEOUT_MS, postJsonWithTimeout } from "@/lib/client/fetch-json";
+import {
+  KB_INDEX_VIDEO_TIMEOUT_MS,
+  parseJsonResponseBody,
+  postJsonWithTimeout,
+} from "@/lib/client/fetch-json";
 import { kbIndexPaceDelayMs } from "@/lib/kb-index-pace";
 
 export interface SkippedKbVideo {
@@ -74,7 +78,7 @@ async function postJson<T>(url: string, body: unknown, timeoutMs?: number): Prom
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const data = await res.json();
+  const data = await parseJsonResponseBody<T & { code?: string; error?: string }>(res);
   if (!res.ok) {
     const code = data.code ? `[${data.code}] ` : "";
     throw new Error(`${code}${data.error ?? `Request failed: ${res.status}`}`);
@@ -84,7 +88,7 @@ async function postJson<T>(url: string, body: unknown, timeoutMs?: number): Prom
 
 async function fetchBuildStatus(kbId: string): Promise<KnowledgeBaseBuildStatus> {
   const res = await fetch(`/api/knowledge-base/${kbId}/build-status`);
-  const data = await res.json();
+  const data = await parseJsonResponseBody<KnowledgeBaseBuildStatus & { error?: string }>(res);
   if (!res.ok) {
     throw new Error(data.error ?? `Build status failed: ${res.status}`);
   }
@@ -93,7 +97,7 @@ async function fetchBuildStatus(kbId: string): Promise<KnowledgeBaseBuildStatus>
 
 async function fetchKbRecord(kbId: string): Promise<KnowledgeBaseRecord> {
   const res = await fetch(`/api/knowledge-base/${kbId}`);
-  const data = await res.json();
+  const data = await parseJsonResponseBody<KnowledgeBaseRecord & { error?: string }>(res);
   if (!res.ok) {
     throw new Error(data.error ?? "Failed to load knowledge base");
   }

@@ -7,24 +7,51 @@ import {
 import { fetchYoutubeAudioBuffer, YoutubeAudioUnavailableError } from "./youtube-audio";
 import { transcribeAudioBuffer } from "./openrouter-stt";
 
+export type TranscriptFailureKind = "permanent" | "transient";
+
+function transcriptFailureKind(detail: string): TranscriptFailureKind {
+  if (
+    /too many requests|captcha|429|rate.?limit|sign in to confirm|not a bot|blocked|timeout|timed out|aborted|ECONNRESET|ETIMEDOUT|503|502|playability.*LOGIN_REQUIRED/i.test(
+      detail
+    )
+  ) {
+    return "transient";
+  }
+  if (
+    /disabled on this video|transcripts are disabled|no transcript is available|no transcripts are available/i.test(
+      detail
+    )
+  ) {
+    return "permanent";
+  }
+  return "transient";
+}
+
 export class TranscriptUnavailableError extends Error {
   readonly videoId: string;
+  readonly kind: TranscriptFailureKind;
 
   constructor(videoId: string, cause?: unknown) {
     const detail = cause instanceof Error ? cause.message : String(cause ?? "");
+    const kind = transcriptFailureKind(detail);
     const reason = detail.includes("disabled")
       ? "transcripts are disabled on this video"
       : detail.includes("not available")
         ? "no transcript is available for this video"
         : /too many requests|captcha|429/i.test(detail)
           ? "YouTube rate-limited transcript access — try again in a few minutes"
-          : /speech-to-text|STT/i.test(detail)
-            ? detail
-            : "the transcript could not be fetched";
+          : /sign in to confirm|not a bot/i.test(detail)
+            ? "YouTube blocked automated transcript access — try again later"
+            : /speech-to-text|STT/i.test(detail)
+              ? detail
+              : kind === "transient"
+                ? "the transcript could not be fetched right now — retrying"
+                : "the transcript could not be fetched";
 
     super(reason);
     this.name = "TranscriptUnavailableError";
     this.videoId = videoId;
+    this.kind = kind;
   }
 }
 

@@ -3,6 +3,20 @@ import { getAppUrl } from "@/lib/app-url";
 
 export const KB_BUILD_CONTINUATION_HEADER = "x-kb-build-continuation";
 
+const KICK_BUILD_PATH_RE = /^\/api\/knowledge-base\/[^/]+\/kick-build$/;
+
+export function isKbBuildKickBuildPath(pathname: string): boolean {
+  return KICK_BUILD_PATH_RE.test(pathname);
+}
+
+/** Lets kick-build reach the route handler; HMAC is verified there. */
+export function allowsKbBuildContinuationThroughProxy(
+  pathname: string,
+  continuationHeader: string | null
+): boolean {
+  return isKbBuildKickBuildPath(pathname) && Boolean(continuationHeader?.trim());
+}
+
 function continuationToken(kbId: string, secret: string): string {
   return createHmac("sha256", secret).update(`kb-build:${kbId}`).digest("hex");
 }
@@ -27,11 +41,13 @@ export async function scheduleKbBuildContinuation(kbId: string): Promise<void> {
   }
 
   const url = `${getAppUrl()}/api/knowledge-base/${encodeURIComponent(kbId)}/kick-build`;
+  const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET?.trim();
   try {
     const res = await fetch(url, {
       method: "POST",
       headers: {
         [KB_BUILD_CONTINUATION_HEADER]: continuationToken(kbId, secret),
+        ...(bypassSecret ? { "x-vercel-protection-bypass": bypassSecret } : {}),
       },
     });
     if (!res.ok) {

@@ -1,6 +1,8 @@
 import { YoutubeTranscript } from "youtube-transcript";
+import { youtubeHttpFetch } from "./youtube-http";
 
 const INNERTUBE_API_URL = "https://www.youtube.com/youtubei/v1/player?prettyPrint=false";
+const VIDEO_FETCH_BUDGET_MS = 60_000;
 
 const WATCH_PAGE_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36";
@@ -31,6 +33,46 @@ export interface RawCaptionSegment {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+class VideoFetchBudget {
+  private readonly deadline: number;
+
+  constructor(ms = VIDEO_FETCH_BUDGET_MS) {
+    this.deadline = Date.now() + ms;
+  }
+
+  assertTimeRemaining(): void {
+    if (Date.now() > this.deadline) {
+      throw new Error("YouTube caption fetch timed out for this video");
+    }
+  }
+}
+
+function logCaptionStrategy(
+  strategy: string,
+  videoId: string,
+  detail: { httpStatus?: number; playability?: string }
+): void {
+  const parts = [
+    `YouTube captions [${strategy}] video=${videoId}`,
+    detail.httpStatus !== undefined ? `http=${detail.httpStatus}` : null,
+    detail.playability ? `playability=${detail.playability}` : null,
+  ].filter(Boolean);
+  console.warn(parts.join(" "));
+}
+
+function playabilityLabel(data: {
+  playabilityStatus?: { status?: string; reason?: string };
+}): string | undefined {
+  const status = data?.playabilityStatus;
+  if (!status) return undefined;
+  return [status.status, status.reason].filter(Boolean).join(": ");
+}
+
+function isBotOrBlockSignal(playability?: string, body?: string): boolean {
+  const haystack = `${playability ?? ""} ${body ?? ""}`;
+  return /LOGIN_REQUIRED|bot|confirm you.?re not/i.test(haystack);
 }
 
 function isRateLimitedError(err: unknown): boolean {
@@ -227,10 +269,12 @@ function orderedCaptionTracks(tracks: CaptionTrack[], preferredLang?: string): C
 
 async function fetchCaptionTracks(
   videoId: string,
-  client: (typeof INNERTUBE_CLIENTS)[number]
+  client: (typeof INNERTUBE_CLIENTS)[number],
+  budget: VideoFetchBudget
 ): Promise<CaptionTrack[] | null> {
   try {
-    const resp = await fetch(INNERTUBE_API_URL, {
+    budget.assertTimeRemaining();
+    const resp = await youtubeHttpFetch(INNERTUBE_API_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -252,14 +296,34 @@ async function fetchCaptionTracks(
     if (resp.status === 429) {
       throw new Error("YouTube is receiving too many requests");
     }
-    if (!resp.ok) return null;
     const data = (await resp.json()) as {
       captions?: { playerCaptionsTracklistRenderer?: { captionTracks?: CaptionTrack[] } };
+      playabilityStatus?: { status?: string; reason?: string };
     };
+    const playability = playabilityLabel(data);
+    if (!resp.ok) {
+      logCaptionStrategy(`innertube:${client.clientName}`, videoId, {
+        httpStatus: resp.status,
+        playability,
+      });
+      return null;
+    }
+
     const tracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-    return Array.isArray(tracks) && tracks.length > 0 ? tracks : null;
+    if (!Array.isArray(tracks) || tracks.length === 0) {
+      logCaptionStrategy(`innertube:${client.clientName}`, videoId, {
+        httpStatus: resp.status,
+        playability,
+      });
+      if (isBotOrBlockSignal(playability)) {
+        throw new Error("Sign in to confirm you're not a bot");
+      }
+      return null;
+    }
+    return tracks;
   } catch (err) {
     if (isRateLimitedError(err)) throw err;
+    if (err instanceof Error && /timed out/i.test(err.message)) throw err;
     return null;
   }
 }
@@ -271,7 +335,8 @@ function isTrustedCaptionHost(hostname: string): boolean {
 
 async function fetchSegmentsFromTrack(
   track: CaptionTrack,
-  videoId: string
+  videoId: string,
+  budget: VideoFetchBudget
 ): Promise<RawCaptionSegment[]> {
   const baseUrl = track.baseUrl;
   if (!baseUrl) return [];
@@ -290,7 +355,8 @@ async function fetchSegmentsFromTrack(
   const attempts = [baseUrl, `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}fmt=json3`];
 
   for (const url of attempts) {
-    const resp = await fetch(url, {
+    budget.assertTimeRemaining();
+    const resp = await youtubeHttpFetch(url, {
       headers: {
         "User-Agent": WATCH_PAGE_USER_AGENT,
         "Accept-Language": "en-US,en;q=0.9",
@@ -301,7 +367,10 @@ async function fetchSegmentsFromTrack(
     if (resp.status === 429) {
       throw new Error("YouTube is receiving too many requests");
     }
-    if (!resp.ok) continue;
+    if (!resp.ok) {
+      logCaptionStrategy("caption-track", videoId, { httpStatus: resp.status });
+      continue;
+    }
     const body = await resp.text();
     const segments = parseCaptionBody(body, lang);
     if (segments.length > 0) return segments;
@@ -313,36 +382,47 @@ async function fetchSegmentsFromTrack(
 async function fetchSegmentsFromTracks(
   tracks: CaptionTrack[],
   videoId: string,
+  budget: VideoFetchBudget,
   preferredLang?: string
 ): Promise<RawCaptionSegment[]> {
   for (const track of orderedCaptionTracks(tracks, preferredLang)) {
-    const segments = await fetchSegmentsFromTrack(track, videoId);
+    const segments = await fetchSegmentsFromTrack(track, videoId, budget);
     if (segments.length > 0) return segments;
   }
   return [];
 }
 
-async function fetchViaInnertube(videoId: string): Promise<RawCaptionSegment[] | null> {
+async function fetchViaInnertube(
+  videoId: string,
+  budget: VideoFetchBudget
+): Promise<RawCaptionSegment[] | null> {
   for (const client of INNERTUBE_CLIENTS) {
-    const tracks = await fetchCaptionTracks(videoId, client);
+    const tracks = await fetchCaptionTracks(videoId, client, budget);
     if (!tracks) continue;
 
-    const segments = await fetchSegmentsFromTracks(tracks, videoId);
+    const segments = await fetchSegmentsFromTracks(tracks, videoId, budget);
     if (segments.length > 0) return segments;
   }
   return null;
 }
 
-async function fetchViaWatchPage(videoId: string): Promise<RawCaptionSegment[] | null> {
+async function fetchViaWatchPage(
+  videoId: string,
+  budget: VideoFetchBudget
+): Promise<RawCaptionSegment[] | null> {
   try {
-    const resp = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+    budget.assertTimeRemaining();
+    const resp = await youtubeHttpFetch(`https://www.youtube.com/watch?v=${videoId}`, {
       headers: {
         "User-Agent": WATCH_PAGE_USER_AGENT,
         "Accept-Language": "en-US,en;q=0.9",
         Accept: "text/html,application/xhtml+xml",
       },
     });
-    if (!resp.ok) return null;
+    if (!resp.ok) {
+      logCaptionStrategy("watch-page", videoId, { httpStatus: resp.status });
+      return null;
+    }
 
     const html = await resp.text();
     if (html.includes('class="g-recaptcha"')) {
@@ -351,19 +431,31 @@ async function fetchViaWatchPage(videoId: string): Promise<RawCaptionSegment[] |
 
     const player = parseYtInitialPlayerResponse(html);
     const tracks = player?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-    if (!Array.isArray(tracks) || tracks.length === 0) return null;
+    if (!Array.isArray(tracks) || tracks.length === 0) {
+      const playability = playabilityLabel(player ?? {});
+      logCaptionStrategy("watch-page", videoId, { httpStatus: resp.status, playability });
+      if (isBotOrBlockSignal(playability, html)) {
+        throw new Error("Sign in to confirm you're not a bot");
+      }
+      return null;
+    }
 
-    const segments = await fetchSegmentsFromTracks(tracks, videoId);
+    const segments = await fetchSegmentsFromTracks(tracks, videoId, budget);
     if (segments.length > 0) return segments;
   } catch (err) {
     if (isRateLimitedError(err)) throw err;
+    if (err instanceof Error && /timed out|bot/i.test(err.message)) throw err;
   }
   return null;
 }
 
-async function fetchViaYoutubeTranscriptPackage(videoId: string): Promise<RawCaptionSegment[] | null> {
+async function fetchViaYoutubeTranscriptPackage(
+  videoId: string,
+  budget: VideoFetchBudget
+): Promise<RawCaptionSegment[] | null> {
   for (const lang of [...LANG_PREFERENCE, undefined]) {
     try {
+      budget.assertTimeRemaining();
       const raw = await YoutubeTranscript.fetchTranscript(videoId, lang ? { lang } : undefined);
       if (raw.length > 0) {
         return raw.map((seg) => ({
@@ -382,7 +474,12 @@ async function fetchViaYoutubeTranscriptPackage(videoId: string): Promise<RawCap
 }
 
 export async function fetchYoutubeCaptionSegments(videoId: string): Promise<RawCaptionSegment[]> {
-  const strategies = [fetchViaInnertube, fetchViaWatchPage, fetchViaYoutubeTranscriptPackage];
+  const budget = new VideoFetchBudget();
+  const strategies = [
+    (id: string) => fetchViaInnertube(id, budget),
+    (id: string) => fetchViaWatchPage(id, budget),
+    (id: string) => fetchViaYoutubeTranscriptPackage(id, budget),
+  ];
   let rateLimit: unknown;
   let answered = false;
 
@@ -396,8 +493,14 @@ export async function fetchYoutubeCaptionSegments(videoId: string): Promise<RawC
         answered = true;
         if (segments?.length) return segments;
       } catch (err) {
-        if (!isRateLimitedError(err)) throw err;
-        rateLimit = err;
+        if (isRateLimitedError(err)) {
+          rateLimit = err;
+          continue;
+        }
+        if (err instanceof Error && /timed out|bot/i.test(err.message)) {
+          throw err;
+        }
+        throw err;
       }
     }
 

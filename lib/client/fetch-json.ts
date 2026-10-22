@@ -5,6 +5,26 @@ export class FetchTimeoutError extends Error {
   }
 }
 
+/** Parse JSON bodies safely when the server returns HTML or an empty timeout response. */
+export async function parseJsonResponseBody<T>(res: Response): Promise<T> {
+  const text = await res.text();
+  if (!text.trim()) {
+    if (!res.ok) {
+      throw new Error(`Server timed out (HTTP ${res.status}). Try again.`);
+    }
+    return {} as T;
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    if (!res.ok) {
+      throw new Error(`Server timed out (HTTP ${res.status}). Try again.`);
+    }
+    throw new Error("Server returned an invalid response. Try again.");
+  }
+}
+
 /** Matches Vercel `maxDuration` on index-video (300s) with a small buffer. */
 export const KB_INDEX_VIDEO_TIMEOUT_MS = 280_000;
 
@@ -23,7 +43,7 @@ export async function postJsonWithTimeout<T>(
       body: JSON.stringify(body),
       signal: controller.signal,
     });
-    const data = await res.json();
+    const data = await parseJsonResponseBody<T & { code?: string; error?: string }>(res);
     if (!res.ok) {
       const code = data.code ? `[${data.code}] ` : "";
       throw new Error(`${code}${data.error ?? `Request failed: ${res.status}`}`);

@@ -7,6 +7,7 @@ import type {
 } from "@/lib/types";
 import type { ResearchCheckpoint } from "@/lib/research-session";
 import { mapWithConcurrency } from "@/lib/concurrency";
+import { parseJsonResponseBody } from "@/lib/client/fetch-json";
 import { toVideoSummary } from "@/lib/youtube";
 
 export type ResearchStage = "expanding" | "searching" | "analyzing" | "ranking";
@@ -35,7 +36,7 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const data = await res.json();
+  const data = await parseJsonResponseBody<T & { code?: string; error?: string }>(res);
   if (!res.ok) {
     const code = data.code ? `[${data.code}] ` : "";
     throw new Error(`${code}${data.error ?? `Request failed: ${res.status}`}`);
@@ -48,7 +49,7 @@ async function getCheckpoint(researchSessionId: string): Promise<ResearchCheckpo
     `/api/research/checkpoint?researchSessionId=${encodeURIComponent(researchSessionId)}`
   );
   if (!res.ok) return null;
-  const data = await res.json();
+  const data = await parseJsonResponseBody<{ checkpoint?: ResearchCheckpoint }>(res);
   return data.checkpoint ?? null;
 }
 

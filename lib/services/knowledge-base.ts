@@ -187,6 +187,10 @@ export async function indexVideoInKnowledgeBase(
     });
   } catch (err) {
     if (err instanceof TranscriptUnavailableError) {
+      if (err.kind === "transient") {
+        throw err;
+      }
+
       const updated = await updateKnowledgeBase(
         kbId,
         (current) => ({

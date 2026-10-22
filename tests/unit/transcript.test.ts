@@ -10,6 +10,22 @@ describe("TranscriptUnavailableError", () => {
     expect(err.message).toContain("rate-limited");
   });
 
+  it("marks rate limits as transient", () => {
+    const err = new TranscriptUnavailableError(
+      "abc",
+      new Error("YouTube is receiving too many requests")
+    );
+    expect(err.kind).toBe("transient");
+  });
+
+  it("marks disabled captions as permanent", () => {
+    const err = new TranscriptUnavailableError(
+      "abc",
+      new Error("Transcript is disabled on this video")
+    );
+    expect(err.kind).toBe("permanent");
+  });
+
   it("maps disabled transcript errors to a readable reason", () => {
     const err = new TranscriptUnavailableError(
       "J90BUTnYd84",

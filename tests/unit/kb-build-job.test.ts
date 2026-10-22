@@ -121,10 +121,13 @@ describe("kb-build-job", () => {
     expect(scheduleKbBuildContinuation).not.toHaveBeenCalled();
   });
 
-  it("indexes one video per invocation and schedules the next", async () => {
-    vi.mocked(indexVideoInKnowledgeBase).mockResolvedValue({
-      kb: store.kb!,
-      skipped: false,
+  it("chains multiple videos in one invocation when indexing succeeds", async () => {
+    vi.mocked(indexVideoInKnowledgeBase).mockImplementation(async (_kbId, video) => {
+      store.kb = {
+        ...store.kb!,
+        chunkIds: [...store.kb!.chunkIds, `${video.videoId}-chunk`],
+      };
+      return { kb: store.kb!, skipped: false };
     });
     store.kb = {
       ...store.kb!,
@@ -136,14 +139,37 @@ describe("kb-build-job", () => {
 
     const result = await runKnowledgeBaseBuildJob("kb-1", false);
 
+    expect(result.kb.status).toBe("ready");
+    expect(indexVideoInKnowledgeBase).toHaveBeenCalledTimes(2);
+    expect(scheduleKbBuildContinuation).not.toHaveBeenCalled();
+  });
+
+  it("schedules continuation when a transient failure pauses in-process chaining", async () => {
+    const { TranscriptUnavailableError } = await import("@/lib/services/transcript");
+    vi.mocked(indexVideoInKnowledgeBase)
+      .mockImplementationOnce(async (_kbId, video) => {
+        store.kb = {
+          ...store.kb!,
+          chunkIds: [...store.kb!.chunkIds, `${video.videoId}-chunk`],
+        };
+        return { kb: store.kb!, skipped: false };
+      })
+      .mockRejectedValueOnce(
+        new TranscriptUnavailableError("b", new Error("YouTube is receiving too many requests"))
+      );
+
+    store.kb = {
+      ...store.kb!,
+      status: "building",
+      chunkIds: [],
+      videosIndexed: 0,
+      chunksIndexed: 0,
+    };
+
+    const result = await runKnowledgeBaseBuildJob("kb-1", false);
+
     expect(result.kb.status).toBe("building");
-    expect(indexVideoInKnowledgeBase).toHaveBeenCalledTimes(1);
-    expect(indexVideoInKnowledgeBase).toHaveBeenCalledWith(
-      "kb-1",
-      expect.objectContaining({ videoId: "a" }),
-      false,
-      "user-1"
-    );
+    expect(indexVideoInKnowledgeBase).toHaveBeenCalledTimes(2);
     expect(scheduleKbBuildContinuation).toHaveBeenCalledWith("kb-1");
   });
 

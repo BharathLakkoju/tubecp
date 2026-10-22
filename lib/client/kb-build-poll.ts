@@ -2,6 +2,7 @@ import type { KnowledgeBase } from "@/lib/types";
 import type { KnowledgeBaseBuildStatus } from "@/lib/kb-build-status";
 import { isKbBuildStatusStale } from "@/lib/kb-build-stale";
 import type { BuildKnowledgeBaseResult, SkippedKbVideo } from "@/lib/client/kb-build";
+import { parseJsonResponseBody } from "@/lib/client/fetch-json";
 
 function buildPollDeadlineMs(videoCount: number): number {
   const perVideoMs = 6 * 60 * 1000;
@@ -21,7 +22,7 @@ export async function pollKnowledgeBaseBuild(
 
   while (Date.now() < deadline) {
     const res = await fetch(`/api/knowledge-base/${kbId}/build-status`);
-    const status = (await res.json()) as KnowledgeBaseBuildStatus & { error?: string };
+    const status = await parseJsonResponseBody<KnowledgeBaseBuildStatus & { error?: string }>(res);
 
     if (!res.ok) {
       throw new Error(status.error ?? `Build status failed: ${res.status}`);
@@ -34,9 +35,9 @@ export async function pollKnowledgeBaseBuild(
 
     if (status.status === "ready" || status.status === "failed") {
       const kbRes = await fetch(`/api/knowledge-base/${kbId}`);
-      const kb = (await kbRes.json()) as KnowledgeBase;
+      const kb = await parseJsonResponseBody<KnowledgeBase & { error?: string }>(kbRes);
       if (!kbRes.ok) {
-        throw new Error((kb as { error?: string }).error ?? "Failed to load knowledge base");
+        throw new Error(kb.error ?? "Failed to load knowledge base");
       }
       return { kb, skippedCount: status.skippedCount ?? 0, error: status.error };
     }
@@ -97,7 +98,13 @@ export async function buildKnowledgeBaseOnServer(
       transcriptMode: options?.useSpeechToText ? "stt" : "captions",
     }),
   });
-  const data = await res.json();
+  const data = await parseJsonResponseBody<{
+    code?: string;
+    error?: string;
+    kb: KnowledgeBase;
+    skippedVideos?: SkippedKbVideo[];
+    async?: boolean;
+  }>(res);
 
   if (!res.ok) {
     const code = data.code ? `[${data.code}] ` : "";

@@ -38,8 +38,17 @@ function indexKey(kbId: string): string {
   return `kb-vidx:${kbId}`;
 }
 
-function bucketIndexKey(kbId: string): string {
+/** Legacy monolithic bucket blob — migrated to per-bucket keys on write. */
+function legacyBucketIndexKey(kbId: string): string {
   return `kb-vidx-ivf:${kbId}`;
+}
+
+function perBucketIndexKey(kbId: string, bucket: number): string {
+  return `kb-vidx-ivf:${kbId}:b${bucket}`;
+}
+
+function bucketManifestKey(kbId: string): string {
+  return `kb-vidx-ivf:${kbId}:manifest`;
 }
 
 function embeddingBucket(embedding: number[]): number {
@@ -122,13 +131,63 @@ async function writeFlatIndex(kbId: string, entries: KbVectorEntry[]): Promise<v
   devFlatIndexes().set(kbId, entries);
 }
 
+async function readLegacyRedisBucketIndex(kbId: string): Promise<Map<number, KbVectorEntry[]> | null> {
+  const redis = getRedis();
+  if (!redis) return null;
+
+  const record = await redis.get<Record<string, KbVectorEntry[]>>(legacyBucketIndexKey(kbId));
+  if (!record) return null;
+  return recordToBuckets(record);
+}
+
+async function readBucketManifest(kbId: string): Promise<number[]> {
+  const redis = getRedis();
+  if (!redis) return [];
+
+  const manifest = await redis.get<number[]>(bucketManifestKey(kbId));
+  return manifest ?? [];
+}
+
+async function writeBucketManifest(kbId: string, buckets: number[]): Promise<void> {
+  const redis = getRedis();
+  if (!redis) return;
+  await redis.set(bucketManifestKey(kbId), [...new Set(buckets)].sort((a, b) => a - b));
+}
+
+async function readRedisBucketEntries(kbId: string, bucket: number): Promise<KbVectorEntry[]> {
+  const redis = getRedis();
+  if (!redis) return [];
+  return (await redis.get<KbVectorEntry[]>(perBucketIndexKey(kbId, bucket))) ?? [];
+}
+
+async function writeRedisBucketEntries(
+  kbId: string,
+  bucket: number,
+  entries: KbVectorEntry[]
+): Promise<void> {
+  const redis = getRedis();
+  if (!redis) return;
+  await redis.set(perBucketIndexKey(kbId, bucket), entries);
+}
+
 async function readBucketIndex(kbId: string): Promise<Map<number, KbVectorEntry[]>> {
   const redis = getRedis();
-  if (redis) {
-    const record = await redis.get<Record<string, KbVectorEntry[]>>(bucketIndexKey(kbId));
-    return record ? recordToBuckets(record) : new Map();
+  if (!redis) {
+    return devBucketIndexes().get(kbId) ?? new Map();
   }
-  return devBucketIndexes().get(kbId) ?? new Map();
+
+  const manifest = await readBucketManifest(kbId);
+  if (manifest.length > 0) {
+    const buckets = new Map<number, KbVectorEntry[]>();
+    for (const bucket of manifest) {
+      const entries = await readRedisBucketEntries(kbId, bucket);
+      if (entries.length > 0) buckets.set(bucket, entries);
+    }
+    return buckets;
+  }
+
+  const legacy = await readLegacyRedisBucketIndex(kbId);
+  return legacy ?? new Map();
 }
 
 async function writeBucketIndex(
@@ -136,11 +195,48 @@ async function writeBucketIndex(
   buckets: Map<number, KbVectorEntry[]>
 ): Promise<void> {
   const redis = getRedis();
-  if (redis) {
-    await redis.set(bucketIndexKey(kbId), bucketsToRecord(buckets));
+  if (!redis) {
+    devBucketIndexes().set(kbId, buckets);
     return;
   }
-  devBucketIndexes().set(kbId, buckets);
+
+  const manifest: number[] = [];
+  for (const [bucket, entries] of buckets.entries()) {
+    await writeRedisBucketEntries(kbId, bucket, entries);
+    manifest.push(bucket);
+  }
+  await writeBucketManifest(kbId, manifest);
+  await redis.del(legacyBucketIndexKey(kbId));
+}
+
+async function appendToRedisBuckets(kbId: string, entries: KbVectorEntry[]): Promise<void> {
+  const redis = getRedis();
+  if (!redis) return;
+
+  const manifest = new Set(await readBucketManifest(kbId));
+  const legacy = manifest.size === 0 ? await readLegacyRedisBucketIndex(kbId) : null;
+  if (legacy) {
+    for (const [bucket, bucketEntries] of legacy.entries()) {
+      await writeRedisBucketEntries(kbId, bucket, bucketEntries);
+      manifest.add(bucket);
+    }
+    await redis.del(legacyBucketIndexKey(kbId));
+  }
+
+  const touched = new Set<number>();
+  for (const entry of entries) {
+    const bucket = embeddingBucket(entry.embedding);
+    touched.add(bucket);
+    const current =
+      manifest.has(bucket) || legacy?.has(bucket)
+        ? await readRedisBucketEntries(kbId, bucket)
+        : [];
+    const merged = mergeEntries(current, [entry]);
+    await writeRedisBucketEntries(kbId, bucket, merged);
+    manifest.add(bucket);
+  }
+
+  await writeBucketManifest(kbId, [...manifest]);
 }
 
 function scoreEntries(
@@ -168,7 +264,12 @@ export async function addToKbVectorIndex(
 ): Promise<void> {
   if (entries.length === 0) return;
 
-  // Bucket index only — flat index does not scale past Upstash's 10MB request limit.
+  const redis = getRedis();
+  if (redis) {
+    await appendToRedisBuckets(kbId, entries);
+    return;
+  }
+
   await writeBucketIndex(kbId, addToBucketMap(await readBucketIndex(kbId), entries));
 }
 
@@ -186,6 +287,42 @@ function flattenBucketIndex(buckets: Map<number, KbVectorEntry[]>): KbVectorEntr
   }
 
   return entries;
+}
+
+async function readProbeBucketEntries(
+  kbId: string,
+  probes: number[],
+  manifest: number[]
+): Promise<KbVectorEntry[]> {
+  const redis = getRedis();
+  if (!redis) {
+    const buckets = await readBucketIndex(kbId);
+    const candidates: KbVectorEntry[] = [];
+    const seen = new Set<string>();
+    for (const bucket of probes) {
+      for (const entry of buckets.get(bucket) ?? []) {
+        if (!seen.has(entry.id)) {
+          candidates.push(entry);
+          seen.add(entry.id);
+        }
+      }
+    }
+    return candidates;
+  }
+
+  const probeSet = new Set(probes);
+  const bucketsToRead = manifest.filter((bucket) => probeSet.has(bucket));
+  const candidates: KbVectorEntry[] = [];
+  const seen = new Set<string>();
+  for (const bucket of bucketsToRead) {
+    for (const entry of await readRedisBucketEntries(kbId, bucket)) {
+      if (!seen.has(entry.id)) {
+        candidates.push(entry);
+        seen.add(entry.id);
+      }
+    }
+  }
+  return candidates;
 }
 
 export async function searchKbVectorIndex(
@@ -207,17 +344,9 @@ export async function searchKbVectorIndex(
   }
 
   const probes = probeBuckets(queryEmbedding);
-  const candidates: KbVectorEntry[] = [];
-  const seen = new Set<string>();
-
-  for (const bucket of probes) {
-    for (const entry of buckets.get(bucket) ?? []) {
-      if (!seen.has(entry.id)) {
-        candidates.push(entry);
-        seen.add(entry.id);
-      }
-    }
-  }
+  const manifest =
+    getRedis() ? await readBucketManifest(kbId) : [...buckets.keys()];
+  const candidates = await readProbeBucketEntries(kbId, probes, manifest);
 
   if (candidates.length === 0) {
     return scoreEntries(entries, queryEmbedding, topK);
@@ -229,8 +358,13 @@ export async function searchKbVectorIndex(
 export async function deleteKbVectorIndex(kbId: string): Promise<void> {
   const redis = getRedis();
   if (redis) {
+    const manifest = await readBucketManifest(kbId);
+    if (manifest.length > 0) {
+      const keys = manifest.map((bucket) => perBucketIndexKey(kbId, bucket));
+      await redis.del(...keys, bucketManifestKey(kbId));
+    }
     await redis.del(indexKey(kbId));
-    await redis.del(bucketIndexKey(kbId));
+    await redis.del(legacyBucketIndexKey(kbId));
     return;
   }
   devFlatIndexes().delete(kbId);

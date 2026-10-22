@@ -19,10 +19,29 @@ import {
   writeKbBuildHeartbeat,
 } from "@/lib/services/kb-build-lock";
 import type { KbBuildJobState, KbBuildOptions, KnowledgeBaseRecord, RankedVideo } from "@/lib/types";
+import { isRetryableLlmError } from "@/lib/services/llm";
+import { TranscriptUnavailableError } from "@/lib/services/transcript";
 import type { BuildKnowledgeBaseResult } from "./kb-build";
 
 const MAX_VIDEO_ATTEMPTS = 2;
+const MAX_TRANSIENT_VIDEO_ATTEMPTS = 6;
 const HEARTBEAT_MS = 20_000;
+/** Stay under Vercel's 300s limit while chaining multiple videos in one invocation. */
+const INVOKE_CHAIN_BUDGET_MS = 240_000;
+
+function maxAttemptsForError(err: unknown): number {
+  if (err instanceof TranscriptUnavailableError && err.kind === "transient") {
+    return MAX_TRANSIENT_VIDEO_ATTEMPTS;
+  }
+  if (isRetryableLlmError(err)) {
+    return MAX_TRANSIENT_VIDEO_ATTEMPTS;
+  }
+  return MAX_VIDEO_ATTEMPTS;
+}
+
+function transientBackoffMs(attempt: number): number {
+  return Math.min(30_000, 2_000 * 2 ** attempt);
+}
 
 export function createInitialBuildJob(totalVideos: number): KbBuildJobState {
   const now = new Date().toISOString();
@@ -184,13 +203,28 @@ export async function runKnowledgeBaseBuildJob(
 
   let result: KbBuildJobResult = { kb, skippedVideos: [] };
   let chainNext = false;
+  const chainInProcess = options?.chain !== false;
+  const startedAt = Date.now();
   try {
     await writeKbBuildHeartbeat(kbId);
     result = await runOneKnowledgeBaseBuildStep(kbId, persistent, kb.userId);
-    chainNext = options?.chain !== false && result.kb.status === "building" && !result.busy;
-    if (chainNext) {
+    let lastProcessed = result.kb.buildJob?.processedVideos ?? 0;
+
+    while (
+      chainInProcess &&
+      result.kb.status === "building" &&
+      !result.busy &&
+      Date.now() - startedAt < INVOKE_CHAIN_BUDGET_MS
+    ) {
       await new Promise((resolve) => setTimeout(resolve, kbIndexPaceDelayMs()));
+      const beforeStep = lastProcessed;
+      result = await runOneKnowledgeBaseBuildStep(kbId, persistent, kb.userId);
+      lastProcessed = result.kb.buildJob?.processedVideos ?? beforeStep;
+      if (result.busy) break;
+      if (lastProcessed <= beforeStep) break;
     }
+
+    chainNext = chainInProcess && result.kb.status === "building" && !result.busy;
     return result;
   } finally {
     clearInterval(heartbeat);
@@ -245,13 +279,23 @@ async function runOneKnowledgeBaseBuildStep(
   } catch (err) {
     const message = err instanceof Error ? err.message : "Indexing failed";
     const nextAttempt = (attempts[video.videoId] ?? 0) + 1;
-    if (nextAttempt < MAX_VIDEO_ATTEMPTS) {
+    const maxAttempts = maxAttemptsForError(err);
+    if (nextAttempt < maxAttempts) {
       attempts[video.videoId] = nextAttempt;
       await updateBuildJob(kbId, persistent, {
         attemptCounts: attempts,
         currentVideoTitle: video.title,
-        error: undefined,
+        error:
+          err instanceof TranscriptUnavailableError && err.kind === "transient"
+            ? `"${video.title}" — ${err.message} (attempt ${nextAttempt}/${maxAttempts})`
+            : undefined,
       });
+      if (
+        (err instanceof TranscriptUnavailableError && err.kind === "transient") ||
+        isRetryableLlmError(err)
+      ) {
+        await new Promise((resolve) => setTimeout(resolve, transientBackoffMs(nextAttempt - 1)));
+      }
       const current = (await getKnowledgeBase(kbId)) ?? kb;
       return { kb: current, skippedVideos: [] };
     }
