@@ -4,15 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Wordmark from "@/components/Wordmark";
 import { BRAND_TAGLINE } from "@/lib/brand";
+import MarketingFooterProductLinks from "@/components/marketing/MarketingFooterProductLinks";
 import { LEGAL_LINKS, PRODUCT_NAME, SUPPORT_EMAIL } from "@/lib/legal";
 const PRODUCT_ROUTE_PREFIXES = ["/app", "/account", "/admin"];
-
-const PRODUCT_LINKS = [
-  { href: "/app", label: "Research" },
-  { href: "/pricing", label: "Pricing" },
-  { href: "/sign-in", label: "Sign in" },
-  { href: "/sign-up", label: "Get started" },
-] as const;
 
 const RESOURCE_LINKS = [
   { href: "/docs/mcp", label: "MCP setup" },
@@ -64,9 +58,7 @@ function MarketingFooter({ year }: { year: number }) {
           <div className="flex flex-col gap-3">
             <p className="text-label font-medium text-foreground">Product</p>
             <nav className="flex flex-col gap-2" aria-label="Product">
-              {PRODUCT_LINKS.map((link) => (
-                <FooterLink key={link.href} href={link.href} label={link.label} />
-              ))}
+              <MarketingFooterProductLinks />
             </nav>
           </div>
 

@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
 import MarketingLayout from "@/components/MarketingLayout";
 import SiteNav from "@/components/SiteNav";
 import AuthFormShell from "@/components/AuthFormShell";
@@ -19,6 +21,13 @@ export default async function SignInPage({
   const providers = getConfiguredOAuthProviders();
   const callbackUrl = resolveAuthCallbackUrl(params);
   const upgrading = isCheckoutCallback(callbackUrl);
+
+  if (process.env.E2E_AUTH_BYPASS !== "true") {
+    const session = await auth();
+    if (session?.user) {
+      redirect(callbackUrl.startsWith("/") ? callbackUrl : "/app");
+    }
+  }
 
   if (process.env.E2E_AUTH_BYPASS === "true") {
     return (

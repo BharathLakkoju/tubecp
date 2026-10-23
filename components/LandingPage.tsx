@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { ArrowRight } from "@phosphor-icons/react";
 import MarketingLayout from "@/components/MarketingLayout";
+import { MarketingBottomCtaActions, MarketingHeroActions } from "@/components/marketing/MarketingCta";
 import SiteNav from "@/components/SiteNav";
 import HeroSection from "@/components/HeroSection";
 import EvalBenchmarkSection from "@/components/EvalBenchmarkSection";
@@ -13,12 +12,10 @@ import Stagger, { StaggerItem } from "@/components/motion/Stagger";
 import PipelineRail from "@/components/tubecp/PipelineRail";
 import RelevanceMeter from "@/components/tubecp/RelevanceMeter";
 import VideoResultSkeleton from "@/components/tubecp/VideoResultSkeleton";
-import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker";
 import { Spinner } from "@/components/ui/spinner";
-import { cn } from "@/lib/utils";
 
 const FEATURES = [
   {
@@ -194,15 +191,7 @@ export default function LandingPage() {
             title="YouTube research, distilled into answers you can trust"
             subtitle="Research engineering talks, conference keynotes, and deep-dive tutorials on YouTube—ranked by relevance, then chat with cited sources on paid plans."
           >
-            <div className="flex w-full max-w-md flex-col gap-3 sm:flex-row sm:justify-center">
-              <Link href="/app" className={cn(buttonVariants({ size: "lg" }), "sm:min-w-44")}>
-                Start researching
-                <ArrowRight data-icon="inline-end" aria-hidden />
-              </Link>
-              <Link href="/sign-in" className={buttonVariants({ variant: "outline", size: "lg" })}>
-                Sign in
-              </Link>
-            </div>
+            <MarketingHeroActions />
           </HeroSection>
 
           <ScrollFrame className="pb-20">
@@ -279,14 +268,7 @@ export default function LandingPage() {
               <p className="max-w-md text-body text-foreground-secondary">
                 Create a free account and run your first ranked YouTube search today.
               </p>
-              <div className="flex w-full max-w-md flex-col gap-3 sm:flex-row sm:justify-center">
-                <Link href="/app" className={cn(buttonVariants({ size: "lg" }), "sm:min-w-44")}>
-                  Open app
-                </Link>
-                <Link href="/pricing" className={buttonVariants({ variant: "outline", size: "lg" })}>
-                  View pricing
-                </Link>
-              </div>
+              <MarketingBottomCtaActions />
             </section>
           </Reveal>
         </main>

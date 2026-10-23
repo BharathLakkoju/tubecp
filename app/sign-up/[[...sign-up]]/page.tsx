@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
 import MarketingLayout from "@/components/MarketingLayout";
 import SiteNav from "@/components/SiteNav";
 import AuthFormShell from "@/components/AuthFormShell";
@@ -19,6 +21,11 @@ export default async function SignUpPage({
   const providers = getConfiguredOAuthProviders();
   const callbackUrl = resolveAuthCallbackUrl(params);
   const upgrading = isCheckoutCallback(callbackUrl);
+
+  const session = await auth();
+  if (session?.user) {
+    redirect(callbackUrl.startsWith("/") ? callbackUrl : "/app");
+  }
 
   return (
     <MarketingLayout>

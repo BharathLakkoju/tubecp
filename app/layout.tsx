@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
+import { auth } from "@/auth";
+import AuthSessionProvider from "@/components/AuthSessionProvider";
 import { AuthProvider } from "@/components/AuthShell";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import SiteFooter from "@/components/SiteFooter";
@@ -42,12 +44,13 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const e2eBypass = isE2eAuthBypass();
+  const session = e2eBypass ? null : await auth();
 
   return (
     <html
@@ -62,12 +65,14 @@ export default function RootLayout({
           <MotionProvider>
             <TooltipProvider>
               <AuthProvider e2eBypass={e2eBypass}>
+                <AuthSessionProvider session={session}>
                 <div className="flex min-h-dvh flex-col overflow-x-clip">
                   <div className="flex min-h-0 flex-1 flex-col overflow-x-clip">{children}</div>
                   <div className="relative z-10 shrink-0">
                     <SiteFooter />
                   </div>
                 </div>
+                </AuthSessionProvider>
               </AuthProvider>
             </TooltipProvider>
             <Toaster />
