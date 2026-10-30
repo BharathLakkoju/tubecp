@@ -16,7 +16,7 @@ const sizeClasses = {
 export default function Wordmark({ size = "md", className }: Props) {
   return (
     <span
-      className={cn("brand-lockup inline-flex shrink-0 items-center", sizeClasses[size], className)}
+      className={cn("brand-lockup inline-flex shrink-0 items-center mt-2", sizeClasses[size], className)}
       role="img"
       aria-label={BRAND_NAME}
     >

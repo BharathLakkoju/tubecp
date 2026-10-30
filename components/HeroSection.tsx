@@ -33,7 +33,7 @@ export default function HeroSection({
       )}
     >
       {showWordmark && (
-        <div className="flex flex-col gap-2">
+        <div className={cn("flex flex-col gap-2", centered && "items-center")}>
           <Wordmark size="lg" />
           <p className="max-w-xl text-body-sm text-foreground-secondary">{BRAND_TAGLINE}</p>
         </div>

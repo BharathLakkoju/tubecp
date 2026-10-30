@@ -6,6 +6,7 @@ import { AuthProvider } from "@/components/AuthShell";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import SiteFooter from "@/components/SiteFooter";
 import MotionProvider from "@/components/motion/MotionProvider";
+import SmoothScroll from "@/components/motion/SmoothScroll";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toast";
 import { BRAND_NAME, BRAND_TAGLINE } from "@/lib/brand";
@@ -63,6 +64,7 @@ export default async function RootLayout({
       <body>
         <ThemeProvider>
           <MotionProvider>
+            <SmoothScroll>
             <TooltipProvider>
               <AuthProvider e2eBypass={e2eBypass}>
                 <AuthSessionProvider session={session}>
@@ -75,6 +77,7 @@ export default async function RootLayout({
                 </AuthSessionProvider>
               </AuthProvider>
             </TooltipProvider>
+            </SmoothScroll>
             <Toaster />
           </MotionProvider>
         </ThemeProvider>
