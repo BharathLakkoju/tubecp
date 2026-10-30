@@ -4,7 +4,9 @@ test.describe("Public pages", () => {
   test("landing page loads with hero and CTAs", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByRole("heading", { level: 1 })).toContainText(/youtube research/i);
-    await expect(page.getByRole("link", { name: /start researching/i })).toBeVisible();
+    const main = page.getByRole("main");
+    await expect(main.getByRole("link", { name: /^get started$/i })).toHaveAttribute("href", "/sign-up");
+    await expect(main.getByRole("link", { name: /^sign in$/i })).toHaveAttribute("href", "/sign-in");
     await expect(page.getByRole("link", { name: /sign in/i }).first()).toBeVisible();
     await expect(page.getByRole("link", { name: /get started/i }).first()).toBeVisible();
   });
