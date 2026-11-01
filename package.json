@@ -25,6 +25,8 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:ci": "vitest run && playwright test",
+    "typecheck": "tsc --noEmit",
+    "check": "tsc --noEmit && vitest run",
     "postinstall": "node scripts/verify-shadcn.mjs"
   },
   "dependencies": {

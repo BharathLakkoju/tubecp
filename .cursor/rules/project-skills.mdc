@@ -1,0 +1,13 @@
+---
+description: Applies the project skills on every agent run
+alwaysApply: true
+---
+
+# Project skills
+
+Apply these on every run:
+
+- **`.cursor/skills/ci-green/SKILL.md`**: before committing or pushing, and whenever CI fails. Run `npm run check`, `npm run build` and `npm run test:e2e`, and confirm the GitHub Actions run is green after pushing.
+- **`.cursor/skills/transcript-pipeline/SKILL.md`**: whenever a change touches knowledge-base builds, transcripts, embeddings, chunk storage, queues, workers or `infra/`. Keep its invariants and complete its verification checklist.
+
+Read the skill file before starting the work it covers.
