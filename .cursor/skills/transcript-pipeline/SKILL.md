@@ -45,4 +45,7 @@ Copy this and complete it before handing back:
 | Chunking and embedding | `lib/services/knowledge-base.ts`, `lib/services/llm.ts` |
 | Chunk and vector storage (phase 1) | `lib/store.ts`, `lib/store/vector-index.ts` |
 | Postgres schema | `lib/db/schema.sql`, applied by `npm run db:migrate` |
+| Queue pipeline | `lib/pipeline/` (jobs, workers, SQS handler, orchestrate) |
+| CDK stack | `infra/stack.ts` (`npm --prefix infra run synth`) |
+| DLQ replay | `scripts/redrive-dlq.ts` |
 | E2E stubs | `lib/e2e-stub.ts` |

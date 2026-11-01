@@ -1,6 +1,6 @@
 # Transcript Pipeline: Event-Driven Fan-Out on AWS
 
-**Status:** Approved for implementation on `feature/event-driven-transcript-pipeline`
+**Status:** Implementation in progress on `feature/event-driven-transcript-pipeline`. The queue path is behind `KB_PIPELINE` (`legacy` default, `queue` for everyone, `admin` for admin users). Without SQS URLs, workers run in-process so local/dev still works.
 **Owner:** Bharath Lakkoju
 **One-page summary for reviewers:** [TRANSCRIPT-PIPELINE-ONE-PAGER.md](./TRANSCRIPT-PIPELINE-ONE-PAGER.md)
 

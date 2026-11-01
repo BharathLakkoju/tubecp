@@ -70,7 +70,7 @@ export function apiError(err: unknown, fallback = "Internal server error") {
     if (e.code === "USAGE_LIMIT" || e.code === "FEATURE_GATE") {
       return NextResponse.json({ error: e.message, code: e.code }, { status: 403 });
     }
-    if (e.code === "RATE_LIMIT") {
+    if (e.code === "RATE_LIMIT" || e.code === "PIPELINE_FAIRNESS") {
       return NextResponse.json({ error: e.message, code: e.code }, { status: 429 });
     }
   }

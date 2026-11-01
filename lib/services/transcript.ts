@@ -30,6 +30,7 @@ function transcriptFailureKind(detail: string): TranscriptFailureKind {
 export class TranscriptUnavailableError extends Error {
   readonly videoId: string;
   readonly kind: TranscriptFailureKind;
+  readonly detail: string;
 
   constructor(videoId: string, cause?: unknown) {
     const detail = cause instanceof Error ? cause.message : String(cause ?? "");
@@ -52,6 +53,7 @@ export class TranscriptUnavailableError extends Error {
     this.name = "TranscriptUnavailableError";
     this.videoId = videoId;
     this.kind = kind;
+    this.detail = detail;
   }
 }
 
