@@ -4,10 +4,12 @@ import { assertKbAccess } from "@/lib/kb-access";
 import { getUserSubscription } from "@/lib/billing/subscription";
 import { getPlan } from "@/lib/plans";
 import { rateLimitApi } from "@/lib/ratelimit";
+import { kbPipelineForUser } from "@/lib/pipeline/config";
 import {
   knowledgeBaseBuildStatus,
   prepareKnowledgeBaseRetry,
   runKnowledgeBaseBuildJob,
+  runKnowledgeBaseRetryJob,
 } from "@/lib/services/kb-build-job";
 
 export const maxDuration = 300;
@@ -35,6 +37,16 @@ export async function POST(
 
     const sub = await getUserSubscription(userId);
     const persistent = getPlan(sub.plan).persistentKbs;
+
+    if (kbPipelineForUser(userId) === "queue") {
+      const result = await runKnowledgeBaseRetryJob(kbId, userId, persistent);
+      return NextResponse.json({
+        kb: result.kb,
+        buildStatus: knowledgeBaseBuildStatus(result.kb),
+        skippedVideos: result.skippedVideos,
+        async: true,
+      });
+    }
 
     await prepareKnowledgeBaseRetry(kbId, persistent);
 

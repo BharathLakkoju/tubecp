@@ -38,6 +38,7 @@
   "exclude": [
     "node_modules",
     "mcp",
+    "infra",
     "tests",
     "e2e",
     "playwright.config.ts",

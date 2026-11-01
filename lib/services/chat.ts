@@ -59,12 +59,12 @@ export async function* streamKnowledgeBaseChat(
     yield { type: "error", message: `Knowledge base not found: ${kbId}` };
     return;
   }
-  if (kb.status !== "ready") {
+  if (kb.status === "failed") {
     yield { type: "error", message: `Knowledge base is not ready (status: ${kb.status})` };
     return;
   }
 
-  if (kb.chunkIds.length === 0) {
+  if (kb.chunkIds.length === 0 && kb.status !== "building") {
     yield { type: "token", text: "This knowledge base has no indexed content yet." };
     yield {
       type: "done",
@@ -80,6 +80,14 @@ export async function* streamKnowledgeBaseChat(
   let scored: Array<{ chunk: ChunkContent; score: number }>;
 
   const vectorHits = await searchKbVectorIndex(kbId, queryEmbedding, 12);
+  if (kb.status === "building" && vectorHits.length === 0 && kb.chunkIds.length === 0) {
+    yield {
+      type: "token",
+      text: "Indexing is still in progress. Try again in a few seconds — chat is available as soon as the first video is indexed.",
+    };
+    yield { type: "done", sources: [], gaps: "No chunks indexed yet." };
+    return;
+  }
   if (vectorHits.length > 0) {
     const chunks = await getChunkContentsByIds(vectorHits.map((hit) => hit.id));
     scored = vectorHits

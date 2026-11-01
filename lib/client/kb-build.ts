@@ -296,20 +296,36 @@ export async function buildKnowledgeBaseFromClient(
 ): Promise<BuildKnowledgeBaseResult> {
   onProgress?.("Preparing knowledge base", 5);
 
-  const { kbId } = await postJson<{ kbId: string }>("/api/knowledge-base/create", {
+  const created = await postJson<{ kbId: string; async?: boolean }>("/api/knowledge-base/create", {
     topic,
     rankedVideos,
     transcriptMode: options?.useSpeechToText ? "stt" : "captions",
   });
-  options?.onKnowledgeBaseCreated?.(kbId);
+  options?.onKnowledgeBaseCreated?.(created.kbId);
 
-  if (!tryAcquireKbBuildDriver(kbId)) {
+  if (created.async) {
+    const { pollKnowledgeBaseBuild, kbBuildFailureMessage, skippedVideosFromCount } = await import(
+      "@/lib/client/kb-build-poll"
+    );
+    const result = await pollKnowledgeBaseBuild(created.kbId, {
+      videoCount: rankedVideos.length,
+      onProgress,
+    });
+    if (result.kb.status === "failed") {
+      throw new Error(kbBuildFailureMessage(result.error, result.skippedCount));
+    }
+    const skippedVideos = skippedVideosFromCount(result.skippedCount);
+    finishBuildProgress(skippedVideos, onProgress);
+    return { kb: result.kb, skippedVideos };
+  }
+
+  if (!tryAcquireKbBuildDriver(created.kbId)) {
     throw new Error("Another tab is already indexing this knowledge base.");
   }
 
   try {
-    const skippedVideos = await indexRankedVideosForKb(kbId, rankedVideos, 0, onProgress);
-    const kb = await finalizeKbOnServer(kbId, onProgress);
+    const skippedVideos = await indexRankedVideosForKb(created.kbId, rankedVideos, 0, onProgress);
+    const kb = await finalizeKbOnServer(created.kbId, onProgress);
 
     if (kb.status === "failed") {
       throw buildAllVideosSkippedError(skippedVideos);
@@ -318,7 +334,7 @@ export async function buildKnowledgeBaseFromClient(
     finishBuildProgress(skippedVideos, onProgress);
     return { kb, skippedVideos };
   } finally {
-    releaseKbBuildDriver(kbId);
+    releaseKbBuildDriver(created.kbId);
   }
 }
 

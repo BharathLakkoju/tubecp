@@ -2,3 +2,4 @@
 process.env.YOUTUBE_API_KEY ??= "test-youtube-key";
 process.env.OPENROUTER_API_KEY ??= "test-openrouter-key";
 process.env.LICENSE_KEY ??= "";
+process.env.PIPELINE_JOB_STORE ??= "memory";

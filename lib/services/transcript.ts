@@ -6,6 +6,7 @@ import {
 } from "./youtube-caption-fetch";
 import { fetchYoutubeAudioBuffer, YoutubeAudioUnavailableError } from "./youtube-audio";
 import { transcribeAudioBuffer } from "./openrouter-stt";
+import { pipelineLoadStubEnabled } from "../pipeline/config";
 
 export type TranscriptFailureKind = "permanent" | "transient";
 
@@ -30,6 +31,7 @@ function transcriptFailureKind(detail: string): TranscriptFailureKind {
 export class TranscriptUnavailableError extends Error {
   readonly videoId: string;
   readonly kind: TranscriptFailureKind;
+  readonly detail: string;
 
   constructor(videoId: string, cause?: unknown) {
     const detail = cause instanceof Error ? cause.message : String(cause ?? "");
@@ -52,6 +54,7 @@ export class TranscriptUnavailableError extends Error {
     this.name = "TranscriptUnavailableError";
     this.videoId = videoId;
     this.kind = kind;
+    this.detail = detail;
   }
 }
 
@@ -139,6 +142,16 @@ export async function getTranscript(
 
   const cached = await getCachedTranscript(videoId, cacheVariant);
   if (cached && cached.segments.length > 0) return cached;
+
+  if (pipelineLoadStubEnabled()) {
+    const transcript: Transcript = {
+      videoId,
+      language: "en",
+      segments: [{ start: 0, duration: 2, text: "load test transcript ".repeat(40) }],
+    };
+    await cacheTranscript(transcript, cacheVariant);
+    return transcript;
+  }
 
   if (mode === "stt") {
     return getTranscriptViaStt(videoId, options?.usageUserId);

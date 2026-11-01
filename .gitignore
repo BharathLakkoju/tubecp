@@ -38,9 +38,15 @@ web/
 tsconfig.tsbuildinfo
 *.tsbuildinfo
 
+# AWS CDK
+infra/cdk.out/
+infra/node_modules/
+cdk.out/
+
 # Test artifacts
 coverage/
 playwright-report/
 test-results/
 blob-report/
 playwright/.cache/
+.env*

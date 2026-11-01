@@ -22,6 +22,10 @@ import type { KbBuildJobState, KbBuildOptions, KnowledgeBaseRecord, RankedVideo 
 import { isRetryableLlmError } from "@/lib/services/llm";
 import { TranscriptUnavailableError } from "@/lib/services/transcript";
 import type { BuildKnowledgeBaseResult } from "./kb-build";
+import { kbPipelineForUser } from "@/lib/pipeline/config";
+import { tryGetRun } from "@/lib/pipeline/jobs";
+import { assertCanStartBuild } from "@/lib/pipeline/limits";
+import { kickQueueBuild, retryQueueBuild, startQueueBuild } from "@/lib/pipeline/orchestrate";
 
 const MAX_VIDEO_ATTEMPTS = 2;
 const MAX_TRANSIENT_VIDEO_ATTEMPTS = 6;
@@ -122,10 +126,19 @@ export async function startKnowledgeBaseBuild(
     return kb;
   }
 
+  if (kbPipelineForUser(userId) === "queue") {
+    await assertCanStartBuild(userId);
+  }
+
   const kb = await createKnowledgeBase(topic, rankedVideos, userId, persistent, buildOptions);
   kb.buildJob = createInitialBuildJob(rankedVideos.length);
   await updateKnowledgeBase(kb.kbId, () => kb, persistent);
   await addUserKnowledgeBase(userId, kb.kbId);
+
+  if (kbPipelineForUser(userId) === "queue") {
+    await startQueueBuild(kb, rankedVideos, persistent);
+  }
+
   return kb;
 }
 
@@ -189,6 +202,13 @@ export async function runKnowledgeBaseBuildJob(
   }
   if (kb.status !== "building") {
     return { kb, skippedVideos: [] };
+  }
+
+  const queueRun = await tryGetRun(kbId);
+  if (queueRun) {
+    await kickQueueBuild(kbId);
+    const latest = (await getKnowledgeBase(kbId)) ?? kb;
+    return { kb: latest, skippedVideos: [], busy: latest.status === "building" };
   }
 
   const owner = await acquireKbBuildLock(kbId);
@@ -370,6 +390,12 @@ export async function runKnowledgeBaseRetryJob(
   }
   if (kb.status !== "failed") {
     throw new Error("Only failed knowledge bases can be retried.");
+  }
+
+  if (kbPipelineForUser(userId) === "queue") {
+    await retryQueueBuild(kb, persistent);
+    const latest = (await getKnowledgeBase(kbId)) ?? kb;
+    return { kb: latest, skippedVideos: [] };
   }
 
   await prepareKnowledgeBaseRetry(kbId, persistent);

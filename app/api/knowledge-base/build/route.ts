@@ -1,6 +1,8 @@
 import { after, NextRequest, NextResponse } from "next/server";
 import { requireUserId, apiError } from "@/lib/auth";
 import { checkAndIncrementUsage, getUserSubscription } from "@/lib/billing/subscription";
+import { kbPipelineForUser } from "@/lib/pipeline/config";
+import { assertCanStartBuild } from "@/lib/pipeline/limits";
 import { isE2eStubMode } from "@/lib/e2e-stub";
 import { getPlan } from "@/lib/plans";
 import { rateLimitApi } from "@/lib/ratelimit";
@@ -30,6 +32,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (!isE2eStubMode()) {
+      if (kbPipelineForUser(userId) === "queue") {
+        await assertCanStartBuild(userId);
+      }
       await checkAndIncrementUsage(userId, "kb_build");
     }
 
@@ -51,11 +56,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ kb, skippedVideos: [], async: false });
     }
 
-    after(() => {
-      runKnowledgeBaseBuildJob(kb.kbId, persistent).catch((err) => {
-        console.error(`KB build job failed for ${kb.kbId}:`, err);
+    if (kbPipelineForUser(userId) !== "queue") {
+      after(() => {
+        runKnowledgeBaseBuildJob(kb.kbId, persistent).catch((err) => {
+          console.error(`KB build job failed for ${kb.kbId}:`, err);
+        });
       });
-    });
+    }
 
     return NextResponse.json(
       { kb, skippedVideos: [], async: true },

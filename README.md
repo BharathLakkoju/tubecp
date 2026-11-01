@@ -2,7 +2,7 @@
 
 Turn any YouTube research topic into a **chattable knowledge base** — sourced, timestamped, and monetization-ready.
 
-**Stack:** Next.js (Vercel) · Auth.js / NextAuth (Google/GitHub) · Neon Postgres · Polar payments · Upstash Redis · Sentry
+**Stack:** Next.js (Vercel) · Auth.js / NextAuth (Google/GitHub) · Neon Postgres · Polar payments · Upstash Redis · Sentry · AWS SQS + Lambda (knowledge-base pipeline, in progress)
 
 ## Features
 
@@ -87,6 +87,13 @@ npm run smoke:production -- --url https://your-app.vercel.app
 See [docs/INFRASTRUCTURE.md](docs/INFRASTRUCTURE.md) for why we use Neon Postgres, Upstash Redis, Polar, and Sentry.
 
 **Verdict:** Upstash is the best free-tier choice for Vercel serverless. Don't switch unless you hit 500k+ Redis commands/month.
+
+### Knowledge-base pipeline (in progress)
+
+Knowledge-base builds are moving to an event-driven pipeline: one job per video, fanned out through Amazon SQS to AWS Lambda workers, with job state in Neon Postgres. It replaces the self-calling Vercel build chain, so builds run in parallel, survive YouTube blocking with backoff and a dead-letter queue, and share capacity fairly between users.
+
+- Decision record, alternatives and rollout: [docs/TRANSCRIPT-PIPELINE.md](docs/TRANSCRIPT-PIPELINE.md)
+- One-page design for reviewers: [docs/TRANSCRIPT-PIPELINE-ONE-PAGER.md](docs/TRANSCRIPT-PIPELINE-ONE-PAGER.md)
 
 ## Quality evaluation
 

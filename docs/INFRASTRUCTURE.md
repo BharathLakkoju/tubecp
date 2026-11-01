@@ -64,6 +64,32 @@ At that point you're likely making revenue — the cost is negligible vs OpenRou
 
 ---
 
+## AWS transcript pipeline
+
+**Status:** In progress on `feature/event-driven-transcript-pipeline`. Design: [TRANSCRIPT-PIPELINE.md](./TRANSCRIPT-PIPELINE.md).
+
+Knowledge-base builds move off self-calling Vercel functions onto two Amazon SQS queues (fetch, embed) with AWS Lambda workers. Neon Postgres stores one job row per video. Upstash Redis keeps chunks and vectors in phase 1 and adds a token bucket for YouTube traffic. Vercel stays the web tier and authenticates to AWS with OIDC, so no long-lived AWS keys are stored.
+
+Lambdas run outside a VPC and connect to Neon through the serverless driver, which avoids a NAT gateway (about $32 per month) and RDS Proxy.
+
+### Estimated monthly cost
+
+Assumes an average video of about 20 minutes, about 1.5 MB of proxy traffic per video, and about 10% of videos using the transcript API fallback. Prices are list prices to verify before budgeting.
+
+| | 3,000 videos | 30,000 videos | 300,000 videos |
+|---|---|---|---|
+| AWS (Lambda, SQS, CloudWatch) | $1–3 | $3–6 | $20–30 |
+| Residential proxy | ~$20 | $150–350 | $1,350–2,250 |
+| Transcript API fallback | $0–20 | $6–30 | ~$90 |
+| Embeddings | <$1 | ~$3 | ~$30 |
+| Neon (job rows now, pgvector in phase 2) | $5–15 | $20–50 | $70–170 |
+| Upstash | $0 | $0–2 | $6–10 |
+| **Total** | **$30–60** | **$270–430** | **$1.6k–2.6k** |
+
+The proxy is about 90% of the cost per video at every scale, so the levers that matter are transcript cache hits and fetching less data per video, not the choice of queue.
+
+---
+
 ## Auth.js (NextAuth) — **In use**
 
 - Self-hosted auth with Google and GitHub OAuth
@@ -95,6 +121,7 @@ At that point you're likely making revenue — the cost is negligible vs OpenRou
 | Vercel Hobby/Pro | $0–20 |
 | Upstash Redis | $0 (free tier) |
 | Neon Postgres | $0 (free tier) |
+| AWS (SQS + Lambda transcript pipeline) | $1–3 at launch volume |
 | Polar | % of revenue only |
 | Sentry | $0 (free tier) |
 | OpenRouter API | ~$0.02–0.10 per research job |
@@ -108,5 +135,6 @@ At that point you're likely making revenue — the cost is negligible vs OpenRou
 
 ```
 Keep:  Neon Postgres + Auth.js + Upstash Redis + Polar + Sentry (free) + Vercel
+Add:   AWS SQS + Lambda for the knowledge-base transcript pipeline
 Skip:  Railway, Render, Fly.io for this app's primary stack
 ```

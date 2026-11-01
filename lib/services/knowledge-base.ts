@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
+import { config } from "../config";
 import { hasMeaningfulEmbeddingContent } from "../embedding-input";
 import {
   getTranscript,
@@ -30,8 +31,18 @@ import type {
 
 const WORDS_PER_CHUNK = 200;
 const OVERLAP_WORDS = 40;
+export const CHUNKER_VERSION = "words-200-overlap-40-v1";
 
-function chunkTranscript(
+export function transcriptChunkId(
+  videoId: string,
+  index: number,
+  embeddingModel = config.embeddingModel,
+  chunkerVersion = CHUNKER_VERSION
+): string {
+  return `${videoId}:${embeddingModel}:${chunkerVersion}:${index}`;
+}
+
+export function chunkTranscript(
   segments: { start: number; duration: number; text: string }[],
   videoId: string,
   title: string,
@@ -51,19 +62,21 @@ function chunkTranscript(
     }
   }
 
+  let chunkIndex = 0;
   for (let i = 0; i < words.length; i += WORDS_PER_CHUNK - OVERLAP_WORDS) {
     const chunkWords = words.slice(i, i + WORDS_PER_CHUNK);
     if (chunkWords.length < 20) continue;
 
     const timestamp = wordTimestamps[i] ?? 0;
     chunks.push({
-      id: uuidv4(),
+      id: transcriptChunkId(videoId, chunkIndex),
       videoId,
       title,
       channel,
       timestamp,
       text: chunkWords.join(" "),
     });
+    chunkIndex += 1;
   }
 
   return chunks;
