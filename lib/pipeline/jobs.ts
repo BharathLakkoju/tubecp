@@ -37,7 +37,12 @@ export type KbVideoJob = {
   errorMessage: string | null;
   chunkIds: string[];
   minutes: number;
+  updatedAt: string;
 };
+
+export type JobCompletion =
+  | { status: "indexed"; chunkIds: string[]; minutes: number }
+  | { status: "skipped" | "failed"; errorClass: PipelineErrorClass; message: string };
 
 export type JobCounts = {
   total: number;
@@ -60,10 +65,14 @@ export type JobStore = {
   getJob(kbId: string, videoId: string): Promise<KbVideoJob | null>;
   listJobs(kbId: string): Promise<KbVideoJob[]>;
   claimJob(kbId: string, videoId: string, from: JobStatus[], to: JobStatus): Promise<KbVideoJob | null>;
+  /** Move an in-progress job to `to` even if the exclusive from-status missed. Terminal jobs are unchanged. */
+  releaseOpenJob(kbId: string, videoId: string, to: JobStatus): Promise<KbVideoJob | null>;
   markFetched(kbId: string, videoId: string): Promise<void>;
   markIndexed(kbId: string, videoId: string, chunkIds: string[], minutes: number): Promise<void>;
   markSkipped(kbId: string, videoId: string, errorClass: PipelineErrorClass, message: string): Promise<void>;
   markFailed(kbId: string, videoId: string, errorClass: PipelineErrorClass, message: string): Promise<void>;
+  completeJob(kbId: string, videoId: string, completion: JobCompletion): Promise<{ becameFinalizer: boolean }>;
+  latestActivity(kbId: string): Promise<string | null>;
   counts(kbId: string): Promise<JobCounts>;
   tryBeginFinalize(kbId: string): Promise<boolean>;
   finishRun(kbId: string, status: "ready" | "failed"): Promise<void>;
@@ -119,7 +128,19 @@ export function createMemoryJobStore(): JobStore {
         updatedAt: now,
       });
       input.videos.forEach((video, position) => {
-        jobs.set(jobKey(input.kbId, video.videoId), {
+        const key = jobKey(input.kbId, video.videoId);
+        const existing = jobs.get(key);
+        if (
+          existing &&
+          (existing.status === "indexed" ||
+            existing.status === "fetching" ||
+            existing.status === "fetched" ||
+            existing.status === "embedding")
+        ) {
+          jobs.set(key, { ...existing, position, title: video.title, channel: video.channel });
+          return;
+        }
+        jobs.set(key, {
           kbId: input.kbId,
           videoId: video.videoId,
           position,
@@ -130,6 +151,7 @@ export function createMemoryJobStore(): JobStore {
           errorMessage: null,
           chunkIds: [],
           minutes: 0,
+          updatedAt: now,
         });
       });
     },
@@ -147,14 +169,27 @@ export function createMemoryJobStore(): JobStore {
     async claimJob(kbId, videoId, from, to) {
       const job = jobs.get(jobKey(kbId, videoId));
       if (!job || !from.includes(job.status)) return null;
-      const next = { ...job, status: to };
+      const next = { ...job, status: to, updatedAt: new Date().toISOString() };
+      jobs.set(jobKey(kbId, videoId), next);
+      return next;
+    },
+    async releaseOpenJob(kbId, videoId, to) {
+      const job = jobs.get(jobKey(kbId, videoId));
+      if (!job || isTerminal(job.status)) return null;
+      const next = { ...job, status: to, updatedAt: new Date().toISOString() };
       jobs.set(jobKey(kbId, videoId), next);
       return next;
     },
     async markFetched(kbId, videoId) {
       const job = jobs.get(jobKey(kbId, videoId));
       if (!job) return;
-      jobs.set(jobKey(kbId, videoId), { ...job, status: "fetched", errorClass: null, errorMessage: null });
+      jobs.set(jobKey(kbId, videoId), {
+        ...job,
+        status: "fetched",
+        errorClass: null,
+        errorMessage: null,
+        updatedAt: new Date().toISOString(),
+      });
     },
     async markIndexed(kbId, videoId, chunkIds, minutes) {
       const job = jobs.get(jobKey(kbId, videoId));
@@ -166,6 +201,7 @@ export function createMemoryJobStore(): JobStore {
         minutes,
         errorClass: null,
         errorMessage: null,
+        updatedAt: new Date().toISOString(),
       });
     },
     async markSkipped(kbId, videoId, errorClass, message) {
@@ -176,6 +212,7 @@ export function createMemoryJobStore(): JobStore {
         status: "skipped",
         errorClass,
         errorMessage: message,
+        updatedAt: new Date().toISOString(),
       });
     },
     async markFailed(kbId, videoId, errorClass, message) {
@@ -186,7 +223,25 @@ export function createMemoryJobStore(): JobStore {
         status: "failed",
         errorClass,
         errorMessage: message,
+        updatedAt: new Date().toISOString(),
       });
+    },
+    async completeJob(kbId, videoId, completion) {
+      if (completion.status === "indexed") {
+        await this.markIndexed(kbId, videoId, completion.chunkIds, completion.minutes);
+      } else if (completion.status === "skipped") {
+        await this.markSkipped(kbId, videoId, completion.errorClass, completion.message);
+      } else {
+        await this.markFailed(kbId, videoId, completion.errorClass, completion.message);
+      }
+      return { becameFinalizer: await this.tryBeginFinalize(kbId) };
+    },
+    async latestActivity(kbId) {
+      const times = (await this.listJobs(kbId)).map((job) => job.updatedAt);
+      const run = runs.get(kbId);
+      if (run) times.push(run.updatedAt);
+      if (times.length === 0) return null;
+      return times.sort().at(-1) ?? null;
     },
     async counts(kbId) {
       return countsFrom(await this.listJobs(kbId));
@@ -284,6 +339,7 @@ function mapJob(row: Record<string, unknown>): KbVideoJob {
     errorMessage: (row.error_message as string | null) ?? null,
     chunkIds: Array.isArray(row.chunk_ids) ? (row.chunk_ids as string[]) : [],
     minutes: Number(row.minutes ?? 0),
+    updatedAt: new Date(String(row.updated_at ?? row.created_at ?? Date.now())).toISOString(),
   };
 }
 
@@ -318,12 +374,8 @@ export function createNeonJobStore(): JobStore {
            position = EXCLUDED.position,
            title = EXCLUDED.title,
            channel = EXCLUDED.channel,
-           status = 'queued',
-           error_class = NULL,
-           error_message = NULL,
-           chunk_ids = '{}',
-           minutes = 0,
-           updated_at = NOW()`,
+           updated_at = NOW()
+         WHERE kb_video_jobs.status IN ('queued', 'skipped', 'failed')`,
         values
       );
     },
@@ -355,6 +407,17 @@ export function createNeonJobStore(): JobStore {
          WHERE kb_id = $1 AND video_id = $2 AND status = ANY($4::text[])
          RETURNING *`,
         [kbId, videoId, to, from]
+      )) as Record<string, unknown>[];
+      return rows[0] ? mapJob(rows[0]) : null;
+    },
+    async releaseOpenJob(kbId, videoId, to) {
+      const rows = (await neonSql().query(
+        `UPDATE kb_video_jobs
+         SET status = $3, updated_at = NOW()
+         WHERE kb_id = $1 AND video_id = $2
+           AND status NOT IN ('indexed', 'skipped', 'failed')
+         RETURNING *`,
+        [kbId, videoId, to]
       )) as Record<string, unknown>[];
       return rows[0] ? mapJob(rows[0]) : null;
     },
@@ -390,6 +453,52 @@ export function createNeonJobStore(): JobStore {
          WHERE kb_id = $1 AND video_id = $2`,
         [kbId, videoId, errorClass, message]
       );
+    },
+    async completeJob(kbId, videoId, completion) {
+      const sql = neonSql();
+      const jobSql =
+        completion.status === "indexed"
+          ? {
+              text: `UPDATE kb_video_jobs
+                     SET status = 'indexed', chunk_ids = $3::text[], minutes = $4,
+                         error_class = NULL, error_message = NULL, updated_at = NOW()
+                     WHERE kb_id = $1 AND video_id = $2`,
+              params: [kbId, videoId, completion.chunkIds, completion.minutes],
+            }
+          : {
+              text: `UPDATE kb_video_jobs
+                     SET status = $3, error_class = $4, error_message = $5, updated_at = NOW()
+                     WHERE kb_id = $1 AND video_id = $2`,
+              params: [kbId, videoId, completion.status, completion.errorClass, completion.message],
+            };
+      const results = (await sql.transaction((txn) => [
+        txn.query(jobSql.text, jobSql.params),
+        txn.query(
+          `UPDATE kb_build_runs
+           SET status = 'finalizing', finalize_started_at = NOW(), updated_at = NOW()
+           WHERE kb_id = $1
+             AND status = 'building'
+             AND NOT EXISTS (
+               SELECT 1 FROM kb_video_jobs
+               WHERE kb_id = $1 AND status NOT IN ('indexed', 'skipped', 'failed')
+             )
+           RETURNING kb_id`,
+          [kbId]
+        ),
+      ])) as unknown[][];
+      const finalizeRows = results[1] ?? [];
+      return { becameFinalizer: finalizeRows.length > 0 };
+    },
+    async latestActivity(kbId) {
+      const rows = (await neonSql().query(
+        `SELECT GREATEST(
+           (SELECT MAX(updated_at) FROM kb_video_jobs WHERE kb_id = $1),
+           (SELECT updated_at FROM kb_build_runs WHERE kb_id = $1)
+         ) AS ts`,
+        [kbId]
+      )) as Record<string, unknown>[];
+      const ts = rows[0]?.ts;
+      return ts ? new Date(String(ts)).toISOString() : null;
     },
     async counts(kbId) {
       const rows = (await neonSql().query(
@@ -492,7 +601,14 @@ let memoryStore: JobStore | null = null;
 let neonStore: JobStore | null = null;
 
 export function getJobStore(): JobStore {
-  if (process.env.PIPELINE_JOB_STORE === "memory" || !process.env.DATABASE_URL?.trim()) {
+  if (process.env.PIPELINE_JOB_STORE === "memory") {
+    memoryStore ??= createMemoryJobStore();
+    return memoryStore;
+  }
+  if (!process.env.DATABASE_URL?.trim()) {
+    if (process.env.NODE_ENV === "production" || process.env.VERCEL_ENV === "production") {
+      throw new Error("DATABASE_URL is required for the transcript pipeline in production");
+    }
     memoryStore ??= createMemoryJobStore();
     return memoryStore;
   }

@@ -33,14 +33,24 @@ class TranscriptPipelineStack extends cdk.Stack {
       deadLetterQueue: { queue: embedDlq, maxReceiveCount: 5 },
     });
 
+    const deploying = process.argv.includes("deploy");
+    const databaseUrl = process.env.DATABASE_URL?.trim() ?? "";
+    const openrouterKey = process.env.OPENROUTER_API_KEY?.trim() ?? "";
+    if (deploying && !databaseUrl) {
+      throw new Error("DATABASE_URL is required to deploy the transcript pipeline");
+    }
+    if (deploying && !openrouterKey) {
+      throw new Error("OPENROUTER_API_KEY is required to deploy the transcript pipeline");
+    }
+
     const workerEnv = {
       PIPELINE_AWS_REGION: this.region,
       PIPELINE_FETCH_QUEUE_URL: fetchQueue.queueUrl,
       PIPELINE_EMBED_QUEUE_URL: embedQueue.queueUrl,
-      DATABASE_URL: process.env.DATABASE_URL ?? "",
+      DATABASE_URL: databaseUrl,
       UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL ?? "",
       UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN ?? "",
-      OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY ?? "",
+      OPENROUTER_API_KEY: openrouterKey,
       OPENROUTER_BASE_URL: process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1",
       EMBEDDING_MODEL: process.env.EMBEDDING_MODEL ?? "openai/text-embedding-3-small",
       YOUTUBE_HTTP_PROXY: process.env.YOUTUBE_HTTP_PROXY ?? "",
@@ -113,9 +123,7 @@ class TranscriptPipelineStack extends cdk.Stack {
       assumedBy: new iam.OpenIdConnectPrincipal(provider).withConditions({
         StringEquals: {
           [`${issuer.replace("https://", "")}:aud`]: `https://vercel.com/${VERCEL_TEAM}`,
-        },
-        StringLike: {
-          [`${issuer.replace("https://", "")}:sub`]: `owner:${VERCEL_TEAM}:project:${VERCEL_PROJECT}:environment:*`,
+          [`${issuer.replace("https://", "")}:sub`]: `owner:${VERCEL_TEAM}:project:${VERCEL_PROJECT}:environment:production`,
         },
       }),
       description: "Vercel tubecp enqueue-only role for the transcript pipeline",

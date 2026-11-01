@@ -3,7 +3,7 @@ import { ChangeMessageVisibilityCommand, SQSClient } from "@aws-sdk/client-sqs";
 import { pipelineConfig } from "@/lib/pipeline/config";
 import { parsePipelineMessage, type PipelineStage } from "@/lib/pipeline/messages";
 import { dispatchPipelineMessage } from "@/lib/pipeline/runtime";
-import { RetryLaterError } from "@/lib/pipeline/retry";
+import { DeadLetteredError, RetryLaterError } from "@/lib/pipeline/retry";
 
 function receiveCount(record: SQSRecord): number {
   const raw = record.attributes?.ApproximateReceiveCount;
@@ -25,31 +25,25 @@ async function delayRetry(queueUrl: string, receiptHandle: string, seconds: numb
 export function createSqsHandler(stage: PipelineStage) {
   return async (event: SQSEvent): Promise<SQSBatchResponse> => {
     const failures: SQSBatchResponse["batchItemFailures"] = [];
-    const queueUrl = event.Records[0]?.eventSourceARN
-      ? undefined
-      : stage === "fetch"
-        ? pipelineConfig().fetchQueueUrl
-        : pipelineConfig().embedQueueUrl;
 
     for (const record of event.Records) {
       try {
         const message = parsePipelineMessage(record.body);
         await dispatchPipelineMessage(stage, message, receiveCount(record));
       } catch (err) {
-        if (err instanceof RetryLaterError) {
+        if (err instanceof DeadLetteredError) {
+          continue;
+        } else if (err instanceof RetryLaterError) {
           const url =
-            record.eventSourceARN && record.receiptHandle
-              ? process.env.PIPELINE_FETCH_QUEUE_URL && stage === "fetch"
-                ? process.env.PIPELINE_FETCH_QUEUE_URL
-                : process.env.PIPELINE_EMBED_QUEUE_URL
-              : queueUrl;
+            stage === "fetch" ? pipelineConfig().fetchQueueUrl : pipelineConfig().embedQueueUrl;
           if (url && record.receiptHandle) {
             await delayRetry(url, record.receiptHandle, err.delaySeconds);
           }
+          failures.push({ itemIdentifier: record.messageId });
         } else {
           console.error(`${stage} worker failed:`, err);
+          failures.push({ itemIdentifier: record.messageId });
         }
-        failures.push({ itemIdentifier: record.messageId });
       }
     }
 

@@ -392,14 +392,13 @@ export async function runKnowledgeBaseRetryJob(
     throw new Error("Only failed knowledge bases can be retried.");
   }
 
-  await prepareKnowledgeBaseRetry(kbId, persistent);
-
   if (kbPipelineForUser(userId) === "queue") {
-    const retried = (await getKnowledgeBase(kbId)) ?? kb;
-    await retryQueueBuild(retried, persistent);
-    const latest = (await getKnowledgeBase(kbId)) ?? retried;
+    await retryQueueBuild(kb, persistent);
+    const latest = (await getKnowledgeBase(kbId)) ?? kb;
     return { kb: latest, skippedVideos: [] };
   }
+
+  await prepareKnowledgeBaseRetry(kbId, persistent);
 
   const limit = 40;
   let result = await runKnowledgeBaseBuildJob(kbId, persistent, { chain: false });

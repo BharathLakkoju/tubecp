@@ -4,6 +4,7 @@ import {
   recordOpenRouterChatUsage,
   recordOpenRouterEmbeddingUsage,
 } from "../usage/api-cost";
+import { pipelineLoadStubEnabled } from "../pipeline/config";
 
 type LlmUsageOptions = {
   usageUserId?: string;
@@ -246,6 +247,10 @@ export async function generateEmbeddings(
   options?: LlmUsageOptions
 ): Promise<number[][]> {
   if (texts.length === 0) return [];
+
+  if (pipelineLoadStubEnabled()) {
+    return texts.map(() => Array.from({ length: 8 }, (_, index) => (index === 0 ? 1 : 0)));
+  }
 
   const input = texts.map(prepareEmbeddingInput);
   if (input.some((value) => value.trim().length === 0)) {

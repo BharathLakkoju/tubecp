@@ -27,13 +27,13 @@ Workers scale on the age of the oldest message, not queue depth, because depth l
 
 ## Retries and failure handling
 
-SQS delivers at least once, so every stage is idempotent: jobs upsert on `(kb_id, video_id)` and chunks on `(video_id, embedding_model, chunker_version)`.
+SQS delivers at least once, so every stage is idempotent: jobs upsert on `(kb_id, video_id)` and chunks on `(video_id, embedding_model, chunker_version)`. If the Redis KB write fails after Postgres is `finalizing`, kick-build retries that write instead of treating the run as done.
 
 - **Error classes:** `no_captions` and `invalid_video` are terminal. `blocked`, `rate_limited` and `provider_5xx` are retryable.
 - **Backoff:** exponential with jitter on the visibility timeout (5s, 20s, 80s, capped at 5 minutes).
 - **Dead letters:** after 5 receives a message moves to a DLQ, which has an alarm and a redrive tool.
 - **Retry budget:** retries are capped at 20% of fresh traffic per stage.
-- **Circuit breaker:** when the blocked rate crosses a threshold, fetches switch to a hosted transcript API.
+- **Circuit breaker:** when the blocked rate crosses a threshold, fetches pause for five minutes. A hosted transcript API is a later fallback.
 
 ## What breaks at 10x
 

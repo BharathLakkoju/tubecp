@@ -1,4 +1,5 @@
 import type { KnowledgeBaseRecord, RankedVideo } from "@/lib/types";
+import { isProduction } from "@/lib/env";
 import { pipelineConfig } from "@/lib/pipeline/config";
 import { getJobStore } from "@/lib/pipeline/jobs";
 import { assertCanStartBuild, remainingFetchSlots } from "@/lib/pipeline/limits";
@@ -12,14 +13,23 @@ function useInProcessQueue(): boolean {
   return !fetchQueueUrl || !embedQueueUrl;
 }
 
+function ensureTransport(): void {
+  if (useInProcessQueue()) {
+    if (isProduction() || process.env.VERCEL) {
+      throw new Error(
+        "KB_PIPELINE=queue requires PIPELINE_FETCH_QUEUE_URL and PIPELINE_EMBED_QUEUE_URL"
+      );
+    }
+    ensureInProcessPipeline();
+  }
+}
+
 export async function startQueueBuild(
   kb: KnowledgeBaseRecord,
   rankedVideos: RankedVideo[],
   persistent: boolean
 ): Promise<void> {
-  if (useInProcessQueue()) {
-    ensureInProcessPipeline();
-  }
+  ensureTransport();
 
   const store = getJobStore();
   const slots = await remainingFetchSlots(kb.userId);
@@ -38,26 +48,33 @@ export async function startQueueBuild(
 }
 
 export async function retryQueueBuild(kb: KnowledgeBaseRecord, persistent: boolean): Promise<void> {
-  if (useInProcessQueue()) {
-    ensureInProcessPipeline();
-  }
+  ensureTransport();
+  await assertCanStartBuild(kb.userId);
 
   const store = getJobStore();
   const existing = await store.getRun(kb.kbId);
-  if (!existing) {
-    await startQueueBuild(kb, kb.rankedVideos ?? [], persistent);
-    return;
+  const videos = kb.rankedVideos ?? [];
+  let queued: Array<{ kbId: string; videoId: string }>;
+  if (existing) {
+    queued = await store.resetRetryableJobs(kb.kbId);
+  } else {
+    await store.insertRun({
+      kbId: kb.kbId,
+      userId: kb.userId,
+      persistent,
+      transcriptMode: kb.buildOptions?.transcriptMode ?? "captions",
+      videos,
+    });
+    queued = videos.map((video) => ({ kbId: kb.kbId, videoId: video.videoId }));
   }
 
-  await assertCanStartBuild(kb.userId);
-  const reset = await store.resetRetryableJobs(kb.kbId);
   await updateKnowledgeBase(
     kb.kbId,
     (current) => ({
       ...current,
       status: "building",
       buildJob: {
-        totalVideos: current.rankedVideos?.length ?? reset.length,
+        totalVideos: current.rankedVideos?.length ?? queued.length,
         processedVideos: 0,
         skippedCount: 0,
         skippedVideoIds: [],
@@ -71,14 +88,12 @@ export async function retryQueueBuild(kb: KnowledgeBaseRecord, persistent: boole
   const slots = await remainingFetchSlots(kb.userId);
   await enqueue(
     "fetch",
-    reset.slice(0, slots).map((job) => ({ kbId: job.kbId, videoId: job.videoId }))
+    queued.slice(0, slots).map((job) => ({ kbId: kb.kbId, videoId: job.videoId }))
   );
 }
 
 export async function kickQueueBuild(kbId: string): Promise<void> {
-  if (useInProcessQueue()) {
-    ensureInProcessPipeline();
-  }
+  ensureTransport();
 
   const store = getJobStore();
   const run = await store.getRun(kbId);

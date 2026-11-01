@@ -77,3 +77,53 @@ export async function recordYoutubeBlock(): Promise<void> {
     await redis.set(CIRCUIT_KEY, "1", { ex: 5 * 60 });
   }
 }
+
+export class EmbedBudgetExceededError extends Error {
+  constructor() {
+    super("Embedding tokens-per-minute budget is exhausted");
+    this.name = "EmbedBudgetExceededError";
+  }
+}
+
+export class RetryBudgetExceededError extends Error {
+  constructor() {
+    super("Retry traffic exceeded 20% of fresh pipeline traffic");
+    this.name = "RetryBudgetExceededError";
+  }
+}
+
+export async function takeEmbedBudget(tokenEstimate: number): Promise<void> {
+  const redis = getRedis();
+  if (!redis) return;
+  const tokens = Math.max(1, Math.ceil(tokenEstimate));
+  const { embedTokensPerMinute } = pipelineConfig();
+  const limiter = new Ratelimit({
+    redis,
+    limiter: Ratelimit.tokenBucket(embedTokensPerMinute, "1 m", embedTokensPerMinute),
+    prefix: "pipeline-embed",
+  });
+  const result = await limiter.limit("tpm", { rate: tokens });
+  if (!result.success) {
+    throw new EmbedBudgetExceededError();
+  }
+}
+
+const FRESH_KEY = "pipeline:traffic:fresh";
+const RETRY_KEY = "pipeline:traffic:retry";
+
+export async function assertRetryBudget(receiveCount: number): Promise<void> {
+  const redis = getRedis();
+  if (!redis) return;
+  const key = receiveCount > 1 ? RETRY_KEY : FRESH_KEY;
+  const count = await redis.incr(key);
+  if (count === 1) {
+    await redis.expire(key, 60);
+  }
+  if (receiveCount <= 1) return;
+  const fresh = Number((await redis.get<number>(FRESH_KEY)) ?? 0);
+  const retries = Number((await redis.get<number>(RETRY_KEY)) ?? 0);
+  const total = fresh + retries;
+  if (total >= 10 && retries > 0.2 * total) {
+    throw new RetryBudgetExceededError();
+  }
+}

@@ -1,6 +1,6 @@
 # Transcript Pipeline: Event-Driven Fan-Out on AWS
 
-**Status:** Implementation in progress on `feature/event-driven-transcript-pipeline`. The queue path is behind `KB_PIPELINE` (`legacy` default, `queue` for everyone, `admin` for admin users). Without SQS URLs, workers run in-process so local/dev still works.
+**Status:** Implementation in progress on `feature/event-driven-transcript-pipeline`. The queue path is behind `KB_PIPELINE` (`legacy` default, `queue` for everyone, `admin` for admin users). Local/dev without SQS URLs runs workers in-process and re-dispatches retryable jobs immediately with an incremented receive count (no `setTimeout`). Production and Vercel require the SQS URLs.
 **Owner:** Bharath Lakkoju
 **One-page summary for reviewers:** [TRANSCRIPT-PIPELINE-ONE-PAGER.md](./TRANSCRIPT-PIPELINE-ONE-PAGER.md)
 
@@ -25,7 +25,7 @@ The current build lives in `lib/services/kb-build-job.ts`. It works, but its des
 ## How this helps the product
 
 - **Faster time to first answer.** Videos are indexed in parallel, and chat can start once the first chunks exist. Targets: first queryable chunk in under 20 seconds and a 30-video KB ready in under 60 seconds (p95), when YouTube is reachable.
-- **Builds survive YouTube blocking.** A blocked video waits in the queue with backoff instead of failing the build, and a circuit breaker switches to a transcript API when blocking is widespread.
+- **Builds survive YouTube blocking.** A blocked video waits in the queue with backoff instead of failing the build. When the block rate is high, a circuit breaker pauses fetches (visibility delay) until YouTube recovers. A hosted transcript API is a later fallback, not in this phase.
 - **Fairness between customers.** Per-user limits stop one 500-video build from delaying everyone else, which matters more as Team and Researcher plans grow.
 - **Predictable cost.** Rate limits on YouTube traffic, embeddings and database writes keep spend proportional to useful work. Retries no longer burn function time.
 - **Operability.** Each video's state is a database row. Failures land in a dead-letter queue with an alarm and a replay tool.
@@ -110,7 +110,7 @@ YouTube fetches take a token per proxy IP from a shared bucket. A worker that ge
 
 ### Fallback when YouTube blocks: transcript API
 
-When the blocked rate crosses a threshold, a circuit breaker routes fetches to a hosted transcript API for about $0.002 to $0.01 per video. Speech-to-text costs 10 to 50 times more and hits the same blocking.
+When the blocked rate crosses a threshold, a circuit breaker **pauses** fetches for five minutes (workers return the message with delay). A hosted transcript API remains a later option at about $0.002 to $0.01 per video.
 
 ### Infrastructure as code: AWS CDK in TypeScript
 
@@ -118,7 +118,9 @@ Same language as the app. `NodejsFunction` bundles worker code straight from `li
 
 ### Vercel to AWS authentication: OIDC federation
 
-Vercel issues short-lived OIDC tokens that assume an IAM role allowed only to send messages to the fetch queue. No long-lived AWS keys are stored in Vercel.
+Vercel issues short-lived OIDC tokens that assume an IAM role allowed only to send messages to the fetch queue. The role trusts the production environment subject, not preview deployments. No long-lived AWS keys are stored in Vercel.
+
+`PIPELINE_LOAD_STUB` is ignored on Vercel and in production so load-test fakes cannot replace YouTube or embeddings there.
 
 ## Backpressure and retries
 

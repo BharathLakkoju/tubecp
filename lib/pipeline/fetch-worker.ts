@@ -1,4 +1,4 @@
-import { getTranscript, TranscriptUnavailableError } from "@/lib/services/transcript";
+import { getTranscript } from "@/lib/services/transcript";
 import {
   classifyPipelineError,
   describePipelineError,
@@ -6,15 +6,14 @@ import {
 } from "@/lib/pipeline/errors";
 import { getJobStore } from "@/lib/pipeline/jobs";
 import {
+  assertRetryBudget,
   recordYoutubeBlock,
-  remainingFetchSlots,
   takeYoutubeFetchToken,
-  YoutubeCircuitOpenError,
-  YoutubeTokenUnavailableError,
 } from "@/lib/pipeline/limits";
+import { pipelineConfig } from "@/lib/pipeline/config";
 import { enqueue } from "@/lib/pipeline/queue";
 import { retryLater } from "@/lib/pipeline/retry";
-import { finalizeQueueBuildIfComplete } from "@/lib/pipeline/finalize";
+import { afterTerminalJob, failJobToDlq, retryOrDeadLetter } from "@/lib/pipeline/worker-support";
 import type { PipelineMessage } from "@/lib/pipeline/messages";
 
 export async function handleFetchJob(message: PipelineMessage, receiveCount: number): Promise<void> {
@@ -24,62 +23,55 @@ export async function handleFetchJob(message: PipelineMessage, receiveCount: num
   if (!job || !run) return;
 
   if (job.status === "fetched" || job.status === "embedding" || job.status === "indexed") {
-    await enqueue("embed", [message]);
+    if (job.status === "fetched") await enqueue("embed", [message]);
     return;
   }
   if (job.status === "skipped" || job.status === "failed") {
-    await finalizeQueueBuildIfComplete(message.kbId);
+    return;
+  }
+
+  const claimed = await store.claimJob(message.kbId, message.videoId, ["queued"], "fetching");
+  if (!claimed) {
+    if (job.status === "fetching") {
+      if (receiveCount >= pipelineConfig().maxReceives) {
+        await failJobToDlq(message.kbId, message.videoId, run.userId, receiveCount, "stuck fetching");
+      }
+      throw retryLater(receiveCount, "fetch already in progress");
+    }
     return;
   }
 
   try {
+    await assertRetryBudget(receiveCount);
     await takeYoutubeFetchToken();
-  } catch (err) {
-    if (err instanceof YoutubeTokenUnavailableError || err instanceof YoutubeCircuitOpenError) {
-      throw retryLater(receiveCount, err.message);
-    }
-    throw err;
-  }
-
-  const claimed = await store.claimJob(message.kbId, message.videoId, ["queued", "fetching"], "fetching");
-  if (!claimed) return;
-
-  try {
     await getTranscript(message.videoId, {
       mode: run.transcriptMode,
       usageUserId: run.userId,
     });
     await store.markFetched(message.kbId, message.videoId);
     await enqueue("embed", [message]);
-    await releaseQueuedJobs(run.userId);
   } catch (err) {
     const errorClass = classifyPipelineError(err);
     if (errorClass === "blocked") {
       await recordYoutubeBlock();
     }
     if (isTerminalErrorClass(errorClass)) {
-      await store.markSkipped(message.kbId, message.videoId, errorClass, describePipelineError(err));
-      await finalizeQueueBuildIfComplete(message.kbId);
-      await releaseQueuedJobs(run.userId);
+      const { becameFinalizer } = await store.completeJob(message.kbId, message.videoId, {
+        status: "skipped",
+        errorClass,
+        message: describePipelineError(err),
+      });
+      await afterTerminalJob(run.userId, message.kbId, becameFinalizer);
       return;
     }
-    if (
-      err instanceof YoutubeTokenUnavailableError ||
-      err instanceof YoutubeCircuitOpenError ||
-      err instanceof TranscriptUnavailableError
-    ) {
-      throw retryLater(receiveCount, describePipelineError(err));
-    }
-    throw retryLater(receiveCount, describePipelineError(err));
+    await retryOrDeadLetter({
+      kbId: message.kbId,
+      videoId: message.videoId,
+      userId: run.userId,
+      receiveCount,
+      err,
+      releaseFrom: "fetching",
+      releaseTo: "queued",
+    });
   }
-}
-
-async function releaseQueuedJobs(userId: string): Promise<void> {
-  const slots = await remainingFetchSlots(userId);
-  if (slots <= 0) return;
-  const queued = await getJobStore().listQueuedJobs(userId, slots);
-  await enqueue(
-    "fetch",
-    queued.map((job) => ({ kbId: job.kbId, videoId: job.videoId }))
-  );
 }

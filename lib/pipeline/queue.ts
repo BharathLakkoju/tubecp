@@ -82,13 +82,18 @@ class InProcessAdapter implements QueueAdapter {
   }
 
   async changeVisibility(): Promise<void> {
-    // Local handler rethrows RetryLaterError; a timer re-runs the worker.
+    // Local handler re-runs immediately with an incremented receive count.
   }
 }
 
 export function getQueueAdapter(): QueueAdapter {
   if (queueUrl("fetch") && queueUrl("embed")) {
     return new SqsAdapter();
+  }
+  if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
+    throw new Error(
+      "PIPELINE_FETCH_QUEUE_URL and PIPELINE_EMBED_QUEUE_URL are required on Vercel and in production"
+    );
   }
   return new InProcessAdapter();
 }

@@ -23,6 +23,13 @@ function intEnv(name: string, fallback: number): number {
   return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
 }
 
+/** Load-test stubs must never run on Vercel or in production. */
+export function pipelineLoadStubEnabled(): boolean {
+  if (process.env.PIPELINE_LOAD_STUB !== "true") return false;
+  if (process.env.NODE_ENV === "production" || process.env.VERCEL) return false;
+  return true;
+}
+
 export function pipelineConfig() {
   return {
     region: process.env.PIPELINE_AWS_REGION?.trim() || "us-east-2",
