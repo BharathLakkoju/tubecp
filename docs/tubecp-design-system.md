@@ -24,7 +24,7 @@ Inputs: repo `BharathLakkoju/tubecp` (read-only), screenshots in `ui-review/tube
 | Components | Custom classes (`.btn-primary`, `.btn-ghost`, `.split-field`, `.nav-tab`, `.plan-badge`, `.app-sidebar-*`, `.chat-*`, `.kb-delete-*`). **No shadcn/ui, no `components/ui`, no Radix/Base UI**; `lib/cn.ts` is a plain string join | One-off styles; arbitrary sizes. **Decision (Oct 7): adopt shadcn/ui** (§6, §10.2) |
 | Icons | `@phosphor-icons/react` (not lucide) | Keep it |
 | Motion | `lib/motion.ts` (150/280/400ms, ease `0.22,1,0.36,1`), framer-motion **and** gsap installed, reduced-motion handled for some classes; `FadeIn`, `ScrollReveal`, `Stagger` components | Two animation libs. **Decision: framer-motion only, 21st.dev-style page motion** (§7) |
-| Rules | `.cursor/rules/no-modals.mdc`: **no popup modals; use routes**. `KbDeleteConfirmDialog` is an overlay and breaks this rule | The new system follows the rule (see 6.13) |
+| Rules | `.cursor/rules/no-modals.mdc`: **no popup modals for auth/settings**; destructive confirms use `Dialog` | `InlineConfirm` is a centered modal (see 6.13) |
 | Contrast | White on `#10a37f` **3.20:1**, teal links on `#eeeeee` **2.76:1**, muted text on bg **4.30:1**, dark hover white on `#1db88e` **2.53:1**, disabled "research →" (50% opacity) **1.79:1** | All fail AA for 13px text |
 
 ---
@@ -429,7 +429,7 @@ Rules: nothing smaller than 12px (this kills `text-[10px]` and `text-[11px]`). U
 
 - Names and props below were checked against ui.shadcn.com on Oct 7, 2026 IST.
 - Current docs default to the **Base UI** base: polymorphism uses the `render` prop (`render={<Link href="…" />}`), not `asChild`. If you choose Radix at init, use `asChild` where this doc says `render`.
-- No `Dialog`, `AlertDialog` or `Drawer` (repo rule, §6.13).
+- `Dialog` is allowed only for destructive yes/no confirms (`InlineConfirm`). No `AlertDialog` or `Drawer`.
 
 | # | tubecp component | shadcn components | Evergreen wrapper (`components/tubecp/`) |
 |---|---|---|---|
@@ -445,7 +445,7 @@ Rules: nothing smaller than 12px (this kills `text-[10px]` and `text-[11px]`). U
 | 6.10 | Skeletons | `Skeleton`, `SidebarMenuSkeleton` | `VideoResultSkeleton` |
 | 6.11 | Sticky action bar | `Card` (`size="sm"`), `ButtonGroup`, `Button`, `Badge`, `Tooltip` | `ActionDock` |
 | 6.12 | Chat + citations | `MessageScroller`, `MessageGroup`, `Message`, `MessageContent`, `MessageHeader`, `MessageFooter`, `Bubble`, `BubbleContent`, `Marker`, `HoverCard`, `Collapsible`, `Item`, `Alert`, `InputGroupTextarea` | `EvidenceChip`, `SourceList`, `ChatComposer` |
-| 6.13 | Confirms (no modals) | `Popover`, `DropdownMenu`, `HoverCard`, `Tooltip`, `Collapsible`, `ButtonGroup`, `Alert`; `Sheet` only via `Sidebar` on mobile | `InlineConfirm` |
+| 6.13 | Destructive confirms | `Dialog`, `ButtonGroup`, `Button` | `InlineConfirm` |
 | 6.14 | Nav / sidebar | `SidebarProvider`, `Sidebar`, `SidebarHeader`, `SidebarContent`, `SidebarGroup`, `SidebarGroupLabel`, `SidebarGroupAction`, `SidebarMenu`, `SidebarMenuItem`, `SidebarMenuButton`, `SidebarMenuBadge`, `SidebarMenuAction`, `SidebarFooter`, `SidebarInset`, `SidebarTrigger`, `DropdownMenu`, `Avatar`, `Progress` | `AppSidebar` |
 | 6.15 | Pricing cards | `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardAction`, `CardContent`, `CardFooter`, `Badge`, `Button` | `PricingCard` |
 | 6.16 | 404 | `Empty` + `Button` (+ optional `InputGroup`) | none |
@@ -644,10 +644,10 @@ Icons: generated components import `lucide-react`; leave those as they are. Prod
 - **`ChatComposer`:** `InputGroup` › `InputGroupTextarea` + `InputGroupAddon align="block-end"` holding `InputGroupText` (quota, mono) and `InputGroupButton variant="default"` (Send). Enter sends; Shift+Enter adds a newline.
 - **Don't:** show bare link lists, show a chip without a timestamp, or animate per token.
 
-### 6.13 Confirms without modals → `InlineConfirm`
-- The repo rule (`no-modals.mdc`) still stands, so `Dialog`, `AlertDialog` and `Drawer` are **not installed**.
-- **`InlineConfirm`:** the trigger `Button variant="ghost"` swaps in place to an `Alert` saying "Delete 'sourdough'? This removes its chat history." with an `AlertAction` holding a `ButtonGroup` of [Delete (destructive)] and [Cancel (ghost)]. Focus moves to Cancel. This replaces `KbDeleteConfirmDialog`.
-- **Allowed overlays:** anchored `Popover`, `DropdownMenu`, `HoverCard`, `Tooltip`, plus `Sheet` only as the mobile `Sidebar` and mobile nav.
+### 6.13 Destructive confirms → `InlineConfirm`
+- Auth, settings, and multi-step forms still use dedicated routes (`no-modals.mdc`). Destructive yes/no confirms use a centered `Dialog`.
+- **`InlineConfirm`:** the trigger (or a dropdown item) opens a modal titled e.g. "Delete 'sourdough'?" with a description and a `ButtonGroup` of [Delete (destructive)] and [Cancel (ghost)]. Focus moves to Cancel. Esc and the overlay dismiss unless the action is in progress.
+- **Allowed overlays:** confirm `Dialog`, anchored `Popover`, `DropdownMenu`, `HoverCard`, `Tooltip`, plus `Sheet` only as the mobile `Sidebar` and mobile nav.
 
 ### 6.14 Nav / sidebar → `AppSidebar`
 **Use this:**
@@ -663,7 +663,7 @@ Icons: generated components import `lucide-react`; leave those as they are. Prod
           <SidebarMenuItem>
             <SidebarMenuButton render={<Link href={`/app/kb/${id}`} />} isActive={active}>{topic}</SidebarMenuButton>
             <SidebarMenuBadge>62%</SidebarMenuBadge>
-            <SidebarMenuAction aria-label="KB options">{/* DropdownMenu: Rename, Export, Delete → InlineConfirm route */}</SidebarMenuAction>
+            <SidebarMenuAction aria-label="KB options">{/* DropdownMenu: Rename, Export, Delete → InlineConfirm modal */}</SidebarMenuAction>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarGroup>
@@ -897,7 +897,7 @@ Bento: [Current plan tile: PlanBadge, price, status badge, renewal line] [Usage 
 | `KbBuildProgress`, `ProgressBar`, `PhasePanel`, `ResearchProgress`, `KbFailedPanel` | JobStatus / PipelineRail | `Card` + `Progress` + `Marker` + `Alert` | |
 | `LoadingSpinner` | — | `Spinner` | |
 | `UpgradePrompt`, `FreeTierTeaser` | Empty gate | `Empty` / `Alert` | |
-| `.kb-delete-overlay`, `KbDeleteConfirmDialog` | InlineConfirm | `Alert` + `ButtonGroup` (no `AlertDialog`) | Restores the no-modals rule |
+| `.kb-delete-overlay`, `KbDeleteConfirmDialog` | InlineConfirm | `Dialog` + `ButtonGroup` | Centered destructive confirm |
 | `AppShell`, `.app-sidebar-*`, `KbSidebarItem`, `AppAccountMenu` | Sidebar | `Sidebar` family + `DropdownMenu` → `AppSidebar` | |
 | `ChatPanel`, `.chat-message-*`, `.chat-panel-*` | ChatMessage / EvidenceChip | `MessageScroller`, `Message`, `Bubble`, `Marker`, `HoverCard`, `InputGroupTextarea` | |
 | `CopyButton`, `.copy-field` | — | `InputGroup` + `InputGroupButton size="icon-xs"` + `toast` | |
@@ -934,7 +934,7 @@ Bento: [Current plan tile: PlanBadge, price, status badge, renewal line] [Usage 
 | D: structure | `item tabs collapsible scroll-area table` | Ranked list, sources, usage tables |
 | E: navigation | `sidebar dropdown-menu avatar navigation-menu popover hover-card` | AppSidebar, account menu, EvidenceChip |
 | F: chat | `message bubble marker message-scroller` | Chat + citations |
-| Never | `dialog alert-dialog drawer` | Blocked by the `no-modals` rule (Sidebar pulls `sheet` for mobile, which is allowed) |
+| Never | `alert-dialog drawer` | Auth/settings stay on routes; confirm `dialog` is allowed via `InlineConfirm` (Sidebar pulls `sheet` for mobile) |
 
 6. **21st.dev blocks (optional):** install through the shadcn CLI with the block's registry URL only after review (§7). Prefer re-implementing the pattern with `components/motion/`.
 

@@ -34,7 +34,7 @@ function buildPercent(kb: KnowledgeBase): number | null {
 
 /**
  * KB row in the sidebar (design system §6.14): link + status badge + options menu.
- * Delete swaps the row to an inline confirmation instead of a modal (§6.13).
+ * Delete opens a confirmation modal instead of replacing the row.
  */
 export default function KbSidebarItem({ kb, active }: Props) {
   const router = useRouter();
@@ -46,20 +46,6 @@ export default function KbSidebarItem({ kb, active }: Props) {
     removeKnowledgeBase(kb.kbId);
     if (active) router.push("/app");
   };
-
-  if (confirming) {
-    return (
-      <SidebarMenuItem className="px-1 py-1">
-        <InlineConfirm
-          open
-          onOpenChange={setConfirming}
-          title={`Delete "${kb.topic}"?`}
-          description="This removes its indexed videos and chat history."
-          onConfirm={handleDelete}
-        />
-      </SidebarMenuItem>
-    );
-  }
 
   const pct = buildPercent(kb);
 
@@ -104,6 +90,14 @@ export default function KbSidebarItem({ kb, active }: Props) {
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <InlineConfirm
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={`Delete "${kb.topic}"?`}
+        description="This removes its indexed videos and chat history."
+        onConfirm={handleDelete}
+      />
     </SidebarMenuItem>
   );
 }

@@ -40,24 +40,6 @@ export default function ResearchSidebarItem({
     if (active) router.push("/app/researches");
   };
 
-  if (confirming) {
-    return (
-      <SidebarMenuItem className="px-1 py-1">
-        <InlineConfirm
-          open
-          onOpenChange={setConfirming}
-          title={`Remove "${research.topic}"?`}
-          description={
-            isKbMirror
-              ? "Removes this entry from your research library. Your knowledge base is unchanged."
-              : "This deletes the saved ranked results for this research."
-          }
-          onConfirm={handleDelete}
-        />
-      </SidebarMenuItem>
-    );
-  }
-
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
@@ -84,6 +66,18 @@ export default function ResearchSidebarItem({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <InlineConfirm
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={`Remove "${research.topic}"?`}
+        description={
+          isKbMirror
+            ? "Removes this entry from your research library. Your knowledge base is unchanged."
+            : "This deletes the saved ranked results for this research."
+        }
+        onConfirm={handleDelete}
+      />
     </SidebarMenuItem>
   );
 }

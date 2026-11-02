@@ -148,7 +148,7 @@ export default function AccountProfile({ showTeamWorkspace = false }: AccountPro
     const res = await fetch("/api/user/account", { method: "DELETE" });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      // InlineConfirm shows thrown errors inline and stays open.
+      // InlineConfirm shows thrown errors in the modal and stays open.
       throw new Error(data.error ?? "Failed to delete account");
     }
 
