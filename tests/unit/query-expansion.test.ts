@@ -1,4 +1,10 @@
 import { describe, expect, it } from "vitest";
+import {
+  detectQueryIntent,
+  introducesFormatWords,
+  parseParaphrases,
+  queryPreservesTopic,
+} from "@/lib/services/query-expansion";
 import { dedupeQueries, sanitizeExpandedQuery } from "@/lib/services/research-scoring";
 
 describe("sanitizeExpandedQuery", () => {
@@ -36,5 +42,38 @@ describe("dedupeQueries", () => {
     expect(queries[0]).toBe("how do i make profitable apps solo");
     expect(queries.length).toBeLessThanOrEqual(5);
     expect(queries.some((q) => q.includes("2024"))).toBe(false);
+  });
+});
+
+describe("query expansion filters", () => {
+  it("classifies learn vs compare vs generic intent", () => {
+    expect(detectQueryIntent("how do i ship a saas solo")).toBe("learn");
+    expect(detectQueryIntent("best budget espresso machine")).toBe("compare");
+    expect(detectQueryIntent("AI SaaS monetization")).toBe("generic");
+  });
+
+  it("requires core topic terms in expansions", () => {
+    expect(queryPreservesTopic("AI SaaS monetization", "AI SaaS revenue")).toBe(true);
+    expect(queryPreservesTopic("AI SaaS monetization", "monetization for beginners")).toBe(false);
+    expect(queryPreservesTopic("best budget espresso machine", "budget espresso machine review")).toBe(
+      true
+    );
+  });
+
+  it("detects format words that were not in the topic", () => {
+    expect(introducesFormatWords("AI SaaS monetization", "AI SaaS monetization for beginners")).toBe(
+      true
+    );
+    expect(introducesFormatWords("sourdough for beginners", "sourdough for beginners oven")).toBe(
+      false
+    );
+  });
+
+  it("parses JSON array or { queries } paraphrases", () => {
+    expect(parseParaphrases('["AI SaaS revenue", "AI SaaS pricing"]')).toEqual([
+      "AI SaaS revenue",
+      "AI SaaS pricing",
+    ]);
+    expect(parseParaphrases('Here you go: {"queries": ["AI SaaS MRR"]}')).toEqual(["AI SaaS MRR"]);
   });
 });

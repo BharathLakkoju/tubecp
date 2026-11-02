@@ -97,7 +97,9 @@ export default function InlineConfirm({
           className={trigger ? undefined : className}
         >
           <DialogHeader className="flex-row items-start gap-3">
-            <WarningCircle weight="fill" className="text-destructive" aria-hidden />
+            <span className="flex size-6 shrink-0 items-center justify-center leading-none text-destructive" aria-hidden>
+              <WarningCircle weight="fill" size={24} className="size-6" />
+            </span>
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <DialogTitle>{title}</DialogTitle>
               {description ? <DialogDescription>{description}</DialogDescription> : null}
