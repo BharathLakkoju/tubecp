@@ -1,15 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { WarningCircle } from "@phosphor-icons/react";
-import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
-import { cn } from "@/lib/utils";
 
 interface Props {
-  /** Renders the closed state. Call `open()` to swap to the confirmation in place. */
+  /** Renders the closed state. Call `open()` to show the confirmation modal. */
   trigger?: (open: () => void) => React.ReactNode;
   /** Controlled mode (e.g. opened from a dropdown item). */
   open?: boolean;
@@ -24,8 +30,7 @@ interface Props {
 }
 
 /**
- * Confirms without a modal (design system §6.13, repo rule `no-modals`).
- * The trigger swaps in place to an Alert; focus moves to Cancel; Esc cancels.
+ * Destructive confirmation as a centered modal. Focus moves to Cancel; Esc cancels.
  */
 export default function InlineConfirm({
   trigger,
@@ -50,18 +55,10 @@ export default function InlineConfirm({
   const cancelRef = useRef<HTMLButtonElement>(null);
   const triggerWrapRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (open) cancelRef.current?.focus();
-  }, [open]);
-
   const close = () => {
     if (busy) return;
     setOpen(false);
     setError("");
-    // Return focus to the trigger once it is re-rendered.
-    requestAnimationFrame(() => {
-      triggerWrapRef.current?.querySelector<HTMLElement>("button, a")?.focus();
-    });
   };
 
   const confirm = async () => {
@@ -77,43 +74,63 @@ export default function InlineConfirm({
     }
   };
 
-  if (!open) {
-    if (!trigger) return null;
-    return (
-      <div ref={triggerWrapRef} className={className}>
-        {trigger(() => setOpen(true))}
-      </div>
-    );
-  }
-
   return (
-    <Alert
-      variant="destructive"
-      className={cn(className)}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          event.stopPropagation();
-          close();
-        }
-      }}
-    >
-      <WarningCircle weight="fill" aria-hidden />
-      <AlertTitle>{title}</AlertTitle>
-      {description && <AlertDescription>{description}</AlertDescription>}
-      {error && (
-        <AlertDescription className="font-medium text-destructive">{error}</AlertDescription>
-      )}
-      <AlertAction>
-        <ButtonGroup>
-          <Button variant="destructive" size="sm" onClick={confirm} disabled={busy} aria-busy={busy}>
-            {busy && <Spinner data-icon="inline-start" />}
-            {busy ? busyLabel : confirmLabel}
-          </Button>
-          <Button ref={cancelRef} variant="ghost" size="sm" onClick={close} disabled={busy}>
-            {cancelLabel}
-          </Button>
-        </ButtonGroup>
-      </AlertAction>
-    </Alert>
+    <>
+      {trigger ? (
+        <div ref={triggerWrapRef} className={className}>
+          {trigger(() => setOpen(true))}
+        </div>
+      ) : null}
+      <Dialog
+        open={open}
+        disablePointerDismissal={busy}
+        onOpenChange={(next) => {
+          if (busy && !next) return;
+          setOpen(next);
+          if (!next) setError("");
+        }}
+      >
+        <DialogContent
+          showCloseButton={false}
+          initialFocus={cancelRef}
+          role="alertdialog"
+          className={trigger ? undefined : className}
+        >
+          <DialogHeader className="flex-row items-start gap-3">
+            <WarningCircle weight="fill" className="text-destructive" aria-hidden />
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
+              <DialogTitle>{title}</DialogTitle>
+              {description ? <DialogDescription>{description}</DialogDescription> : null}
+              {error ? (
+                <p className="text-sm font-medium text-destructive">{error}</p>
+              ) : null}
+            </div>
+          </DialogHeader>
+          <DialogFooter>
+            <ButtonGroup>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={confirm}
+                disabled={busy}
+                aria-busy={busy}
+              >
+                {busy && <Spinner data-icon="inline-start" />}
+                {busy ? busyLabel : confirmLabel}
+              </Button>
+              <Button
+                ref={cancelRef}
+                variant="ghost"
+                size="sm"
+                onClick={close}
+                disabled={busy}
+              >
+                {cancelLabel}
+              </Button>
+            </ButtonGroup>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

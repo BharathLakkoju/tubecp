@@ -116,15 +116,13 @@ export default function ChatPanel({
 
   return (
     <AppPage width="reading" header={header} className="gap-6 pt-6 pb-0">
-      {confirmingDelete && (
-        <InlineConfirm
-          open
-          onOpenChange={setConfirmingDelete}
-          title={`Delete "${kb.topic}"?`}
-          description="This removes its indexed videos and chat history. It can't be undone."
-          onConfirm={handleDelete}
-        />
-      )}
+      <InlineConfirm
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
+        title={`Delete "${kb.topic}"?`}
+        description="This removes its indexed videos and chat history. It can't be undone."
+        onConfirm={handleDelete}
+      />
 
       {notice && (
         <Alert variant="info">

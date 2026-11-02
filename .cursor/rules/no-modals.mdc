@@ -23,7 +23,8 @@ This app does not use popup modals, dialogs, or overlay panels for user-facing f
 - **Mobile nav sheet** (`SiteNav` full-screen overlay) — navigation only, not forms
 - **Compact utility menus** (e.g. theme picker) — small anchored dropdowns, not full modals
 - **Browser-native** `<select>` and focus rings
+- **Destructive confirmations** (`InlineConfirm` via `Dialog`) — delete, cancel subscription, and similar yes/no confirms. Do not use for auth, settings, or multi-step forms.
 
 ## When adding new UI
 
-If a flow would open a modal (auth, settings, confirmations, multi-step forms), create a dedicated route instead.
+If a flow would open a modal (auth, settings, multi-step forms), create a dedicated route instead. Destructive yes/no confirms may use `InlineConfirm`.
