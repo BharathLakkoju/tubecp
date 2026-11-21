@@ -11,6 +11,7 @@ const PUBLIC_PREFIXES = [
   "/verify-email",
   "/docs",
   "/api/health",
+  "/api/inngest",
   "/api/mcp",
   "/api/eval/benchmark",
   "/api/webhook/polar",

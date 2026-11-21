@@ -117,3 +117,52 @@ export async function clearKbBuildHeartbeat(kbId: string): Promise<void> {
   }
   getDevMemoryStore().delete(key);
 }
+
+const WRITE_LOCK_TTL_MS = 8_000;
+const WRITE_LOCK_ATTEMPTS = 30;
+const WRITE_LOCK_WAIT_MS = 25;
+
+function writeLockKey(kbId: string): string {
+  return `kb-build-wlock:${kbId}`;
+}
+
+/**
+ * Serializes Redis KB record updates so parallel video steps cannot drop chunk IDs.
+ * Throws if the lock is not acquired quickly — callers are idempotent and may retry.
+ */
+export async function withKbRecordLock<T>(kbId: string, fn: () => Promise<T>): Promise<T> {
+  const key = writeLockKey(kbId);
+  const redis = getRedis();
+
+  for (let attempt = 0; attempt < WRITE_LOCK_ATTEMPTS; attempt++) {
+    const owner = randomUUID();
+    if (redis) {
+      const result = await redis.set(key, owner, { nx: true, px: WRITE_LOCK_TTL_MS });
+      if (result === "OK") {
+        try {
+          return await fn();
+        } finally {
+          const current = await redis.get<string>(key);
+          if (current === owner) await redis.del(key);
+        }
+      }
+    } else {
+      const current = getDevMemoryStore().get(key) as MemoryLock | undefined;
+      if (!current || current.expiresAt <= Date.now()) {
+        getDevMemoryStore().set(key, {
+          owner,
+          expiresAt: Date.now() + WRITE_LOCK_TTL_MS,
+        } satisfies MemoryLock);
+        try {
+          return await fn();
+        } finally {
+          const held = getDevMemoryStore().get(key) as MemoryLock | undefined;
+          if (held?.owner === owner) getDevMemoryStore().delete(key);
+        }
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, WRITE_LOCK_WAIT_MS));
+  }
+
+  throw new Error(`Timed out waiting to update knowledge base ${kbId}`);
+}

@@ -17,6 +17,8 @@ describe("GET /api/health", () => {
     expect(typeof body.checks.oauthProvider).toBe("boolean");
     expect(typeof body.checks.devBypassDisabled).toBe("boolean");
     expect(typeof body.checks.polarProProduct).toBe("boolean");
+    expect(typeof body.checks.inngestEventKey).toBe("boolean");
+    expect(typeof body.checks.inngestSigningKey).toBe("boolean");
     expect(typeof body.checks.polarResearcherProduct).toBe("boolean");
     expect(body.checks.youtubeQuota).toMatchObject({
       used: expect.any(Number),

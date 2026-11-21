@@ -106,6 +106,20 @@ export function runDeployChecks(env: NodeJS.ProcessEnv = process.env): DeployVal
       passed: isSet(env.POLAR_PRODUCT_ID_PRO),
     },
     {
+      id: "inngest_event_key",
+      label: "INNGEST_EVENT_KEY",
+      required: production,
+      passed: isSet(env.INNGEST_EVENT_KEY),
+      detail: production ? undefined : "Optional in local development with `npm run inngest:dev`",
+    },
+    {
+      id: "inngest_signing_key",
+      label: "INNGEST_SIGNING_KEY",
+      required: production,
+      passed: isSet(env.INNGEST_SIGNING_KEY),
+      detail: production ? undefined : "Optional in local development with `npm run inngest:dev`",
+    },
+    {
       id: "polar_product_researcher",
       label: "POLAR_PRODUCT_ID_RESEARCHER",
       required: false,
@@ -188,6 +202,8 @@ export function validateRemoteHealth(payload: RemoteHealthPayload): DeployValida
     { id: "polarAccessToken", label: "Polar access token configured", required: true },
     { id: "polarWebhookSecret", label: "Polar webhook secret configured", required: true },
     { id: "polarProProduct", label: "Polar Pro product configured", required: true },
+    { id: "inngestEventKey", label: "Inngest event key configured", required: true },
+    { id: "inngestSigningKey", label: "Inngest signing key configured", required: true },
     { id: "polarResearcherProduct", label: "Polar Researcher product configured", required: false },
     { id: "devBypassDisabled", label: "Dev bypass flags disabled", required: true },
   ];

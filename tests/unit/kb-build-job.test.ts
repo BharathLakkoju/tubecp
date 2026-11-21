@@ -7,7 +7,7 @@ const store = vi.hoisted(() => ({
 
 vi.mock("@/lib/store", () => ({
   getKnowledgeBase: vi.fn(async () => store.kb),
-  updateKnowledgeBase: vi.fn(async (kbId: string, updater: (kb: KnowledgeBaseRecord) => KnowledgeBaseRecord) => {
+  updateKnowledgeBase: vi.fn(async (_kbId: string, updater: (kb: KnowledgeBaseRecord) => KnowledgeBaseRecord) => {
     if (!store.kb) return null;
     store.kb = updater(store.kb);
     return store.kb;
@@ -22,16 +22,12 @@ vi.mock("@/lib/services/knowledge-base", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/services/knowledge-base")>();
   return {
     ...actual,
-    finalizeKnowledgeBase: vi.fn(async (kbId: string) => {
+    finalizeKnowledgeBase: vi.fn(async () => {
       if (!store.kb) throw new Error("missing kb");
       store.kb = { ...store.kb, status: store.kb.chunkIds.length > 0 ? "ready" : "failed" };
       return store.kb;
     }),
-    indexVideoInKnowledgeBase: vi.fn(),
-    syncKnowledgeBaseIndexStats: vi.fn(async (kbId: string) => store.kb),
-    isVideoIndexedInKnowledgeBase: vi.fn(async (kb: KnowledgeBaseRecord, videoId: string) =>
-      kb.chunkIds.some((id) => id.startsWith(videoId))
-    ),
+    syncKnowledgeBaseIndexStats: vi.fn(async () => store.kb),
   };
 });
 
@@ -40,36 +36,28 @@ vi.mock("@/lib/services/kb-chat", () => ({
   refreshKbWelcomeMessage: vi.fn(async () => undefined),
 }));
 
-vi.mock("@/lib/store/redis", () => ({
-  getRedis: () => null,
-  hasRedis: () => false,
+vi.mock("@/lib/inngest/functions", () => ({
+  requestKbBuild: vi.fn(async () => undefined),
 }));
 
-vi.mock("@/lib/kb-index-pace", () => ({
-  kbIndexPaceDelayMs: () => 0,
+vi.mock("@/lib/pipeline/orchestrate", () => ({
+  kickQueueBuild: vi.fn(async () => undefined),
+  retryQueueBuild: vi.fn(async () => undefined),
+  startQueueBuild: vi.fn(async () => undefined),
 }));
 
-vi.mock("@/lib/services/kb-build-continue", () => ({
-  scheduleKbBuildContinuation: vi.fn(async () => undefined),
-  isKbBuildContinuation: () => false,
-  KB_BUILD_CONTINUATION_HEADER: "x-kb-build-continuation",
+vi.mock("@/lib/pipeline/jobs", () => ({
+  tryGetRun: vi.fn(async () => null),
 }));
 
 import { repairKnowledgeBaseIfIndexed, runKnowledgeBaseBuildJob } from "@/lib/services/kb-build-job";
-import { scheduleKbBuildContinuation } from "@/lib/services/kb-build-continue";
-import { indexVideoInKnowledgeBase, isVideoIndexedInKnowledgeBase } from "@/lib/services/knowledge-base";
-import { acquireKbBuildLock, releaseKbBuildLock } from "@/lib/services/kb-build-lock";
-import { getDevMemoryStore } from "@/lib/store/dev-memory";
+import { requestKbBuild } from "@/lib/inngest/functions";
+import { kickQueueBuild } from "@/lib/pipeline/orchestrate";
+import { tryGetRun } from "@/lib/pipeline/jobs";
 
 describe("kb-build-job", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    for (const key of [...getDevMemoryStore().keys()]) {
-      if (String(key).startsWith("kb-build-")) getDevMemoryStore().delete(key);
-    }
-    vi.mocked(isVideoIndexedInKnowledgeBase).mockImplementation(async (kb, videoId) =>
-      kb.chunkIds.some((id) => id.startsWith(videoId))
-    );
     store.kb = {
       kbId: "kb-1",
       topic: "test",
@@ -101,86 +89,28 @@ describe("kb-build-job", () => {
     expect(repaired?.status).toBe("ready");
   });
 
-  it("resumes retry without re-indexing completed videos", async () => {
-    vi.mocked(indexVideoInKnowledgeBase).mockResolvedValue({
-      kb: store.kb!,
-      skipped: false,
-    });
-
+  it("enqueues an Inngest build instead of self-calling the app", async () => {
     store.kb = { ...store.kb!, status: "building" };
     const result = await runKnowledgeBaseBuildJob("kb-1", false);
-
-    expect(result.kb.status).toBe("ready");
-    expect(indexVideoInKnowledgeBase).toHaveBeenCalledTimes(1);
-    expect(indexVideoInKnowledgeBase).toHaveBeenCalledWith(
-      "kb-1",
-      expect.objectContaining({ videoId: "b" }),
-      false,
-      "user-1"
-    );
-    expect(scheduleKbBuildContinuation).not.toHaveBeenCalled();
-  });
-
-  it("chains multiple videos in one invocation when indexing succeeds", async () => {
-    vi.mocked(indexVideoInKnowledgeBase).mockImplementation(async (_kbId, video) => {
-      store.kb = {
-        ...store.kb!,
-        chunkIds: [...store.kb!.chunkIds, `${video.videoId}-chunk`],
-      };
-      return { kb: store.kb!, skipped: false };
-    });
-    store.kb = {
-      ...store.kb!,
-      status: "building",
-      chunkIds: [],
-      videosIndexed: 0,
-      chunksIndexed: 0,
-    };
-
-    const result = await runKnowledgeBaseBuildJob("kb-1", false);
-
-    expect(result.kb.status).toBe("ready");
-    expect(indexVideoInKnowledgeBase).toHaveBeenCalledTimes(2);
-    expect(scheduleKbBuildContinuation).not.toHaveBeenCalled();
-  });
-
-  it("schedules continuation when a transient failure pauses in-process chaining", async () => {
-    const { TranscriptUnavailableError } = await import("@/lib/services/transcript");
-    vi.mocked(indexVideoInKnowledgeBase)
-      .mockImplementationOnce(async (_kbId, video) => {
-        store.kb = {
-          ...store.kb!,
-          chunkIds: [...store.kb!.chunkIds, `${video.videoId}-chunk`],
-        };
-        return { kb: store.kb!, skipped: false };
-      })
-      .mockRejectedValueOnce(
-        new TranscriptUnavailableError("b", new Error("YouTube is receiving too many requests"))
-      );
-
-    store.kb = {
-      ...store.kb!,
-      status: "building",
-      chunkIds: [],
-      videosIndexed: 0,
-      chunksIndexed: 0,
-    };
-
-    const result = await runKnowledgeBaseBuildJob("kb-1", false);
-
-    expect(result.kb.status).toBe("building");
-    expect(indexVideoInKnowledgeBase).toHaveBeenCalledTimes(2);
-    expect(scheduleKbBuildContinuation).toHaveBeenCalledWith("kb-1");
-  });
-
-  it("does not index while another runner holds the lock", async () => {
-    const owner = await acquireKbBuildLock("kb-1");
-    store.kb = { ...store.kb!, status: "building", chunkIds: [] };
-
-    const result = await runKnowledgeBaseBuildJob("kb-1", false);
-
+    expect(requestKbBuild).toHaveBeenCalledWith("kb-1", false);
+    expect(kickQueueBuild).not.toHaveBeenCalled();
     expect(result.busy).toBe(true);
-    expect(indexVideoInKnowledgeBase).not.toHaveBeenCalled();
-    if (owner) await releaseKbBuildLock("kb-1", owner);
+  });
+
+  it("does not enqueue when the knowledge base is already terminal", async () => {
+    const result = await runKnowledgeBaseBuildJob("kb-1", false);
+    expect(requestKbBuild).not.toHaveBeenCalled();
+    expect(result.kb.status).toBe("failed");
+  });
+
+  it("kicks the queue runner when a pipeline run exists", async () => {
+    vi.mocked(tryGetRun).mockResolvedValueOnce({
+      kbId: "kb-1",
+      status: "building",
+    } as never);
+    store.kb = { ...store.kb!, status: "building" };
+    await runKnowledgeBaseBuildJob("kb-1", false);
+    expect(kickQueueBuild).toHaveBeenCalledWith("kb-1");
+    expect(requestKbBuild).not.toHaveBeenCalled();
   });
 });

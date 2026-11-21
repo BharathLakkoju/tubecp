@@ -31,6 +31,8 @@ describe("runDeployChecks", () => {
       POLAR_ACCESS_TOKEN: "polar",
       POLAR_WEBHOOK_SECRET: "whsec",
       POLAR_PRODUCT_ID_PRO: "prod_pro",
+      INNGEST_EVENT_KEY: "event-key",
+      INNGEST_SIGNING_KEY: "sign-key",
     });
 
     expect(result.ready).toBe(true);
@@ -84,6 +86,8 @@ describe("validateRemoteHealth", () => {
         polarWebhookSecret: true,
         polarProProduct: true,
         polarResearcherProduct: false,
+        inngestEventKey: true,
+        inngestSigningKey: true,
         devBypassDisabled: true,
         youtubeQuota: { used: 100, limit: 10000, warning: false },
       },

@@ -27,6 +27,7 @@ The script exits `0` when all required production variables are set and dev bypa
 | `GOOGLE_*` or `GITHUB_*` OAuth | Sign-in |
 | `POLAR_ACCESS_TOKEN` / `POLAR_WEBHOOK_SECRET` | Billing |
 | `POLAR_PRODUCT_ID_PRO` | Pro checkout |
+| `INNGEST_EVENT_KEY` / `INNGEST_SIGNING_KEY` | Durable KB builds — sync `https://your-app.vercel.app/api/inngest` (if Deployment Protection is on, append `?x-vercel-protection-bypass=...`) |
 
 ### Recommended
 

@@ -2,7 +2,7 @@
 
 Turn any YouTube research topic into a **chattable knowledge base** — sourced, timestamped, and monetization-ready.
 
-**Stack:** Next.js (Vercel) · Auth.js / NextAuth (Google/GitHub) · Neon Postgres · Polar payments · Upstash Redis · Sentry · AWS SQS + Lambda (knowledge-base pipeline, in progress)
+**Stack:** Next.js (Vercel) · Auth.js / NextAuth (Google/GitHub) · Neon Postgres · Polar payments · Upstash Redis · Sentry · Inngest (knowledge-base builds) · AWS SQS + Lambda (optional `KB_PIPELINE=queue`)
 
 ## Features
 
@@ -22,6 +22,7 @@ cp .env.example .env.local
 
 npm run db:migrate   # first time: migrates legacy Better Auth schema (if any) + creates Auth.js tables
 npm run dev
+npm run inngest:dev  # durable KB builds (Inngest Dev Server on :8288)
 ```
 
 Open http://localhost:3000.
@@ -48,6 +49,7 @@ See `.env.example` for the full list. Required:
 | `POLAR_WEBHOOK_SECRET` | Polar → Webhooks |
 | `POLAR_PRODUCT_ID_PRO` | Polar → Products |
 | `NEXT_PUBLIC_APP_URL` | Your Vercel URL |
+| `INNGEST_EVENT_KEY` / `INNGEST_SIGNING_KEY` | [Inngest](https://app.inngest.com) — sync `/api/inngest` |
 
 Optional: `NEXT_PUBLIC_SENTRY_DSN` — see [docs/SETUP-SENTRY.md](docs/SETUP-SENTRY.md)
 

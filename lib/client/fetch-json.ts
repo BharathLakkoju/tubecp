@@ -25,8 +25,8 @@ export async function parseJsonResponseBody<T>(res: Response): Promise<T> {
   }
 }
 
-/** Matches Vercel `maxDuration` on index-video (300s) with a small buffer. */
-export const KB_INDEX_VIDEO_TIMEOUT_MS = 280_000;
+/** Matches Vercel Hobby `maxDuration` on index-video (60s) with a small buffer. */
+export const KB_INDEX_VIDEO_TIMEOUT_MS = 55_000;
 
 export async function postJsonWithTimeout<T>(
   url: string,

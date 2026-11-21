@@ -4,7 +4,7 @@ import { consumeWithIdleTimeout } from "../stream-timeout";
 /** OpenRouter / Whisper inline upload limit is ~25 MB. */
 export const STT_MAX_AUDIO_BYTES = 24 * 1024 * 1024;
 
-/** Keep audio download within index-video server budget (300s on Vercel). */
+/** Keep audio download within a single Inngest/Hobby step (~50s). */
 const STT_DOWNLOAD_MAX_MS = 240_000;
 const STT_DOWNLOAD_IDLE_MS = 45_000;
 

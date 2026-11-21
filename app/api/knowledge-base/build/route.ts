@@ -1,4 +1,4 @@
-import { after, NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireUserId, apiError } from "@/lib/auth";
 import { checkAndIncrementUsage, getUserSubscription } from "@/lib/billing/subscription";
 import { kbPipelineForUser } from "@/lib/pipeline/config";
@@ -11,9 +11,10 @@ import {
   runKnowledgeBaseBuildJob,
   startKnowledgeBaseBuild,
 } from "@/lib/services/kb-build-job";
+import { getKnowledgeBase } from "@/lib/store";
 import type { KbTranscriptMode, RankedVideo } from "@/lib/types";
 
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   try {
@@ -57,16 +58,13 @@ export async function POST(req: NextRequest) {
     }
 
     if (kbPipelineForUser(userId) !== "queue") {
-      after(() => {
-        runKnowledgeBaseBuildJob(kb.kbId, persistent).catch((err) => {
-          console.error(`KB build job failed for ${kb.kbId}:`, err);
-        });
-      });
+      await runKnowledgeBaseBuildJob(kb.kbId, persistent);
     }
 
+    const latest = (await getKnowledgeBase(kb.kbId)) ?? kb;
     return NextResponse.json(
-      { kb, skippedVideos: [], async: true },
-      { status: 202 }
+      { kb: latest, skippedVideos: [], async: latest.status === "building" },
+      { status: latest.status === "building" ? 202 : 200 }
     );
   } catch (err) {
     return apiError(err);

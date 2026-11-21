@@ -8,6 +8,8 @@ import { pipelineLoadStubEnabled } from "../pipeline/config";
 
 type LlmUsageOptions = {
   usageUserId?: string;
+  /** OpenRouter call retries. Durable jobs should pass 0 and let the runner back off. */
+  retries?: number;
 };
 
 const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
@@ -226,11 +228,13 @@ export async function generateEmbedding(
   text: string,
   options?: LlmUsageOptions
 ): Promise<number[]> {
-  const data = await withRetry(() =>
-    openRouterPost<{ data?: Array<{ embedding: number[] }> }>("/embeddings", {
-      model: config.embeddingModel,
-      input: prepareEmbeddingInput(text),
-    })
+  const data = await withRetry(
+    () =>
+      openRouterPost<{ data?: Array<{ embedding: number[] }> }>("/embeddings", {
+        model: config.embeddingModel,
+        input: prepareEmbeddingInput(text),
+      }),
+    { retries: options?.retries ?? 4 }
   );
 
   const embedding = data.data?.[0]?.embedding;
@@ -257,11 +261,13 @@ export async function generateEmbeddings(
     throw new Error("Embedding input cannot be empty");
   }
 
-  const data = await withRetry(() =>
-    openRouterPost<{ data?: Array<{ embedding: number[] }> }>("/embeddings", {
-      model: config.embeddingModel,
-      input,
-    })
+  const data = await withRetry(
+    () =>
+      openRouterPost<{ data?: Array<{ embedding: number[] }> }>("/embeddings", {
+        model: config.embeddingModel,
+        input,
+      }),
+    { retries: options?.retries ?? 4 }
   );
 
   const embeddings = data.data?.map((item) => item.embedding) ?? [];

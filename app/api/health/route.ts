@@ -32,6 +32,8 @@ export async function GET() {
     polarAccessToken: Boolean(process.env.POLAR_ACCESS_TOKEN?.trim()),
     polarWebhookSecret: Boolean(process.env.POLAR_WEBHOOK_SECRET?.trim()),
     polarProProduct: polarProducts.pro,
+    inngestEventKey: Boolean(process.env.INNGEST_EVENT_KEY?.trim()),
+    inngestSigningKey: Boolean(process.env.INNGEST_SIGNING_KEY?.trim()),
     polarResearcherProduct: polarProducts.researcher,
     googleOAuth: Boolean(process.env.GOOGLE_CLIENT_ID?.trim() && process.env.GOOGLE_CLIENT_SECRET?.trim()),
     githubOAuth: Boolean(process.env.GITHUB_CLIENT_ID?.trim() && process.env.GITHUB_CLIENT_SECRET?.trim()),
@@ -55,6 +57,7 @@ export async function GET() {
     checks.oauthProvider &&
     checks.devBypassDisabled &&
     (!production || (checks.resendKey && checks.emailFrom)) &&
+    (!production || (checks.inngestEventKey && checks.inngestSigningKey)) &&
     !youtubeQuota.warning;
 
   return NextResponse.json({
