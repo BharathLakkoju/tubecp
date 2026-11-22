@@ -85,3 +85,62 @@ CREATE TABLE IF NOT EXISTS kb_video_jobs (
 CREATE INDEX IF NOT EXISTS kb_video_jobs_open_idx
   ON kb_video_jobs (kb_id)
   WHERE status NOT IN ('indexed', 'skipped', 'failed');
+
+-- Durable control plane (user libraries, chat, billing idempotency)
+CREATE TABLE IF NOT EXISTS knowledge_bases (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  topic TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'building'
+    CHECK (status IN ('building', 'finalizing', 'ready', 'failed')),
+  persistent BOOLEAN NOT NULL DEFAULT FALSE,
+  transcript_mode TEXT NOT NULL DEFAULT 'captions',
+  ranked_videos JSONB NOT NULL DEFAULT '[]',
+  video_ids TEXT[] NOT NULL DEFAULT '{}',
+  chunk_ids TEXT[] NOT NULL DEFAULT '{}',
+  chunks_indexed INTEGER NOT NULL DEFAULT 0,
+  videos_indexed INTEGER NOT NULL DEFAULT 0,
+  total_minutes REAL NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  ready_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS knowledge_bases_user_idx
+  ON knowledge_bases (user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS saved_researches (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  topic TEXT NOT NULL,
+  result JSONB NOT NULL,
+  kb_id TEXT,
+  ranked_video_count INTEGER NOT NULL DEFAULT 0,
+  videos_searched INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS saved_researches_user_idx
+  ON saved_researches (user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS kb_chat_messages (
+  id SERIAL PRIMARY KEY,
+  kb_id TEXT NOT NULL,
+  role TEXT NOT NULL,
+  content TEXT NOT NULL,
+  sources JSONB,
+  gaps TEXT,
+  kind TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS kb_chat_messages_kb_idx
+  ON kb_chat_messages (kb_id, id);
+
+CREATE TABLE IF NOT EXISTS billing_events (
+  id TEXT PRIMARY KEY,
+  type TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  payload JSONB,
+  applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

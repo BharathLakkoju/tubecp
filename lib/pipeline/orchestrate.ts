@@ -73,14 +73,6 @@ export async function retryQueueBuild(kb: KnowledgeBaseRecord, persistent: boole
     (current) => ({
       ...current,
       status: "building",
-      buildJob: {
-        totalVideos: current.rankedVideos?.length ?? queued.length,
-        processedVideos: 0,
-        skippedCount: 0,
-        skippedVideoIds: [],
-        startedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
     }),
     persistent
   );

@@ -12,7 +12,9 @@ The goal is faster builds, builds that survive YouTube blocking, fair sharing be
 
 ## Why we are changing
 
-The current build lives in `lib/services/kb-build-job.ts`. It works, but its design caps speed and reliability:
+Every build, including Inngest, writes `kb_build_runs` / `kb_video_jobs`. Progress is `COUNT` over those rows; the knowledge-base record is written on terminal transitions only. Callers use `lib/kb/orchestrator.ts`; Inngest and SQS are transports. Ops: [RUNBOOK-PIPELINE.md](./RUNBOOK-PIPELINE.md).
+
+The current build lives in `lib/kb/orchestrator.ts` (formerly `lib/services/kb-build-job.ts`). The leftover risks that motivated the queue path:
 
 | Today | Effect |
 | --- | --- |

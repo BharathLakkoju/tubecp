@@ -4,7 +4,8 @@ import { assertKbAccess } from "@/lib/kb-access";
 import { getUserSubscription } from "@/lib/billing/subscription";
 import { getPlan } from "@/lib/plans";
 import { rateLimitApi } from "@/lib/ratelimit";
-import { knowledgeBaseBuildStatus, runKnowledgeBaseBuildJob } from "@/lib/services/kb-build-job";
+import { withJobProgress } from "@/lib/kb/progress";
+import { knowledgeBaseBuildStatus, runKnowledgeBaseBuildJob } from "@/lib/kb/orchestrator";
 
 export const maxDuration = 60;
 
@@ -18,7 +19,7 @@ export async function POST(
     const userId = await requireUserId();
     await rateLimitApi(userId, "kb-kick", 30);
     const kb = await assertKbAccess(kbId, userId);
-    if (kb.status !== "building") {
+    if (kb.status !== "building" && kb.status !== "finalizing") {
       return NextResponse.json(
         { error: "Only in-progress knowledge bases can be resumed on the server." },
         { status: 400 }
@@ -28,11 +29,11 @@ export async function POST(
     const persistent = getPlan(sub.plan).persistentKbs;
 
     const result = await runKnowledgeBaseBuildJob(kbId, persistent);
-    const updated = result.kb;
+    const updated = await withJobProgress(result.kb);
     return NextResponse.json({
       kb: updated,
       buildStatus: knowledgeBaseBuildStatus(updated),
-      async: updated.status === "building",
+      async: updated.status === "building" || updated.status === "finalizing",
     });
   } catch (err) {
     return apiError(err);

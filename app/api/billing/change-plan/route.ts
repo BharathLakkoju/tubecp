@@ -6,7 +6,8 @@ import {
 } from "@/lib/billing/plan-changes";
 import { checkoutPathForPlan } from "@/lib/billing/checkout-flow";
 import { changePolarSubscriptionProduct } from "@/lib/billing/polar-subscription";
-import { getUserSubscription, setUserPlan } from "@/lib/billing/subscription";
+import { applyBillingEvent } from "@/lib/billing/events";
+import { getUserSubscription } from "@/lib/billing/subscription";
 import type { PlanId } from "@/lib/plans";
 import { getPlan, isTeamPlanOffered } from "@/lib/plans";
 import { formatDisplayDate } from "@/lib/format-display-date";
@@ -76,10 +77,13 @@ export async function POST(req: NextRequest) {
     );
 
     if (action === "upgrade") {
-      await setUserPlan(userId, targetPlanId, {
+      await applyBillingEvent({
+        id: `change-plan:${sub.polarSubscriptionId}:${targetPlanId}`,
+        type: "updated",
+        userId,
+        plan: targetPlanId,
         polarSubscriptionId: sub.polarSubscriptionId,
         polarCustomerId: sub.polarCustomerId,
-        status: sub.status === "canceled" ? "active" : sub.status,
         periodStart: sub.periodStart,
         periodEnd: sub.periodEnd,
       });

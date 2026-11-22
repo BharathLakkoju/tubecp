@@ -3,6 +3,7 @@ import type { KnowledgeBaseRecord } from "@/lib/types";
 
 const store = vi.hoisted(() => ({
   kb: null as KnowledgeBaseRecord | null,
+  pipeline: "legacy" as "legacy" | "queue",
 }));
 
 vi.mock("@/lib/store", () => ({
@@ -46,18 +47,18 @@ vi.mock("@/lib/pipeline/orchestrate", () => ({
   startQueueBuild: vi.fn(async () => undefined),
 }));
 
-vi.mock("@/lib/pipeline/jobs", () => ({
-  tryGetRun: vi.fn(async () => null),
+vi.mock("@/lib/pipeline/config", () => ({
+  kbPipelineForUser: vi.fn(() => store.pipeline),
 }));
 
 import { repairKnowledgeBaseIfIndexed, runKnowledgeBaseBuildJob } from "@/lib/services/kb-build-job";
 import { requestKbBuild } from "@/lib/inngest/functions";
 import { kickQueueBuild } from "@/lib/pipeline/orchestrate";
-import { tryGetRun } from "@/lib/pipeline/jobs";
 
 describe("kb-build-job", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    store.pipeline = "legacy";
     store.kb = {
       kbId: "kb-1",
       topic: "test",
@@ -103,11 +104,8 @@ describe("kb-build-job", () => {
     expect(result.kb.status).toBe("failed");
   });
 
-  it("kicks the queue runner when a pipeline run exists", async () => {
-    vi.mocked(tryGetRun).mockResolvedValueOnce({
-      kbId: "kb-1",
-      status: "building",
-    } as never);
+  it("kicks the queue runner when the user is on the queue transport", async () => {
+    store.pipeline = "queue";
     store.kb = { ...store.kb!, status: "building" };
     await runKnowledgeBaseBuildJob("kb-1", false);
     expect(kickQueueBuild).toHaveBeenCalledWith("kb-1");

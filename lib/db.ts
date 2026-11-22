@@ -1,4 +1,10 @@
 import { Pool } from "@neondatabase/serverless";
+import { isE2eAuthBypass } from "@/lib/e2e";
+
+/** True when application tables in Postgres are the control-plane source of truth. */
+export function useAppPostgres(): boolean {
+  return Boolean(process.env.DATABASE_URL?.trim()) && !isE2eAuthBypass();
+}
 
 /** Per-request pool for serverless handlers (Auth.js, API routes). Do not cache at module scope. */
 export function createDbPool(): Pool {

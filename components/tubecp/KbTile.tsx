@@ -23,7 +23,7 @@ function buildPercent(kb: KnowledgeBase): number {
 export default function KbTile({ kb }: { kb: KnowledgeBase }) {
   const pct = buildPercent(kb);
   const buildEta =
-    kb.status === "building" && kb.buildJob
+    (kb.status === "building" || kb.status === "finalizing") && kb.buildJob
       ? (() => {
           const est = estimateKbBuildCompletion(kb.buildJob!, kb.status);
           return (
@@ -48,7 +48,7 @@ export default function KbTile({ kb }: { kb: KnowledgeBase }) {
           </CardTitle>
         </CardHeader>
         <CardContent className="mt-auto flex flex-col gap-3">
-          {kb.status === "building" && (
+          {(kb.status === "building" || kb.status === "finalizing") && (
             <>
               <Progress value={pct} getAriaValueText={() => `Building, ${pct}%`} />
               {buildEta && (
@@ -59,7 +59,7 @@ export default function KbTile({ kb }: { kb: KnowledgeBase }) {
           <div className="flex flex-wrap items-center justify-between gap-2">
             {kb.status === "ready" ? (
               <StatusBadge status="done" />
-            ) : kb.status === "building" ? (
+            ) : kb.status === "building" || kb.status === "finalizing" ? (
               <StatusBadge status="running">Building {pct}%</StatusBadge>
             ) : (
               <StatusBadge status="failed" />

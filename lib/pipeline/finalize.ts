@@ -12,7 +12,10 @@ async function writeTerminalKnowledgeBase(kbId: string, persistent: boolean): Pr
     .map((job) => job.videoId);
   const minutes = indexed.reduce((sum, job) => sum + job.minutes, 0);
   const failed = chunkIds.length === 0;
-  const firstError = jobs.find((job) => job.errorMessage)?.errorMessage;
+  const firstError = jobs
+    .map((job) => job.errorMessage)
+    .filter((message): message is string => Boolean(message))
+    .join(" ");
   const existing = await getKnowledgeBase(kbId);
   const alreadyTerminal = existing?.status === "ready" || existing?.status === "failed";
 

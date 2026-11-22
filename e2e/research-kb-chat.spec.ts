@@ -64,6 +64,13 @@ test.describe("Authenticated chat flow", () => {
   });
 });
 
+test.describe("Eval benchmark", () => {
+  test("benchmark endpoint requires auth", async ({ request }) => {
+    const res = await request.get("/api/eval/benchmark");
+    expect(res.status()).toBe(401);
+  });
+});
+
 test.describe("Health checks", () => {
   test("health reports polar product configuration", async ({ request }) => {
     const res = await request.get("/api/health");

@@ -16,12 +16,16 @@ export async function releaseQueuedJobs(userId: string): Promise<void> {
   );
 }
 
-export async function afterTerminalJob(userId: string, kbId: string, becameFinalizer: boolean): Promise<void> {
+export async function maybeCommitFinalizer(kbId: string, becameFinalizer: boolean): Promise<void> {
   // Concurrent last jobs can both miss the in-transaction finalize check.
   const shouldFinalize = becameFinalizer || (await getJobStore().tryBeginFinalize(kbId));
   if (shouldFinalize) {
     await commitFinalizer(kbId);
   }
+}
+
+export async function afterTerminalJob(userId: string, kbId: string, becameFinalizer: boolean): Promise<void> {
+  await maybeCommitFinalizer(kbId, becameFinalizer);
   await releaseQueuedJobs(userId);
 }
 

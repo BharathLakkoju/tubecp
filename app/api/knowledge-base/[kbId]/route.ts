@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUserId, apiError } from "@/lib/auth";
 import { assertKbAccess } from "@/lib/kb-access";
+import { withJobProgress } from "@/lib/kb/progress";
 import { deleteKnowledgeBase } from "@/lib/services/knowledge-base";
 
 export async function GET(
@@ -11,7 +12,7 @@ export async function GET(
     const userId = await requireUserId();
     const { kbId } = await params;
     const kb = await assertKbAccess(kbId, userId);
-    return NextResponse.json(kb);
+    return NextResponse.json(await withJobProgress(kb));
   } catch (err) {
     return apiError(err);
   }

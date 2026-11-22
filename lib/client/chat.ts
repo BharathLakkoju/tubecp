@@ -1,4 +1,5 @@
 import type { ChatMessage, ChatSource } from "@/lib/types";
+import { parseJsonResponseBody } from "@/lib/client/fetch-json";
 
 export type ChatStreamEvent =
   | { type: "status"; message: string }
@@ -33,7 +34,7 @@ export function parseClientError(err: unknown): string {
 
 export async function loadKbChatMessages(kbId: string): Promise<ChatMessage[]> {
   const res = await fetch(`/api/knowledge-base/${kbId}/messages`);
-  const data = await res.json();
+  const data = await parseJsonResponseBody<{ error?: string; messages?: ChatMessage[] }>(res);
   if (!res.ok) throw new Error(data.error ?? "Failed to load chat history");
   return (data.messages ?? []) as ChatMessage[];
 }
@@ -50,7 +51,7 @@ export async function streamKbChatMessage(
   });
 
   if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
+    const data = await parseJsonResponseBody<{ error?: string }>(res);
     throw new Error(data.error ?? `Chat failed (${res.status})`);
   }
 

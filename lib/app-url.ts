@@ -67,6 +67,23 @@ export function getAppUrl(): string {
   return "http://localhost:3000";
 }
 
+/**
+ * Pin Auth.js `AUTH_URL` to the public origin so Google/GitHub `redirect_uri`
+ * is always `{origin}/api/auth/callback/{provider}` — not a leftover localhost
+ * value on Vercel, and not a preview hostname.
+ */
+export function applyCanonicalAuthUrl(): string {
+  const url = getAppUrl();
+  process.env.AUTH_URL = url;
+  process.env.NEXTAUTH_URL = url;
+  return url;
+}
+
+/** Auth.js base path (`/api/auth`). Used as `redirectProxyUrl`. */
+export function getAuthJsBaseUrl(): string {
+  return `${getAppUrl()}/api/auth`;
+}
+
 export function getOAuthCallbackUrl(provider: "google" | "github"): string {
-  return `${getAppUrl()}/api/auth/callback/${provider}`;
+  return `${getAuthJsBaseUrl()}/callback/${provider}`;
 }

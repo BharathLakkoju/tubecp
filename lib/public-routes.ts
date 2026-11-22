@@ -13,7 +13,6 @@ const PUBLIC_PREFIXES = [
   "/api/health",
   "/api/inngest",
   "/api/mcp",
-  "/api/eval/benchmark",
   "/api/webhook/polar",
   "/api/auth",
   "/api/checkout",

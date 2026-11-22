@@ -65,6 +65,33 @@ describe("runDeployChecks", () => {
     expect(result.errors.some((check) => check.id === "e2e_bypass_disabled")).toBe(true);
     expect(result.errors.some((check) => check.id === "usage_bypass_disabled")).toBe(true);
   });
+
+  it("requires queue URLs when KB_PIPELINE=queue in production", () => {
+    const result = runDeployChecks({
+      NODE_ENV: "production",
+      VERCEL_ENV: "production",
+      YOUTUBE_API_KEY: "yt-key",
+      OPENROUTER_API_KEY: "or-key",
+      DATABASE_URL: "postgres://localhost/db",
+      AUTH_SECRET: "secret",
+      NEXT_PUBLIC_APP_URL: "https://example.com",
+      UPSTASH_REDIS_REST_URL: "https://redis.example",
+      UPSTASH_REDIS_REST_TOKEN: "token",
+      RESEND_API_KEY: "re-key",
+      EMAIL_FROM: "noreply@example.com",
+      GOOGLE_CLIENT_ID: "gid",
+      GOOGLE_CLIENT_SECRET: "gsecret",
+      POLAR_ACCESS_TOKEN: "polar",
+      POLAR_WEBHOOK_SECRET: "whsec",
+      POLAR_PRODUCT_ID_PRO: "prod_pro",
+      INNGEST_EVENT_KEY: "event-key",
+      INNGEST_SIGNING_KEY: "sign-key",
+      KB_PIPELINE: "queue",
+    });
+
+    expect(result.ready).toBe(false);
+    expect(result.errors.some((check) => check.id === "pipeline_queue")).toBe(true);
+  });
 });
 
 describe("validateRemoteHealth", () => {
@@ -76,6 +103,7 @@ describe("validateRemoteHealth", () => {
         youtubeKey: true,
         openrouterKey: true,
         databaseUrl: true,
+        databaseLive: true,
         authSecret: true,
         appUrl: true,
         kv: true,

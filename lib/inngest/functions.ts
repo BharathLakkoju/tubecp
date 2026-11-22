@@ -3,6 +3,8 @@ import {
   kbBuildRequestedEvent,
   kbBuildVideoEvent,
 } from "@/lib/inngest/client";
+import { captureException } from "@/lib/observe";
+import { getJobStore, TERMINAL_JOB_STATUSES } from "@/lib/pipeline/jobs";
 import {
   applyVideoBuildResultToKb,
   completeKnowledgeBaseBuild,
@@ -39,6 +41,24 @@ export const kbBuildVideo = inngest.createFunction(
   async ({ event, step }): Promise<VideoBuildResult> => {
     const { kbId, videoId, persistent } = event.data;
     await writeKbBuildHeartbeat(kbId);
+
+    const existingJob = await getJobStore().getJob(kbId, videoId);
+    if (existingJob && TERMINAL_JOB_STATUSES.includes(existingJob.status)) {
+      return {
+        videoId,
+        title: existingJob.title,
+        status: existingJob.status === "indexed" ? "indexed" : existingJob.status === "skipped" ? "skipped" : "failed",
+        error: existingJob.errorMessage ?? undefined,
+        chunkIds: existingJob.chunkIds,
+        minutes: existingJob.minutes,
+      } satisfies VideoBuildResult;
+    }
+    await getJobStore().claimJob(
+      kbId,
+      videoId,
+      ["queued", "fetched", "fetching", "embedding"],
+      "fetching"
+    );
 
     const reused = await step.run("reuse-indexed", async () => {
       const { video } = await loadBuildVideo(kbId, videoId);
@@ -102,7 +122,7 @@ export const kbBuildRequested = inngest.createFunction(
 
     const pending = await step.run("load-videos", () => loadPendingBuildVideos(kbId));
 
-    if (pending.kb.status !== "building") {
+    if (pending.kb.status === "ready" || pending.kb.status === "failed") {
       return { kbId, status: pending.kb.status, results: [] as VideoBuildResult[] };
     }
 
@@ -145,6 +165,7 @@ export async function requestKbBuild(kbId: string, persistent: boolean): Promise
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to enqueue knowledge base build";
     console.error(`Inngest KB build enqueue failed for ${kbId}:`, err);
+    captureException(err, { kbId, persistent, stage: "inngestEnqueue" });
     await failKnowledgeBaseBuild(kbId, persistent, `Build could not be started: ${message}`);
   }
 }

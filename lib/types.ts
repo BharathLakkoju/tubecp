@@ -73,11 +73,14 @@ export interface SavedResearch {
   createdAt: string;
   rankedVideoCount: number;
   videosSearched: number;
+  kbId?: string;
 }
 
 export interface SavedResearchRecord extends SavedResearch {
   userId: string;
   result: ResearchResult;
+  /** Optional knowledge base built from this research. */
+  kbId?: string;
 }
 
 /** Partial research data streamed to the UI as each pipeline step completes. */
@@ -119,6 +122,16 @@ export interface KbBuildOptions {
   transcriptMode: KbTranscriptMode;
 }
 
+export type KbStatus = "building" | "finalizing" | "ready" | "failed";
+
+export type KbBuildProgress = {
+  total: number;
+  indexed: number;
+  skipped: number;
+  failed: number;
+  open: number;
+};
+
 export interface KnowledgeBase {
   kbId: string;
   topic: string;
@@ -126,8 +139,9 @@ export interface KnowledgeBase {
   chunksIndexed: number;
   videosIndexed: number;
   totalMinutes: number;
-  status: "building" | "ready" | "failed";
+  status: KbStatus;
   createdAt: string;
+  persistent?: boolean;
   buildJob?: KbBuildJobState;
   buildOptions?: KbBuildOptions;
 }
@@ -135,9 +149,8 @@ export interface KnowledgeBase {
 export interface KnowledgeBaseRecord extends KnowledgeBase {
   chunkIds: string[];
   userId: string;
-  /** Original ranked videos kept for failed-build retry. */
+  /** Original ranked videos kept so retry is always possible. */
   rankedVideos?: RankedVideo[];
-  chatMessages?: ChatMessage[];
 }
 
 export interface ChatSource {

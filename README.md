@@ -58,7 +58,11 @@ Email (verification + password reset): set `RESEND_API_KEY` and `EMAIL_FROM` —
 ### 3. Connect services
 
 - **Upstash Redis:** Vercel → Storage → Marketplace → Upstash Redis
-- **OAuth:** Set callback URLs to `https://your-app.vercel.app/api/auth/callback/google` and `/api/auth/callback/github`
+- **OAuth:** In Google Cloud Console → Credentials → your Web client, add:
+  - `http://localhost:3000/api/auth/callback/google`
+  - `https://your-app.vercel.app/api/auth/callback/google`
+  - JavaScript origins: `http://localhost:3000` and `https://your-app.vercel.app`
+  Repeat `/api/auth/callback/github` on the GitHub OAuth app. `npm run auth:urls` prints the exact URIs.
 - **Neon:** Run `npm run db:migrate` after setting `DATABASE_URL`
 - **Polar:** Webhook URL → `https://your-app.vercel.app/api/webhook/polar`
 

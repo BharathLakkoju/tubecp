@@ -120,6 +120,20 @@ export function runDeployChecks(env: NodeJS.ProcessEnv = process.env): DeployVal
       detail: production ? undefined : "Optional in local development with `npm run inngest:dev`",
     },
     {
+      id: "pipeline_queue",
+      label: "PIPELINE_FETCH_QUEUE_URL + PIPELINE_EMBED_QUEUE_URL + PIPELINE_AWS_ROLE_ARN",
+      required: production && env.KB_PIPELINE?.trim().toLowerCase() === "queue",
+      passed:
+        env.KB_PIPELINE?.trim().toLowerCase() !== "queue" ||
+        (isSet(env.PIPELINE_FETCH_QUEUE_URL) &&
+          isSet(env.PIPELINE_EMBED_QUEUE_URL) &&
+          isSet(env.PIPELINE_AWS_ROLE_ARN)),
+      detail:
+        env.KB_PIPELINE?.trim().toLowerCase() === "queue"
+          ? "Required when KB_PIPELINE=queue"
+          : "Only required when KB_PIPELINE=queue",
+    },
+    {
       id: "polar_product_researcher",
       label: "POLAR_PRODUCT_ID_RESEARCHER",
       required: false,
@@ -193,6 +207,7 @@ export function validateRemoteHealth(payload: RemoteHealthPayload): DeployValida
     { id: "youtubeKey", label: "YouTube API key configured", required: true },
     { id: "openrouterKey", label: "OpenRouter API key configured", required: true },
     { id: "databaseUrl", label: "Database URL configured", required: true },
+    { id: "databaseLive", label: "Database reachable", required: true },
     { id: "authSecret", label: "Auth secret configured", required: true },
     { id: "appUrl", label: "App URL configured", required: true },
     { id: "kv", label: "Upstash Redis connected", required: true },

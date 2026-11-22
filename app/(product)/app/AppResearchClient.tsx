@@ -32,6 +32,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import RecentResearchesSection from "@/components/RecentResearchesSection";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { parseJsonResponseBody } from "@/lib/client/fetch-json";
 import type { KnowledgeBaseBuildStatus } from "@/lib/kb-build-status";
 import { formatKbBuildEta, formatKbBuildRemaining } from "@/lib/kb-build-estimate";
 
@@ -107,8 +108,8 @@ export default function AppResearchClient({
     const poll = async () => {
       try {
         const res = await fetch(`/api/knowledge-base/${activeBuildKbId}/build-status`);
-        const data = await res.json();
-        if (res.ok) setLiveBuildStatus(data as KnowledgeBaseBuildStatus);
+        const data = await parseJsonResponseBody<KnowledgeBaseBuildStatus>(res);
+        if (res.ok) setLiveBuildStatus(data);
       } catch {
         // ignore polling errors during build
       }
@@ -229,6 +230,7 @@ export default function AppResearchClient({
             void refreshKnowledgeBases({ silent: true });
           },
           useSpeechToText,
+          researchId: resumeSessionId ?? undefined,
         }
       );
 

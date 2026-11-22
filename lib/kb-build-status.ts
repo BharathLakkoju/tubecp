@@ -16,7 +16,9 @@ export function knowledgeBaseBuildStatusFromRecord(kb: KnowledgeBaseRecord) {
             : 0
         : total > 0
           ? Math.min(99, Math.round((processed / total) * 100))
-          : 0;
+          : kb.status === "finalizing"
+            ? 99
+            : 0;
 
   const estimate =
     job && kb.status === "building"

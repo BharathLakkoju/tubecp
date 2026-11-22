@@ -83,6 +83,7 @@ export async function buildKnowledgeBaseOnServer(
   rankedVideos: { videoId: string }[],
   options?: {
     useSpeechToText?: boolean;
+    researchId?: string;
     onKnowledgeBaseCreated?: (kbId: string) => void;
     onProgress?: (message: string, progress?: number, status?: KnowledgeBaseBuildStatus) => void;
   }
@@ -96,6 +97,7 @@ export async function buildKnowledgeBaseOnServer(
       topic,
       rankedVideos,
       transcriptMode: options?.useSpeechToText ? "stt" : "captions",
+      researchId: options?.researchId,
     }),
   });
   const data = await parseJsonResponseBody<{

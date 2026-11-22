@@ -243,12 +243,16 @@ export async function setUserPlan(
   }
 ): Promise<UserSubscription> {
   const sub = await loadUserSubscription(userId);
+  const nextPeriodStart = opts?.periodStart ?? sub.periodStart ?? monthStart();
+  const periodRollover = nextPeriodStart !== sub.periodStart;
   sub.plan = plan;
   sub.status = opts?.status ?? "active";
-  sub.periodStart = opts?.periodStart ?? monthStart();
+  sub.periodStart = nextPeriodStart;
   sub.periodEnd = opts?.periodEnd ?? (plan === "free" ? monthEnd() : sub.periodEnd);
-  sub.kbBuildsUsed = 0;
-  sub.chatMessagesUsed = 0;
+  if (periodRollover) {
+    sub.kbBuildsUsed = 0;
+    sub.chatMessagesUsed = 0;
+  }
   if (opts?.polarSubscriptionId) sub.polarSubscriptionId = opts.polarSubscriptionId;
   if (opts?.polarCustomerId) sub.polarCustomerId = opts.polarCustomerId;
   sub.updatedAt = new Date().toISOString();

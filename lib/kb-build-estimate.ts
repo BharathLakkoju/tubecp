@@ -6,7 +6,7 @@ export function estimateKbBuildCompletion(
   job: KbBuildJobState,
   status: KnowledgeBase["status"]
 ): { estimatedCompletionAt: string | null; estimatedSecondsRemaining: number | null } {
-  if (status !== "building") {
+  if (status !== "building" && status !== "finalizing") {
     return { estimatedCompletionAt: null, estimatedSecondsRemaining: null };
   }
 

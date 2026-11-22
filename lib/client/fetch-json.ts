@@ -25,7 +25,7 @@ export async function parseJsonResponseBody<T>(res: Response): Promise<T> {
   }
 }
 
-/** Matches Vercel Hobby `maxDuration` on index-video (60s) with a small buffer. */
+/** Default timeout for JSON API calls that may hit a 60s serverless cap. */
 export const KB_INDEX_VIDEO_TIMEOUT_MS = 55_000;
 
 export async function postJsonWithTimeout<T>(

@@ -12,5 +12,6 @@ describe("isPublicRoute", () => {
   it("still protects product routes", () => {
     expect(isPublicRoute("/app")).toBe(false);
     expect(isPublicRoute("/api/research/search")).toBe(false);
+    expect(isPublicRoute("/api/eval/benchmark")).toBe(false);
   });
 });

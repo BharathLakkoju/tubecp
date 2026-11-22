@@ -1,17 +1,7 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import Link from "next/link";
 import { CheckCircle, XCircle } from "@phosphor-icons/react";
 import StatTile from "@/components/tubecp/StatTile";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { EvalBenchmarkSnapshot } from "@/lib/eval/benchmark";
-
-function isEvalBenchmarkSnapshot(data: unknown): data is EvalBenchmarkSnapshot {
-  if (!data || typeof data !== "object") return false;
-  const snapshot = data as EvalBenchmarkSnapshot;
-  return Array.isArray(snapshot.topics) && snapshot.topics.length > 0;
-}
 
 function BenchmarkResult({ passed }: { passed: boolean }) {
   return (
@@ -28,16 +18,11 @@ function BenchmarkResult({ passed }: { passed: boolean }) {
   );
 }
 
-export default function EvalBenchmarkSection() {
-  const [benchmark, setBenchmark] = useState<EvalBenchmarkSnapshot | null>(null);
-
-  useEffect(() => {
-    fetch("/api/eval/benchmark")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => setBenchmark(isEvalBenchmarkSnapshot(data) ? data : null))
-      .catch(() => setBenchmark(null));
-  }, []);
-
+export default function EvalBenchmarkSection({
+  benchmark,
+}: {
+  benchmark: EvalBenchmarkSnapshot | null;
+}) {
   const topics = benchmark?.topics ?? [];
   if (!benchmark || topics.length === 0) return null;
 
@@ -101,10 +86,7 @@ export default function EvalBenchmarkSection() {
       </div>
 
       <p className="pt-2 text-body-sm break-words text-foreground-secondary">
-        Reproduce locally with <code className="font-mono">npm run eval</code>.{" "}
-        <Link href="/api/eval/benchmark" className="underline underline-offset-2">
-          View full benchmark JSON
-        </Link>
+        Reproduce locally with <code className="font-mono">npm run eval</code>.
       </p>
     </section>
   );

@@ -7,6 +7,20 @@ import type {
 } from "./types";
 import { getDevMemoryStore } from "./store/dev-memory";
 import { getRedis, hasRedis } from "./store/redis";
+import {
+  deleteKnowledgeBaseRow,
+  getKnowledgeBaseRow,
+  listKnowledgeBaseRows,
+  upsertKnowledgeBaseRow,
+} from "@/lib/repos/knowledge-bases";
+import {
+  deleteSavedResearchRow,
+  getSavedResearchRow,
+  listSavedResearchRows,
+  upsertSavedResearchRow,
+} from "@/lib/repos/researches";
+import { useAppPostgres } from "@/lib/db";
+
 const RESEARCH_RESULT_TTL_SECONDS = 48 * 60 * 60;
 /** Upstash Redis limits each request to 10MB — batch mget to stay under. */
 const MGET_BATCH_SIZE = 24;
@@ -251,11 +265,13 @@ export async function saveKnowledgeBase(
   kb: KnowledgeBaseRecord,
   persistent = false
 ): Promise<void> {
-  await set(`kb:${kb.kbId}`, kb, kbTtl(persistent));
+  const record = { ...kb, persistent: kb.persistent ?? persistent };
+  await upsertKnowledgeBaseRow(record);
+  await set(`kb:${record.kbId}`, record, kbTtl(record.persistent ?? persistent));
 }
 
 export async function getKnowledgeBase(kbId: string): Promise<KnowledgeBaseRecord | null> {
-  return get<KnowledgeBaseRecord>(`kb:${kbId}`);
+  return (await getKnowledgeBaseRow(kbId)) ?? get<KnowledgeBaseRecord>(`kb:${kbId}`);
 }
 
 export async function updateKnowledgeBase(
@@ -266,11 +282,12 @@ export async function updateKnowledgeBase(
   const kb = await getKnowledgeBase(kbId);
   if (!kb) return null;
   const updated = updater(kb);
-  await saveKnowledgeBase(updated, persistent);
+  await saveKnowledgeBase(updated, persistent || Boolean(updated.persistent));
   return updated;
 }
 
 export async function addUserKnowledgeBase(userId: string, kbId: string): Promise<void> {
+  if (useAppPostgres()) return;
   const key = `user-kbs:${userId}`;
   const existing = (await get<string[]>(key)) ?? [];
   if (!existing.includes(kbId)) {
@@ -279,12 +296,14 @@ export async function addUserKnowledgeBase(userId: string, kbId: string): Promis
 }
 
 export async function removeUserKnowledgeBase(userId: string, kbId: string): Promise<void> {
+  if (useAppPostgres()) return;
   const key = `user-kbs:${userId}`;
   const existing = (await get<string[]>(key)) ?? [];
   await set(key, existing.filter((id) => id !== kbId));
 }
 
 export async function deleteKnowledgeBaseRecord(kbId: string): Promise<void> {
+  await deleteKnowledgeBaseRow(kbId);
   await del(`kb:${kbId}`);
 }
 
@@ -319,11 +338,20 @@ export async function getUserKnowledgeBases(userId: string): Promise<string[]> {
 export async function listUserKnowledgeBaseRecords(
   userId: string
 ): Promise<KnowledgeBaseRecord[]> {
+  const fromPg = await listKnowledgeBaseRows(userId);
   const ids = await getUserKnowledgeBases(userId);
-  if (ids.length === 0) return [];
-
-  const records = await mget<KnowledgeBaseRecord>(ids.map((kbId) => `kb:${kbId}`));
-  return records.filter((kb): kb is KnowledgeBaseRecord => kb !== null && kb.userId === userId);
+  const redisRecords =
+    ids.length === 0
+      ? []
+      : (await mget<KnowledgeBaseRecord>(ids.map((kbId) => `kb:${kbId}`))).filter(
+          (kb): kb is KnowledgeBaseRecord => kb !== null && kb.userId === userId
+        );
+  const byId = new Map<string, KnowledgeBaseRecord>();
+  for (const record of redisRecords) byId.set(record.kbId, record);
+  for (const record of fromPg) byId.set(record.kbId, record);
+  return [...byId.values()].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
 }
 
 function savedResearchTtl(persistent: boolean): number | undefined {
@@ -334,13 +362,14 @@ export async function saveSavedResearchRecord(
   record: SavedResearchRecord,
   persistent = false
 ): Promise<void> {
+  await upsertSavedResearchRow(record);
   await set(`research:${record.researchId}`, record, savedResearchTtl(persistent));
 }
 
 export async function getSavedResearchRecord(
   researchId: string
 ): Promise<SavedResearchRecord | null> {
-  return get<SavedResearchRecord>(`research:${researchId}`);
+  return (await getSavedResearchRow(researchId)) ?? get<SavedResearchRecord>(`research:${researchId}`);
 }
 
 export async function addUserResearch(
@@ -348,6 +377,7 @@ export async function addUserResearch(
   researchId: string,
   persistent = false
 ): Promise<void> {
+  if (useAppPostgres()) return;
   const key = `user-researches:${userId}`;
   const existing = (await get<string[]>(key)) ?? [];
   const next = [researchId, ...existing.filter((id) => id !== researchId)].slice(0, 100);
@@ -359,24 +389,33 @@ export async function getUserResearches(userId: string): Promise<string[]> {
 }
 
 export async function removeUserResearch(userId: string, researchId: string): Promise<void> {
+  if (useAppPostgres()) return;
   const key = `user-researches:${userId}`;
   const existing = (await get<string[]>(key)) ?? [];
   await set(key, existing.filter((id) => id !== researchId));
 }
 
 export async function deleteSavedResearchRecord(researchId: string): Promise<void> {
+  await deleteSavedResearchRow(researchId);
   await del(`research:${researchId}`);
 }
 
 export async function listUserSavedResearchRecords(
   userId: string
 ): Promise<SavedResearchRecord[]> {
+  const fromPg = await listSavedResearchRows(userId);
   const ids = await getUserResearches(userId);
-  if (ids.length === 0) return [];
-
-  const records = await mget<SavedResearchRecord>(ids.map((id) => `research:${id}`));
-  return records.filter(
-    (record): record is SavedResearchRecord =>
-      record !== null && record.userId === userId
+  const redisRecords =
+    ids.length === 0
+      ? []
+      : (await mget<SavedResearchRecord>(ids.map((id) => `research:${id}`))).filter(
+          (record): record is SavedResearchRecord =>
+            record !== null && record.userId === userId
+        );
+  const byId = new Map<string, SavedResearchRecord>();
+  for (const record of redisRecords) byId.set(record.researchId, record);
+  for (const record of fromPg) byId.set(record.researchId, record);
+  return [...byId.values()].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
 }

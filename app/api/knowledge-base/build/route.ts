@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUserId, apiError } from "@/lib/auth";
 import { checkAndIncrementUsage, getUserSubscription } from "@/lib/billing/subscription";
-import { kbPipelineForUser } from "@/lib/pipeline/config";
-import { assertCanStartBuild } from "@/lib/pipeline/limits";
 import { isE2eStubMode } from "@/lib/e2e-stub";
+import { withJobProgress } from "@/lib/kb/progress";
 import { getPlan } from "@/lib/plans";
 import { rateLimitApi } from "@/lib/ratelimit";
 import { ensureKbWelcomeMessage } from "@/lib/services/kb-chat";
-import {
-  runKnowledgeBaseBuildJob,
-  startKnowledgeBaseBuild,
-} from "@/lib/services/kb-build-job";
+import { startKnowledgeBaseBuild } from "@/lib/kb/orchestrator";
+import { persistUserResearch } from "@/lib/services/saved-research";
+import { assertResearchAccess } from "@/lib/research-access";
 import { getKnowledgeBase } from "@/lib/store";
 import type { KbTranscriptMode, RankedVideo } from "@/lib/types";
 
@@ -21,11 +19,12 @@ export async function POST(req: NextRequest) {
     const userId = await requireUserId();
     await rateLimitApi(userId, "kb-build", 5);
 
-    const { topic, rankedVideos, transcriptMode, useSpeechToText } = (await req.json()) as {
+    const { topic, rankedVideos, transcriptMode, useSpeechToText, researchId } = (await req.json()) as {
       topic?: string;
       rankedVideos?: RankedVideo[];
       transcriptMode?: KbTranscriptMode;
       useSpeechToText?: boolean;
+      researchId?: string;
     };
 
     if (!topic?.trim() || !rankedVideos?.length) {
@@ -33,9 +32,6 @@ export async function POST(req: NextRequest) {
     }
 
     if (!isE2eStubMode()) {
-      if (kbPipelineForUser(userId) === "queue") {
-        await assertCanStartBuild(userId);
-      }
       await checkAndIncrementUsage(userId, "kb_build");
     }
 
@@ -48,23 +44,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid transcriptMode" }, { status: 400 });
     }
 
+    const linkedResearch = researchId?.trim()
+      ? await assertResearchAccess(researchId.trim(), userId)
+      : null;
+
     const kb = await startKnowledgeBaseBuild(topic, rankedVideos, userId, persistent, {
       transcriptMode: mode,
     });
+
+    if (linkedResearch) {
+      await persistUserResearch(userId, linkedResearch.researchId, linkedResearch.result, kb.kbId);
+    }
 
     if (kb.status === "ready") {
       await ensureKbWelcomeMessage(kb.kbId);
       return NextResponse.json({ kb, skippedVideos: [], async: false });
     }
 
-    if (kbPipelineForUser(userId) !== "queue") {
-      await runKnowledgeBaseBuildJob(kb.kbId, persistent);
-    }
-
-    const latest = (await getKnowledgeBase(kb.kbId)) ?? kb;
+    const latest = await withJobProgress((await getKnowledgeBase(kb.kbId)) ?? kb);
     return NextResponse.json(
-      { kb: latest, skippedVideos: [], async: latest.status === "building" },
-      { status: latest.status === "building" ? 202 : 200 }
+      { kb: latest, skippedVideos: [], async: true },
+      { status: 202 }
     );
   } catch (err) {
     return apiError(err);

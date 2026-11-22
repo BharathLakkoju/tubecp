@@ -64,7 +64,6 @@ export async function backfillSavedResearchesFromKnowledgeBases(userId: string):
 }
 
 export async function listUserSavedResearchRecordsWithKbBackfill(userId: string) {
-  await backfillSavedResearchesFromKnowledgeBases(userId);
   const records = await listUserSavedResearchRecords(userId);
   return pruneStaleKbMirrorResearches(userId, records);
 }
@@ -111,7 +110,8 @@ export async function deleteSavedResearchMirrorForKnowledgeBase(
 export async function persistUserResearch(
   userId: string,
   researchId: string,
-  result: ResearchResult
+  result: ResearchResult,
+  kbId?: string
 ): Promise<void> {
   const sub = await getUserSubscription(userId);
   const persistent = getPlan(sub.plan).persistentKbs;
@@ -125,6 +125,7 @@ export async function persistUserResearch(
     rankedVideoCount: result.rankedVideos.length,
     videosSearched: result.videosSearched,
     result,
+    kbId: kbId ?? existing?.kbId,
   };
 
   await saveSavedResearchRecord(record, persistent);

@@ -6,26 +6,36 @@ test.describe("Full product flow (stubbed APIs)", () => {
   test("research → build → chat happy path", async ({ request }) => {
     const topic = "cursor ai agents";
 
-    const expandRes = await request.post("/api/research/expand", {
+    const researchRes = await request.post("/api/research", {
       headers: authHeaders,
       data: { topic },
     });
-    expect(expandRes.status()).toBe(200);
-    const expandBody = await expandRes.json();
-    expect(expandBody.cached).toBe(true);
-    expect(expandBody.research?.rankedVideos?.length).toBeGreaterThan(0);
+    expect(researchRes.status()).toBe(200);
+    const researchLines = (await researchRes.text())
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as { type?: string; research?: { rankedVideos?: unknown[] } });
+    const done = researchLines.find((event) => event.type === "done");
+    expect(done?.research?.rankedVideos?.length).toBeGreaterThan(0);
 
     const buildRes = await request.post("/api/knowledge-base/build", {
       headers: authHeaders,
       data: {
         topic,
-        rankedVideos: expandBody.research.rankedVideos,
+        rankedVideos: done?.research?.rankedVideos,
       },
     });
-    expect(buildRes.status()).toBe(200);
+    expect([200, 202]).toContain(buildRes.status());
     const buildBody = await buildRes.json();
-    expect(buildBody.kb?.status).toBe("ready");
     const kbId = buildBody.kb.kbId as string;
+
+    const statusRes = await request.get(`/api/knowledge-base/${kbId}/build-status`, {
+      headers: authHeaders,
+    });
+    expect(statusRes.status()).toBe(200);
+    const statusBody = await statusRes.json();
+    expect(statusBody.status).toBe("ready");
 
     const chatRes = await request.post("/api/chat", {
       headers: authHeaders,

@@ -1,9 +1,33 @@
 import { NextResponse } from "next/server";
 import { config } from "@/lib/config";
+import { createDbPool } from "@/lib/db";
 import { isProduction } from "@/lib/env";
 import { getPolarProductStatus } from "@/lib/plans";
-import { hasKv } from "@/lib/store";
+import { getRedis } from "@/lib/store/redis";
 import { getYouTubeQuotaUsage } from "@/lib/usage/youtube-quota";
+
+async function pingRedis(): Promise<boolean> {
+  const redis = getRedis();
+  if (!redis) return false;
+  try {
+    const pong = await redis.ping();
+    return pong === "PONG" || pong === "pong" || Boolean(pong);
+  } catch {
+    return false;
+  }
+}
+
+async function pingDatabase(): Promise<boolean> {
+  if (!process.env.DATABASE_URL?.trim()) return false;
+  try {
+    const pool = createDbPool();
+    await pool.query("SELECT 1");
+    await pool.end();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function hasOAuthProvider(): boolean {
   const google =
@@ -25,8 +49,9 @@ export async function GET() {
     openrouterKey: Boolean(config.openrouterApiKey),
     resendKey: Boolean(process.env.RESEND_API_KEY?.trim()),
     emailFrom: Boolean(process.env.EMAIL_FROM?.trim()),
-    kv: hasKv(),
+    kv: await pingRedis(),
     databaseUrl: Boolean(process.env.DATABASE_URL?.trim()),
+    databaseLive: await pingDatabase(),
     authSecret: Boolean(process.env.AUTH_SECRET?.trim()),
     appUrl: Boolean(process.env.NEXT_PUBLIC_APP_URL?.trim() || process.env.AUTH_URL?.trim()),
     polarAccessToken: Boolean(process.env.POLAR_ACCESS_TOKEN?.trim()),
@@ -49,6 +74,7 @@ export async function GET() {
     checks.openrouterKey &&
     checks.kv &&
     checks.databaseUrl &&
+    checks.databaseLive &&
     checks.authSecret &&
     checks.appUrl &&
     checks.polarAccessToken &&

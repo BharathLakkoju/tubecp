@@ -31,7 +31,7 @@ export default function ResearchSidebarItem({
   const router = useRouter();
   const { removeResearch } = useResearches();
   const [confirming, setConfirming] = useState(false);
-  const href = hrefForSavedResearch(research.researchId);
+  const href = hrefForSavedResearch(research.researchId, research.kbId);
   const isKbMirror = knowledgeBaseIdFromResearchId(research.researchId) !== null;
 
   const handleDelete = async () => {

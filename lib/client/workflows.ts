@@ -84,41 +84,71 @@ export async function runResearch(
   }
 
   onProgress?.("expanding", 5, "expanding");
-  const expandRes = await postJson<{
-    queries: string[];
-    researchSessionId: string;
-    cached?: boolean;
-    research?: ResearchResult;
-  }>("/api/research/expand", { topic });
-
-  onResearchSession?.(expandRes.researchSessionId);
-
-  if (expandRes.research) {
-    onProgress?.("expanded", 10, "expanding", { queries: expandRes.research.queriesUsed });
-    onProgress?.(
-      `found ${expandRes.research.rankedVideos.length} relevant videos (cached)`,
-      100,
-      "ranking",
-      {
-        queries: expandRes.research.queriesUsed,
-        allVideos: expandRes.research.allVideos,
-        analyzedVideos: expandRes.research.rankedVideos.map((video) => ({
-          videoId: video.videoId,
-          title: video.title,
-          channel: video.channel,
-          url: video.url,
-          thumbnailUrl: video.thumbnailUrl,
-        })),
-        analyzedScores: Object.fromEntries(
-          expandRes.research.rankedVideos.map((video) => [video.videoId, video.relevanceScore])
-        ),
-      }
-    );
-    return { research: expandRes.research, researchSessionId: expandRes.researchSessionId };
+  const res = await fetch("/api/research", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ topic }),
+  });
+  const contentType = res.headers.get("content-type") ?? "";
+  if (!contentType.includes("ndjson")) {
+    const data = await parseJsonResponseBody<{ code?: string; error?: string }>(res);
+    const code = data.code ? `[${data.code}] ` : "";
+    throw new Error(`${code}${data.error ?? `Request failed: ${res.status}`}`);
+  }
+  if (!res.ok || !res.body) {
+    throw new Error(`Research failed: ${res.status}`);
   }
 
-  const { queries, researchSessionId } = expandRes;
-  return continueResearch(topic, researchSessionId, queries, onProgress);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let research: ResearchResult | null = null;
+  let researchSessionId = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const event = JSON.parse(line) as {
+        type?: string;
+        stage?: ResearchStage;
+        message?: string;
+        progress?: number;
+        queries?: string[];
+        allVideos?: ResearchLiveState["allVideos"];
+        analyzedVideos?: ResearchLiveState["analyzedVideos"];
+        analyzedScores?: ResearchLiveState["analyzedScores"];
+        research?: ResearchResult;
+        researchSessionId?: string;
+      };
+
+      if (event.type === "error") {
+        throw new Error(event.message ?? "Research failed");
+      }
+      if (event.type === "progress") {
+        onProgress?.(event.message ?? event.stage ?? "researching", event.progress, event.stage, {
+          queries: event.queries,
+          allVideos: event.allVideos,
+          analyzedVideos: event.analyzedVideos,
+          analyzedScores: event.analyzedScores,
+        });
+      }
+      if (event.type === "done" && event.research && event.researchSessionId) {
+        research = event.research;
+        researchSessionId = event.researchSessionId;
+        onResearchSession?.(researchSessionId);
+      }
+    }
+  }
+
+  if (!research || !researchSessionId) {
+    throw new Error("Research did not complete");
+  }
+  return { research, researchSessionId };
 }
 
 async function resumeFromCheckpoint(
@@ -308,11 +338,6 @@ async function rankOnly(
 }
 
 export type { BuildKnowledgeBaseResult, SkippedKbVideo } from "@/lib/client/kb-build";
-export {
-  buildKnowledgeBaseFromClient,
-  continueKnowledgeBaseBuild,
-  runKbBuildDriverIfNeeded,
-} from "@/lib/client/kb-build";
 export { pollKnowledgeBaseBuild, buildKnowledgeBaseOnServer } from "@/lib/client/kb-build-poll";
 
 /** Server-driven KB build (indexing runs after POST /api/knowledge-base/build). */
@@ -323,11 +348,13 @@ export async function buildKnowledgeBase(
   options?: {
     onKnowledgeBaseCreated?: (kbId: string) => void;
     useSpeechToText?: boolean;
+    researchId?: string;
   }
 ): Promise<import("@/lib/client/kb-build").BuildKnowledgeBaseResult> {
   const { buildKnowledgeBaseOnServer } = await import("@/lib/client/kb-build-poll");
   return buildKnowledgeBaseOnServer(topic, rankedVideos, {
     useSpeechToText: options?.useSpeechToText,
+    researchId: options?.researchId,
     onKnowledgeBaseCreated: options?.onKnowledgeBaseCreated,
     onProgress: (message, progress) => {
       onProgress?.(message, progress);

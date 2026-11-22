@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { GithubLogo, GoogleLogo } from "@phosphor-icons/react";
-import type { OAuthProviderId } from "@/lib/auth-providers";
+import { missingOAuthEnv, type OAuthProviderId } from "@/lib/auth-providers";
+import { oauthSignInErrorMessage } from "@/lib/auth-errors";
 import { authLinkWithCallback } from "@/lib/billing/checkout-flow";
 import { FormAlert, TextField } from "@/components/tubecp/FormKit";
 import { Button } from "@/components/ui/button";
@@ -59,19 +60,28 @@ function SubmitButton({
 
 function OAuthButtons({
   providers,
+  configuredProviders,
   disabled,
   callbackUrl,
   onError,
 }: {
   providers: OAuthProviderId[];
+  configuredProviders: OAuthProviderId[];
   disabled: boolean;
   callbackUrl: string;
   onError: (message: string) => void;
 }) {
   const [loadingProvider, setLoadingProvider] = useState<OAuthProviderId | null>(null);
+  const configured = new Set(configuredProviders);
 
   const signInWith = async (provider: OAuthProviderId) => {
     onError("");
+    if (!configured.has(provider)) {
+      onError(
+        `Add ${missingOAuthEnv(provider)} to .env.local (copy from Vercel), then restart npm run dev.`
+      );
+      return;
+    }
     setLoadingProvider(provider);
 
     const result = await signIn(provider, { callbackUrl, redirect: false });
@@ -94,6 +104,7 @@ function OAuthButtons({
   if (providers.length === 0) return null;
 
   const busy = disabled || loadingProvider !== null;
+  const missing = providers.filter((provider) => !configured.has(provider));
 
   return (
     <div className="flex flex-col gap-2">
@@ -111,19 +122,34 @@ function OAuthButtons({
           {loadingProvider === provider ? "Connecting..." : PROVIDER_LABELS[provider]}
         </Button>
       ))}
+      {missing.length > 0 ? (
+        <p className="text-caption text-muted-foreground">
+          Local OAuth keys are missing. Paste {missing.map(missingOAuthEnv).join("; ")} into{" "}
+          <code>.env.local</code> from Vercel, then restart the dev server.
+        </p>
+      ) : null}
     </div>
   );
 }
 
 type AuthFormProps = {
   providers: OAuthProviderId[];
+  configuredProviders?: OAuthProviderId[];
   callbackUrl: string;
+  oauthError?: string;
 };
 
-export function SignInForm({ providers, callbackUrl }: AuthFormProps) {
+export function SignInForm({
+  providers,
+  configuredProviders = providers,
+  callbackUrl,
+  oauthError,
+}: AuthFormProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(() =>
+    oauthSignInErrorMessage(oauthError)
+  );
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -223,6 +249,7 @@ export function SignInForm({ providers, callbackUrl }: AuthFormProps) {
           <AuthDivider />
           <OAuthButtons
             providers={providers}
+            configuredProviders={configuredProviders}
             disabled={loading}
             callbackUrl={callbackUrl}
             onError={setError}
@@ -240,7 +267,11 @@ export function SignInForm({ providers, callbackUrl }: AuthFormProps) {
   );
 }
 
-export function SignUpForm({ providers, callbackUrl }: AuthFormProps) {
+export function SignUpForm({
+  providers,
+  configuredProviders = providers,
+  callbackUrl,
+}: AuthFormProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -326,6 +357,7 @@ export function SignUpForm({ providers, callbackUrl }: AuthFormProps) {
           <AuthDivider />
           <OAuthButtons
             providers={providers}
+            configuredProviders={configuredProviders}
             disabled={loading}
             callbackUrl={callbackUrl}
             onError={setError}

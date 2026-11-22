@@ -39,6 +39,7 @@ import {
   saveKnowledgeBase,
 } from "@/lib/store";
 import { getDevMemoryStore } from "@/lib/store/dev-memory";
+import { getJobStore, resetMemoryJobStore } from "@/lib/pipeline/jobs";
 
 const videoA: RankedVideo = {
   videoId: "vid-a",
@@ -95,12 +96,20 @@ async function seedKb(overrides: Partial<KnowledgeBaseRecord> = {}): Promise<Kno
     ...overrides,
   };
   await saveKnowledgeBase(kb);
+  await getJobStore().insertRun({
+    kbId: kb.kbId,
+    userId: kb.userId,
+    persistent: false,
+    transcriptMode: "captions",
+    videos: kb.rankedVideos ?? [videoA, videoB],
+  });
   return kb;
 }
 
 describe("kb-build-steps", () => {
   beforeEach(() => {
     getDevMemoryStore().clear();
+    resetMemoryJobStore();
     vi.clearAllMocks();
     vi.mocked(getTranscript).mockImplementation(async (videoId: string) => {
       const transcript = longTranscript(videoId);
@@ -128,9 +137,10 @@ describe("kb-build-steps", () => {
     expect(second.map((chunk) => chunk.id).sort()).toEqual(first.map((chunk) => chunk.id).sort());
     expect(generateEmbeddings).toHaveBeenCalledTimes(1);
 
-    const kb = await getKnowledgeBase("kb-steps");
-    const unique = [...new Set(kb?.chunkIds)];
-    expect(kb?.chunkIds).toEqual(unique);
+    const job = await getJobStore().getJob("kb-steps", "vid-a");
+    const unique = [...new Set(job?.chunkIds ?? [])];
+    expect(job?.chunkIds).toEqual(unique);
+    expect(job?.status).toBe("indexed");
   });
 
   it("throws retryable transcript errors so the runner can back off", async () => {

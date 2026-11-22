@@ -4,12 +4,13 @@ import MarketingLayout from "@/components/MarketingLayout";
 import SiteNav from "@/components/SiteNav";
 import AuthFormShell from "@/components/AuthFormShell";
 import { SignInForm } from "@/components/AuthForms";
-import { getConfiguredOAuthProviders } from "@/lib/auth-providers";
+import { getConfiguredOAuthProviders, oauthProvidersToShow } from "@/lib/auth-providers";
 import { isCheckoutCallback, resolveAuthCallbackUrl } from "@/lib/billing/checkout-flow";
 
 type SearchParams = {
   callbackUrl?: string;
   plan?: string;
+  error?: string;
 };
 
 export default async function SignInPage({
@@ -18,7 +19,8 @@ export default async function SignInPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
-  const providers = getConfiguredOAuthProviders();
+  const configuredProviders = getConfiguredOAuthProviders();
+  const providers = oauthProvidersToShow(configuredProviders);
   const callbackUrl = resolveAuthCallbackUrl(params);
   const upgrading = isCheckoutCallback(callbackUrl);
 
@@ -60,7 +62,12 @@ export default async function SignInPage({
                 : "Sign in with email and password, or continue with Google or GitHub."
             }
           >
-            <SignInForm providers={providers} callbackUrl={callbackUrl} />
+            <SignInForm
+              providers={providers}
+              configuredProviders={configuredProviders}
+              callbackUrl={callbackUrl}
+              oauthError={params.error}
+            />
           </AuthFormShell>
         </div>
       </div>

@@ -85,6 +85,24 @@ describe("pipeline job store", () => {
     expect((await store.counts("kb-1")).indexed).toBe(1);
   });
 
+  it("treats a second Inngest or queue completeJob on the same row as a no-op", async () => {
+    const first = await store.completeJob("kb-1", "a", {
+      status: "indexed",
+      chunkIds: ["c-a"],
+      minutes: 1,
+    });
+    expect(first.becameFinalizer).toBe(false);
+    const duplicateDelivery = await store.completeJob("kb-1", "a", {
+      status: "indexed",
+      chunkIds: ["c-a-dup"],
+      minutes: 9,
+    });
+    expect(duplicateDelivery.becameFinalizer).toBe(false);
+    const job = await store.getJob("kb-1", "a");
+    expect(job?.chunkIds).toEqual(["c-a"]);
+    expect(job?.minutes).toBe(1);
+  });
+
   it("only one completeJob call becomes the finalizer when two videos finish", async () => {
     const first = await store.completeJob("kb-1", "a", {
       status: "indexed",

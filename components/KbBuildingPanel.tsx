@@ -8,6 +8,7 @@ import KbResearchSourcesSection from "@/components/KbResearchSourcesSection";
 import type { KnowledgeBaseBuildStatus } from "@/lib/kb-build-status";
 import { formatKbBuildEta, formatKbBuildRemaining } from "@/lib/kb-build-estimate";
 import { parseClientError } from "@/lib/client/chat";
+import { parseJsonResponseBody } from "@/lib/client/fetch-json";
 import { isKbBuildStatusStale } from "@/lib/kb-build-stale";
 import { useKnowledgeBases } from "@/lib/hooks/useKnowledgeBases";
 import AppPage from "@/components/tubecp/AppPage";
@@ -40,7 +41,7 @@ export default function KbBuildingPanel({
 
   const loadStatus = useCallback(async () => {
     const res = await fetch(`/api/knowledge-base/${kb.kbId}/build-status`);
-    const data = await res.json();
+    const data = await parseJsonResponseBody<KnowledgeBaseBuildStatus & { error?: string }>(res);
     if (!res.ok) {
       throw new Error(data.error ?? "Failed to load build status");
     }
@@ -61,7 +62,7 @@ export default function KbBuildingPanel({
     setError("");
     try {
       const res = await fetch(`/api/knowledge-base/${kb.kbId}/kick-build`, { method: "POST" });
-      const data = await res.json().catch(() => ({}));
+      const data = await parseJsonResponseBody<{ error?: string }>(res);
       if (!res.ok) {
         throw new Error(data.error ?? "Failed to resume server build");
       }
@@ -74,7 +75,7 @@ export default function KbBuildingPanel({
   }, [kb.kbId, loadStatus]);
 
   useEffect(() => {
-    if (!status || status.status !== "building") return;
+    if (!status || (status.status !== "building" && status.status !== "finalizing")) return;
     const interval = window.setInterval(() => {
       void loadStatus()
         .then((next) => {
@@ -84,7 +85,7 @@ export default function KbBuildingPanel({
             return;
           }
           if (
-            next.status === "building" &&
+            (next.status === "building" || next.status === "finalizing") &&
             isKbBuildStatusStale(next) &&
             Date.now() - lastKickAt.current > 30_000
           ) {
@@ -146,7 +147,8 @@ export default function KbBuildingPanel({
           startedAt={new Date(status.startedAt).getTime()}
         />
 
-        {status.status === "building" && isKbBuildStatusStale(status) && (
+        {(status.status === "building" || status.status === "finalizing") &&
+          isKbBuildStatusStale(status) && (
           <Alert>
             <WarningCircle weight="fill" aria-hidden />
             <AlertTitle>Build may have paused</AlertTitle>
@@ -174,7 +176,8 @@ export default function KbBuildingPanel({
           transcriptMode={buildOptions?.transcriptMode ?? kb.buildOptions?.transcriptMode}
         />
 
-        {status.status === "building" && isKbBuildStatusStale(status) && (
+        {(status.status === "building" || status.status === "finalizing") &&
+          isKbBuildStatusStale(status) && (
           <Button
             type="button"
             variant="outline"

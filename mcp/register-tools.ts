@@ -4,11 +4,7 @@ import { searchYouTube } from "@/lib/services/youtube-search";
 import { getTranscript } from "@/lib/services/transcript";
 import { analyzeVideo } from "@/lib/services/relevance";
 import { runResearchPipeline } from "@/lib/services/research-pipeline";
-import {
-  createKnowledgeBase,
-  indexVideoInKnowledgeBase,
-  finalizeKnowledgeBase,
-} from "@/lib/services/knowledge-base";
+import { startKnowledgeBaseBuild } from "@/lib/kb/orchestrator";
 import { chatWithKnowledgeBase } from "@/lib/services/chat";
 import { isLicenseValid } from "@/lib/config";
 import {
@@ -157,32 +153,17 @@ export function registerMcpTools(server: McpServer, ctx: McpToolContext): void {
           ...video,
           thumbnailUrl: `https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`,
         }));
-        const kb = await createKnowledgeBase(topic, videos, ctx.userId, true);
-        const skippedVideos: Array<{ videoId: string; title: string; reason: string }> = [];
-
-        for (const video of videos) {
-          const result = await indexVideoInKnowledgeBase(kb.kbId, video, true);
-          if (result.skipped) {
-            skippedVideos.push({
-              videoId: video.videoId,
-              title: video.title,
-              reason: result.skipReason ?? "Transcript unavailable",
-            });
-          }
-        }
-
-        const ready = await finalizeKnowledgeBase(kb.kbId, true);
+        const kb = await startKnowledgeBaseBuild(topic, videos, ctx.userId, true);
         return {
           content: [
             {
               type: "text",
               text: JSON.stringify(
                 {
-                  kbId: ready.kbId,
-                  videosIndexed: ready.videosIndexed,
-                  chunksIndexed: ready.chunksIndexed,
-                  status: ready.status,
-                  skippedVideos,
+                  kbId: kb.kbId,
+                  videosIndexed: kb.videosIndexed,
+                  chunksIndexed: kb.chunksIndexed,
+                  status: kb.status,
                 },
                 null,
                 2

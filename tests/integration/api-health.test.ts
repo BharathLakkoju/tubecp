@@ -13,6 +13,7 @@ describe("GET /api/health", () => {
     expect(typeof body.checks.openrouterKey).toBe("boolean");
     expect(typeof body.checks.kv).toBe("boolean");
     expect(typeof body.checks.databaseUrl).toBe("boolean");
+    expect(typeof body.checks.databaseLive).toBe("boolean");
     expect(typeof body.checks.authSecret).toBe("boolean");
     expect(typeof body.checks.oauthProvider).toBe("boolean");
     expect(typeof body.checks.devBypassDisabled).toBe("boolean");
