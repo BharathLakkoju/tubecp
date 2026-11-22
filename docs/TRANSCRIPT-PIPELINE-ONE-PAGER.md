@@ -4,7 +4,7 @@ Nov 1, 2026 · Bharath Lakkoju · Full decision record: [TRANSCRIPT-PIPELINE.md]
 
 ## Context and goals
 
-Today's knowledge-base build indexes one video at a time behind a per-KB lock, paced 1.5 to 2 seconds apart, and chains steps with self-calls inside 300-second Vercel functions. Retries sleep inside the function, and a build where every fetch fails ends `failed`. The target is a queue-based pipeline where each video is an independent, idempotent job.
+Default knowledge-base builds run on Inngest: `POST /api/knowledge-base/build` emits `kb/build.requested`, then one durable function per video runs transcript → chunk (200/40) → batched embed → index write, concurrency 5. The SQS/Lambda path remains behind `KB_PIPELINE=queue`. The old self-calling Vercel chain is gone. A build where every fetch fails ends `failed` with a per-video error summary and is never left `building`.
 
 Design targets, not yet measurements:
 

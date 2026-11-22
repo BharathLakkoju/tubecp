@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import type { SavedResearch } from "@/lib/types";
+import { parseJsonResponseBody } from "@/lib/client/fetch-json";
 
 interface ResearchesContextValue {
   researches: SavedResearch[];
@@ -50,7 +51,7 @@ export function ResearchesProvider({
 
     try {
       const res = await fetch("/api/researches");
-      const data = await res.json();
+      const data = await parseJsonResponseBody<{ error?: string; researches?: SavedResearch[] }>(res);
       if (!res.ok) throw new Error(data.error ?? "Failed to load researches");
       setResearches(data.researches ?? []);
     } catch (err) {

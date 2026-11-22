@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import type { KnowledgeBase } from "@/lib/types";
+import { parseJsonResponseBody } from "@/lib/client/fetch-json";
 
 interface KnowledgeBasesContextValue {
   knowledgeBases: KnowledgeBase[];
@@ -51,7 +52,7 @@ export function KnowledgeBasesProvider({
 
     try {
       const res = await fetch("/api/knowledge-base");
-      const data = await res.json();
+      const data = await parseJsonResponseBody<{ error?: string; knowledgeBases?: KnowledgeBase[] }>(res);
       if (!res.ok) throw new Error(data.error ?? "Failed to load knowledge bases");
       setKnowledgeBases(data.knowledgeBases ?? []);
     } catch (err) {
@@ -63,7 +64,9 @@ export function KnowledgeBasesProvider({
     }
   }, [canLoad]);
 
-  const hasBuildingKb = knowledgeBases.some((kb) => kb.status === "building");
+  const hasBuildingKb = knowledgeBases.some(
+    (kb) => kb.status === "building" || kb.status === "finalizing"
+  );
 
   useEffect(() => {
     if (!canLoad || !hasBuildingKb) return;

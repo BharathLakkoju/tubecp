@@ -57,7 +57,7 @@ export default function KbSidebarItem({ kb, active }: Props) {
         title={kb.topic}
       >
         <span className="min-w-0 flex-1 truncate">{kb.topic}</span>
-        {kb.status === "building" && (
+        {(kb.status === "building" || kb.status === "finalizing") && (
           <span className="shrink-0 font-mono text-caption tabular-nums text-sidebar-foreground">
             {pct !== null ? `${pct}%` : "…"}
             <span className="sr-only"> building</span>

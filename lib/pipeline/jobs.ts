@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { isE2eAuthBypass } from "@/lib/e2e";
 import type { RankedVideo } from "@/lib/types";
 import type { PipelineErrorClass } from "@/lib/pipeline/errors";
 
@@ -193,7 +194,7 @@ export function createMemoryJobStore(): JobStore {
     },
     async markIndexed(kbId, videoId, chunkIds, minutes) {
       const job = jobs.get(jobKey(kbId, videoId));
-      if (!job) return;
+      if (!job || isTerminal(job.status)) return;
       jobs.set(jobKey(kbId, videoId), {
         ...job,
         status: "indexed",
@@ -206,7 +207,7 @@ export function createMemoryJobStore(): JobStore {
     },
     async markSkipped(kbId, videoId, errorClass, message) {
       const job = jobs.get(jobKey(kbId, videoId));
-      if (!job) return;
+      if (!job || isTerminal(job.status)) return;
       jobs.set(jobKey(kbId, videoId), {
         ...job,
         status: "skipped",
@@ -217,7 +218,7 @@ export function createMemoryJobStore(): JobStore {
     },
     async markFailed(kbId, videoId, errorClass, message) {
       const job = jobs.get(jobKey(kbId, videoId));
-      if (!job) return;
+      if (!job || isTerminal(job.status)) return;
       jobs.set(jobKey(kbId, videoId), {
         ...job,
         status: "failed",
@@ -227,6 +228,10 @@ export function createMemoryJobStore(): JobStore {
       });
     },
     async completeJob(kbId, videoId, completion) {
+      const existing = jobs.get(jobKey(kbId, videoId));
+      if (existing && isTerminal(existing.status)) {
+        return { becameFinalizer: await this.tryBeginFinalize(kbId) };
+      }
       if (completion.status === "indexed") {
         await this.markIndexed(kbId, videoId, completion.chunkIds, completion.minutes);
       } else if (completion.status === "skipped") {
@@ -462,13 +467,15 @@ export function createNeonJobStore(): JobStore {
               text: `UPDATE kb_video_jobs
                      SET status = 'indexed', chunk_ids = $3::text[], minutes = $4,
                          error_class = NULL, error_message = NULL, updated_at = NOW()
-                     WHERE kb_id = $1 AND video_id = $2`,
+                     WHERE kb_id = $1 AND video_id = $2
+                       AND status NOT IN ('indexed', 'skipped', 'failed')`,
               params: [kbId, videoId, completion.chunkIds, completion.minutes],
             }
           : {
               text: `UPDATE kb_video_jobs
                      SET status = $3, error_class = $4, error_message = $5, updated_at = NOW()
-                     WHERE kb_id = $1 AND video_id = $2`,
+                     WHERE kb_id = $1 AND video_id = $2
+                       AND status NOT IN ('indexed', 'skipped', 'failed')`,
               params: [kbId, videoId, completion.status, completion.errorClass, completion.message],
             };
       const results = (await sql.transaction((txn) => [
@@ -601,7 +608,7 @@ let memoryStore: JobStore | null = null;
 let neonStore: JobStore | null = null;
 
 export function getJobStore(): JobStore {
-  if (process.env.PIPELINE_JOB_STORE === "memory") {
+  if (process.env.PIPELINE_JOB_STORE === "memory" || isE2eAuthBypass()) {
     memoryStore ??= createMemoryJobStore();
     return memoryStore;
   }

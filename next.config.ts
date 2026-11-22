@@ -28,7 +28,7 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   // Tunneled dev (e.g. ngrok): without this, Next.js 16 blocks /_next/* dev assets with 403.
   allowedDevOrigins: ["*.ngrok-free.app", "*.ngrok.io"],
-  serverExternalPackages: ["googleapis"],
+  serverExternalPackages: ["googleapis", "inngest"],
   experimental: {
     optimisticClientCache: false,
     optimizePackageImports: ["@phosphor-icons/react", "framer-motion"],

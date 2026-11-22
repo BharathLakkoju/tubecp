@@ -1,6 +1,8 @@
 import type { ChatMessage, KnowledgeBase } from "../types";
-import { getKnowledgeBase, updateKnowledgeBase } from "../store";
+import { getKnowledgeBase } from "../store";
 import { getRedis } from "../store/redis";
+import { deleteKbChatRows, listKbChatRows, replaceKbChatRows } from "@/lib/repos/chat";
+import { useAppPostgres } from "@/lib/db";
 
 const memory = new Map<string, ChatMessage[]>();
 
@@ -34,22 +36,19 @@ async function writeLegacyMessages(kbId: string, messages: ChatMessage[]): Promi
 }
 
 export async function getKbChatMessages(kbId: string): Promise<ChatMessage[]> {
-  const kb = await getKnowledgeBase(kbId);
-  if (kb?.chatMessages?.length) {
-    return kb.chatMessages;
+  if (useAppPostgres()) {
+    const rows = await listKbChatRows(kbId);
+    if (rows.length > 0) return rows;
   }
-
   return readLegacyMessages(kbId);
 }
 
 export async function saveKbChatMessages(kbId: string, messages: ChatMessage[]): Promise<void> {
   const trimmed = messages.slice(-200);
-
-  const kb = await getKnowledgeBase(kbId);
-  if (kb) {
-    await updateKnowledgeBase(kbId, (record) => ({ ...record, chatMessages: trimmed }), true);
+  if (useAppPostgres()) {
+    await replaceKbChatRows(kbId, trimmed);
+    return;
   }
-
   await writeLegacyMessages(kbId, trimmed);
 }
 
@@ -64,6 +63,7 @@ export async function appendKbChatMessages(
 }
 
 export async function deleteKbChatData(kbId: string): Promise<void> {
+  await deleteKbChatRows(kbId);
   const redis = getRedis();
   if (redis) {
     await redis.del(chatKey(kbId));

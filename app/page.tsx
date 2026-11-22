@@ -1,5 +1,7 @@
 import LandingPage from "@/components/LandingPage";
+import { loadEvalBenchmark } from "@/lib/eval/benchmark";
 
 export default function HomePage() {
-  return <LandingPage />;
+  const benchmark = loadEvalBenchmark();
+  return <LandingPage benchmark={benchmark} />;
 }

@@ -1,20 +1,13 @@
 import { describe, expect, it } from "vitest";
-import {
-  allowsKbBuildContinuationThroughProxy,
-  isKbBuildKickBuildPath,
-} from "@/lib/services/kb-build-continue";
+import { isPublicRoute } from "@/lib/public-routes";
 
-describe("KB build kick-build proxy bypass", () => {
-  it("matches kick-build API paths", () => {
-    expect(isKbBuildKickBuildPath("/api/knowledge-base/kb-1/kick-build")).toBe(true);
-    expect(isKbBuildKickBuildPath("/api/knowledge-base/kb-1/build-status")).toBe(false);
-    expect(isKbBuildKickBuildPath("/api/knowledge-base/kick-build")).toBe(false);
+describe("Inngest serve route", () => {
+  it("allows Inngest to reach /api/inngest without a user session", () => {
+    expect(isPublicRoute("/api/inngest")).toBe(true);
   });
 
-  it("allows unauthenticated access only when the continuation header is present", () => {
-    const path = "/api/knowledge-base/kb-1/kick-build";
-    expect(allowsKbBuildContinuationThroughProxy(path, "deadbeef")).toBe(true);
-    expect(allowsKbBuildContinuationThroughProxy(path, null)).toBe(false);
-    expect(allowsKbBuildContinuationThroughProxy("/api/research/search", "deadbeef")).toBe(false);
+  it("still protects knowledge-base APIs", () => {
+    expect(isPublicRoute("/api/knowledge-base/build")).toBe(false);
+    expect(isPublicRoute("/api/knowledge-base/kb-1/kick-build")).toBe(false);
   });
 });

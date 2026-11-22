@@ -59,7 +59,7 @@ export default async function KnowledgeBaseChatPage({
     );
   }
 
-  if (kb.status === "building") {
+  if (kb.status === "building" || kb.status === "finalizing") {
     return (
       <KbBuildingPanel
         kb={kbSummary}

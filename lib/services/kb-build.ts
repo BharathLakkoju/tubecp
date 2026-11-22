@@ -3,7 +3,8 @@ import {
   runKnowledgeBaseRetryJob,
   startKnowledgeBaseBuild,
 } from "@/lib/services/kb-build-job";
-import type { KnowledgeBaseRecord, RankedVideo } from "@/lib/types";
+import { getKnowledgeBase } from "@/lib/store";
+import type { RankedVideo } from "@/lib/types";
 
 export interface SkippedKbVideo {
   videoId: string;
@@ -12,7 +13,7 @@ export interface SkippedKbVideo {
 }
 
 export interface BuildKnowledgeBaseResult {
-  kb: KnowledgeBaseRecord;
+  kb: import("@/lib/types").KnowledgeBaseRecord;
   skippedVideos: SkippedKbVideo[];
 }
 
@@ -27,19 +28,9 @@ export async function buildKnowledgeBaseFromVideos(
   if (kb.status === "ready") {
     return { kb, skippedVideos: [] };
   }
-  return runKnowledgeBaseBuildToCompletion(kb.kbId, persistent);
-}
-
-async function runKnowledgeBaseBuildToCompletion(
-  kbId: string,
-  persistent: boolean
-): Promise<BuildKnowledgeBaseResult> {
-  const limit = 40;
-  let result = await runKnowledgeBaseBuildJob(kbId, persistent, { chain: false });
-  for (let step = 0; result.kb.status === "building" && !result.busy && step < limit; step += 1) {
-    result = await runKnowledgeBaseBuildJob(kbId, persistent, { chain: false });
-  }
-  return result;
+  await runKnowledgeBaseBuildJob(kb.kbId, persistent);
+  const latest = (await getKnowledgeBase(kb.kbId)) ?? kb;
+  return { kb: latest, skippedVideos: [] };
 }
 
 export async function resumeKnowledgeBaseBuild(

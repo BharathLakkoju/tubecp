@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { parseClientError } from "@/lib/client/chat";
+import { parseJsonResponseBody } from "@/lib/client/fetch-json";
 import { kbBuildFailureMessage, pollKnowledgeBaseBuild } from "@/lib/client/kb-build-poll";
 
 export default function KbFailedPanel({
@@ -34,7 +35,7 @@ export default function KbFailedPanel({
 
     try {
       const res = await fetch(`/api/knowledge-base/${kb.kbId}/retry`, { method: "POST" });
-      const data = await res.json().catch(() => ({}));
+      const data = await parseJsonResponseBody<{ error?: string }>(res);
 
       if (!res.ok) {
         setError(data.error ?? "Failed to retry knowledge base build");

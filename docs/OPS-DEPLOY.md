@@ -27,6 +27,7 @@ The script exits `0` when all required production variables are set and dev bypa
 | `GOOGLE_*` or `GITHUB_*` OAuth | Sign-in |
 | `POLAR_ACCESS_TOKEN` / `POLAR_WEBHOOK_SECRET` | Billing |
 | `POLAR_PRODUCT_ID_PRO` | Pro checkout |
+| `INNGEST_EVENT_KEY` / `INNGEST_SIGNING_KEY` | Durable KB builds — sync `https://your-app.vercel.app/api/inngest` (if Deployment Protection is on, append `?x-vercel-protection-bypass=...`) |
 
 ### Recommended
 
@@ -47,7 +48,10 @@ The script exits `0` when all required production variables are set and dev bypa
 1. `npm run validate:deploy` with production env
 2. `npm run db:migrate` (if schema changed)
 3. Deploy to Vercel
-4. Confirm OAuth callback URLs match `NEXT_PUBLIC_APP_URL`
+4. Confirm Google/GitHub Authorized redirect URIs include
+   `{NEXT_PUBLIC_APP_URL}/api/auth/callback/google` and `/api/auth/callback/github`
+   (exact match, https, no trailing slash). A `redirect_uri_mismatch` error means
+   the URI Auth.js sent is missing from the provider console.
 5. Confirm Polar webhook URL points to `/api/webhook/polar`
 
 ## 3. Post-deploy smoke test

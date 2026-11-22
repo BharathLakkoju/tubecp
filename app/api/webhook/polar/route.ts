@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Webhooks } from "@polar-sh/nextjs";
-import {
-  setUserPlan,
-  cancelUserSubscription,
-  markSubscriptionCanceling,
-} from "@/lib/billing/subscription";
+import { applyBillingEvent, type BillingEventType } from "@/lib/billing/events";
 import type { PlanId } from "@/lib/plans";
 import { planIdFromPolarProductId } from "@/lib/plans";
 
@@ -34,69 +30,63 @@ function periodDates(data: {
   return { periodStart, periodEnd };
 }
 
+function eventId(
+  type: string,
+  payload: { id?: string },
+  data: { id?: string; status?: string },
+  periodStart?: string
+): string {
+  return payload.id ?? `${type}:${data.id ?? "unknown"}:${data.status ?? type}:${periodStart ?? ""}`;
+}
+
+async function handlePolarEvent(
+  type: BillingEventType,
+  payload: {
+    id?: string;
+    data: {
+      id: string;
+      status?: string;
+      customerId?: unknown;
+      metadata?: Record<string, unknown> | null;
+      productId?: string | null;
+      currentPeriodStart?: Date | string | null;
+      currentPeriodEnd?: Date | string | null;
+    };
+  }
+) {
+  const data = payload.data;
+  const userId = typeof data.metadata?.userId === "string" ? data.metadata.userId : "";
+  const { periodStart, periodEnd } = periodDates(data);
+  await applyBillingEvent({
+    id: eventId(type, payload, data, periodStart),
+    type,
+    userId,
+    plan: resolvePlanFromWebhook(data),
+    polarSubscriptionId: data.id,
+    polarCustomerId: typeof data.customerId === "string" ? data.customerId : undefined,
+    periodStart,
+    periodEnd,
+  });
+}
+
 const polarWebhook = webhookSecret
   ? Webhooks({
       webhookSecret,
-      onSubscriptionActive: async (payload) => {
-        const data = payload.data;
-        const userId = data.metadata?.userId as string | undefined;
-        const plan = resolvePlanFromWebhook(data);
-        const { periodStart, periodEnd } = periodDates(data);
-
-        if (userId) {
-          await setUserPlan(userId, plan, {
-            polarSubscriptionId: data.id,
-            polarCustomerId: typeof data.customerId === "string" ? data.customerId : undefined,
-            status: "active",
-            periodStart,
-            periodEnd,
-          });
-        }
-      },
+      onSubscriptionActive: (payload) => handlePolarEvent("active", payload),
       onSubscriptionUpdated: async (payload) => {
-        const data = payload.data;
-        const userId = data.metadata?.userId as string | undefined;
-        if (!userId) return;
-
-        const { periodStart, periodEnd } = periodDates(data);
-
-        if (data.status === "active") {
-          const plan = resolvePlanFromWebhook(data);
-          await setUserPlan(userId, plan, {
-            polarSubscriptionId: data.id,
-            status: "active",
-            periodStart,
-            periodEnd,
-          });
+        const status = payload.data.status;
+        if (status === "canceled") {
+          await handlePolarEvent("canceled", payload);
           return;
         }
-
-        if (data.status === "canceled") {
-          await markSubscriptionCanceling(userId, { periodEnd });
+        if (status === "past_due") {
+          await handlePolarEvent("past_due", payload);
           return;
         }
-
-        if (data.status === "past_due") {
-          const plan = resolvePlanFromWebhook(data);
-          await setUserPlan(userId, plan, {
-            polarSubscriptionId: data.id,
-            status: "past_due",
-            periodStart,
-            periodEnd,
-          });
-        }
+        await handlePolarEvent("updated", payload);
       },
-      onSubscriptionCanceled: async (payload) => {
-        const data = payload.data;
-        const userId = data.metadata?.userId as string | undefined;
-        if (!userId) return;
-        const { periodEnd } = periodDates(data);
-        await markSubscriptionCanceling(userId, { periodEnd });
-      },
-      onSubscriptionRevoked: async (payload) => {
-        const userId = payload.data.metadata?.userId as string | undefined;
-        if (userId) await cancelUserSubscription(userId);
-      },
+      onSubscriptionCanceled: (payload) => handlePolarEvent("canceled", payload),
+      onSubscriptionRevoked: (payload) => handlePolarEvent("revoked", payload),
     })
   : null;
 

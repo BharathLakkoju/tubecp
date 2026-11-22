@@ -4,6 +4,7 @@ import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import GitHub from "next-auth/providers/github";
 import NeonAdapter from "@auth/neon-adapter";
+import { applyCanonicalAuthUrl, getAuthJsBaseUrl } from "@/lib/app-url";
 import { getConfiguredOAuthProviders } from "@/lib/auth-providers";
 import { signInSchema } from "@/lib/auth-schemas";
 import { createDbPool } from "@/lib/db";
@@ -44,6 +45,7 @@ function buildProviders(): NextAuthConfig["providers"] {
       Google({
         clientId: process.env.GOOGLE_CLIENT_ID!,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+        redirectProxyUrl: getAuthJsBaseUrl(),
       })
     );
   }
@@ -53,6 +55,7 @@ function buildProviders(): NextAuthConfig["providers"] {
       GitHub({
         clientId: process.env.GITHUB_CLIENT_ID!,
         clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+        redirectProxyUrl: getAuthJsBaseUrl(),
       })
     );
   }
@@ -61,10 +64,13 @@ function buildProviders(): NextAuthConfig["providers"] {
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth(() => {
-  const pool = createDbPool();
+  applyCanonicalAuthUrl();
+
+  const databaseUrl = process.env.DATABASE_URL?.trim();
+  const adapter = databaseUrl ? NeonAdapter(createDbPool()) : undefined;
 
   return {
-    adapter: NeonAdapter(pool),
+    ...(adapter ? { adapter } : {}),
     providers: buildProviders(),
     pages: {
       signIn: "/sign-in",

@@ -4,7 +4,7 @@ import MarketingLayout from "@/components/MarketingLayout";
 import SiteNav from "@/components/SiteNav";
 import AuthFormShell from "@/components/AuthFormShell";
 import { SignUpForm } from "@/components/AuthForms";
-import { getConfiguredOAuthProviders } from "@/lib/auth-providers";
+import { getConfiguredOAuthProviders, oauthProvidersToShow } from "@/lib/auth-providers";
 import { isCheckoutCallback, resolveAuthCallbackUrl } from "@/lib/billing/checkout-flow";
 
 type SearchParams = {
@@ -18,7 +18,8 @@ export default async function SignUpPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
-  const providers = getConfiguredOAuthProviders();
+  const configuredProviders = getConfiguredOAuthProviders();
+  const providers = oauthProvidersToShow(configuredProviders);
   const callbackUrl = resolveAuthCallbackUrl(params);
   const upgrading = isCheckoutCallback(callbackUrl);
 
@@ -40,7 +41,11 @@ export default async function SignUpPage({
                 : "Sign up with your name and email, or continue with Google or GitHub."
             }
           >
-            <SignUpForm providers={providers} callbackUrl={callbackUrl} />
+            <SignUpForm
+              providers={providers}
+              configuredProviders={configuredProviders}
+              callbackUrl={callbackUrl}
+            />
           </AuthFormShell>
         </div>
       </div>

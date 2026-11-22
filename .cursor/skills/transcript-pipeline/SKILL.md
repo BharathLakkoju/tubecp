@@ -20,7 +20,7 @@ Every change must keep all of these true:
 7. **Completion is atomic.** The worker that moves the last open job to a terminal state flips the KB to `ready` (or `failed` when nothing was indexed) in the same transaction.
 8. **Backpressure goes through the shared limits.** YouTube fetches take a token from the Redis bucket first. Per-user caps (2 active builds, 8 videos in flight) are enforced before enqueueing. Don't add a bypass path.
 9. **No long-lived AWS keys.** Vercel reaches AWS through OIDC role assumption. Lambdas stay outside a VPC and use the Neon serverless driver.
-10. **Both paths keep working until the flag is removed.** `KB_PIPELINE=legacy` must still build KBs through the old chain until rollout step 4 in the decision record.
+10. **Both durable runners keep working.** Default builds use Inngest (`kb/build.requested`). `KB_PIPELINE=queue` still builds through SQS + Lambda when those URLs are configured.
 
 ## Verification checklist
 
@@ -40,7 +40,7 @@ Copy this and complete it before handing back:
 
 | Concern | Location |
 | --- | --- |
-| Current (legacy) build chain | `lib/services/kb-build-job.ts`, `kb-build-continue.ts`, `kb-build-lock.ts` |
+| Default Inngest build | `lib/inngest/`, `lib/services/kb-build-steps.ts`, `app/api/inngest/route.ts` |
 | Transcript fetch and error kinds | `lib/services/transcript.ts`, `youtube-caption-fetch.ts` |
 | Chunking and embedding | `lib/services/knowledge-base.ts`, `lib/services/llm.ts` |
 | Chunk and vector storage (phase 1) | `lib/store.ts`, `lib/store/vector-index.ts` |

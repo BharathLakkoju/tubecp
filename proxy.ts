@@ -2,10 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { isE2eAuthBypass } from "@/lib/e2e";
 import { isPublicRoute } from "@/lib/public-routes";
-import {
-  allowsKbBuildContinuationThroughProxy,
-  KB_BUILD_CONTINUATION_HEADER,
-} from "@/lib/services/kb-build-continue";
 
 export async function proxy(request: NextRequest) {
   if (isE2eAuthBypass()) {
@@ -13,15 +9,6 @@ export async function proxy(request: NextRequest) {
   }
 
   const { pathname } = request.nextUrl;
-  if (
-    allowsKbBuildContinuationThroughProxy(
-      pathname,
-      request.headers.get(KB_BUILD_CONTINUATION_HEADER)
-    )
-  ) {
-    return NextResponse.next();
-  }
-
   if (isPublicRoute(pathname)) {
     return NextResponse.next();
   }

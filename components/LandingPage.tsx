@@ -16,6 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Item, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker";
 import { Spinner } from "@/components/ui/spinner";
+import type { EvalBenchmarkSnapshot } from "@/lib/eval/benchmark";
 
 const FEATURES = [
   {
@@ -175,7 +176,11 @@ function ProductShot() {
   );
 }
 
-export default function LandingPage() {
+export default function LandingPage({
+  benchmark = null,
+}: {
+  benchmark?: EvalBenchmarkSnapshot | null;
+}) {
   return (
     <MarketingLayout>
       <div className="flex flex-col">
@@ -254,7 +259,7 @@ export default function LandingPage() {
           </Reveal>
 
           <Reveal className="pt-24 pb-8">
-            <EvalBenchmarkSection />
+            <EvalBenchmarkSection benchmark={benchmark} />
           </Reveal>
 
           <Reveal>

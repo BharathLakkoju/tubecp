@@ -142,6 +142,7 @@ export async function createKnowledgeBase(
     videosIndexed: 0,
     totalMinutes: 0,
     status: "building",
+    persistent,
     createdAt: new Date().toISOString(),
     buildOptions: buildOptions ?? { transcriptMode: "captions" },
   };

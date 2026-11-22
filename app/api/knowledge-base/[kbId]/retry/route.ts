@@ -1,18 +1,13 @@
-import { after, NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireUserId, apiError } from "@/lib/auth";
 import { assertKbAccess } from "@/lib/kb-access";
+import { withJobProgress } from "@/lib/kb/progress";
+import { knowledgeBaseBuildStatus, runKnowledgeBaseRetryJob } from "@/lib/kb/orchestrator";
 import { getUserSubscription } from "@/lib/billing/subscription";
 import { getPlan } from "@/lib/plans";
 import { rateLimitApi } from "@/lib/ratelimit";
-import { kbPipelineForUser } from "@/lib/pipeline/config";
-import {
-  knowledgeBaseBuildStatus,
-  prepareKnowledgeBaseRetry,
-  runKnowledgeBaseBuildJob,
-  runKnowledgeBaseRetryJob,
-} from "@/lib/services/kb-build-job";
 
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 export async function POST(
   _req: NextRequest,
@@ -24,7 +19,7 @@ export async function POST(
     await rateLimitApi(userId, "kb-retry", 5);
     const kb = await assertKbAccess(kbId, userId);
 
-    if (kb.status === "building") {
+    if (kb.status === "building" || kb.status === "finalizing") {
       return NextResponse.json({ error: "A build is already in progress." }, { status: 409 });
     }
 
@@ -37,30 +32,12 @@ export async function POST(
 
     const sub = await getUserSubscription(userId);
     const persistent = getPlan(sub.plan).persistentKbs;
-
-    if (kbPipelineForUser(userId) === "queue") {
-      const result = await runKnowledgeBaseRetryJob(kbId, userId, persistent);
-      return NextResponse.json({
-        kb: result.kb,
-        buildStatus: knowledgeBaseBuildStatus(result.kb),
-        skippedVideos: result.skippedVideos,
-        async: true,
-      });
-    }
-
-    await prepareKnowledgeBaseRetry(kbId, persistent);
-
-    after(() => {
-      runKnowledgeBaseBuildJob(kbId, persistent).catch((err) => {
-        console.error(`KB retry job failed for ${kbId}:`, err);
-      });
-    });
-
-    const updated = await assertKbAccess(kbId, userId);
+    const result = await runKnowledgeBaseRetryJob(kbId, userId, persistent);
+    const updated = await withJobProgress(result.kb);
     return NextResponse.json({
       kb: updated,
       buildStatus: knowledgeBaseBuildStatus(updated),
-      skippedVideos: [],
+      skippedVideos: result.skippedVideos,
       async: true,
     });
   } catch (err) {

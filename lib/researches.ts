@@ -16,9 +16,10 @@ export function listableSavedResearches<T extends { researchId: string }>(items:
   return items.filter((item) => !isKbMirrorResearchId(item.researchId));
 }
 
-export function hrefForSavedResearch(researchId: string): string {
-  const kbId = knowledgeBaseIdFromResearchId(researchId);
+export function hrefForSavedResearch(researchId: string, kbId?: string): string {
   if (kbId) return `/app/kb/${kbId}`;
+  const mirrored = knowledgeBaseIdFromResearchId(researchId);
+  if (mirrored) return `/app/kb/${mirrored}`;
   return `/app/researches/${encodeURIComponent(researchId)}`;
 }
 
@@ -29,5 +30,6 @@ export function toSavedResearchSummary(record: SavedResearchRecord): SavedResear
     createdAt: record.createdAt,
     rankedVideoCount: record.rankedVideoCount,
     videosSearched: record.videosSearched,
+    kbId: record.kbId,
   };
 }

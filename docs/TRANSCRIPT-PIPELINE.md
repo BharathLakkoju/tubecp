@@ -1,6 +1,6 @@
 # Transcript Pipeline: Event-Driven Fan-Out on AWS
 
-**Status:** Implementation in progress on `feature/event-driven-transcript-pipeline`. The queue path is behind `KB_PIPELINE` (`legacy` default, `queue` for everyone, `admin` for admin users). Local/dev without SQS URLs runs workers in-process and re-dispatches retryable jobs immediately with an incremented receive count (no `setTimeout`). Production and Vercel require the SQS URLs.
+**Status:** Default knowledge-base builds run on Inngest (`kb/build.requested`). The SQS/Lambda path remains behind `KB_PIPELINE` (`queue` for everyone, `admin` for admin users). The old `after()` + `/kick-build` self-fetch chain is gone: Vercel Deployment Protection blocked those POSTs, and Hobby kills functions at ~60s.
 **Owner:** Bharath Lakkoju
 **One-page summary for reviewers:** [TRANSCRIPT-PIPELINE-ONE-PAGER.md](./TRANSCRIPT-PIPELINE-ONE-PAGER.md)
 
@@ -12,12 +12,14 @@ The goal is faster builds, builds that survive YouTube blocking, fair sharing be
 
 ## Why we are changing
 
-The current build lives in `lib/services/kb-build-job.ts`. It works, but its design caps speed and reliability:
+Every build, including Inngest, writes `kb_build_runs` / `kb_video_jobs`. Progress is `COUNT` over those rows; the knowledge-base record is written on terminal transitions only. Callers use `lib/kb/orchestrator.ts`; Inngest and SQS are transports. Ops: [RUNBOOK-PIPELINE.md](./RUNBOOK-PIPELINE.md).
+
+The current build lives in `lib/kb/orchestrator.ts` (formerly `lib/services/kb-build-job.ts`). The leftover risks that motivated the queue path:
 
 | Today | Effect |
 | --- | --- |
 | One build lock per KB (`kb-build-lock.ts`) and one video at a time, paced 1.5 to 2 seconds apart (`kb-index-pace.ts`) | A 30-video KB takes minutes, even when YouTube responds instantly |
-| Each invocation chains videos for up to 240 seconds, then calls `/kick-build` on itself (`kb-build-continue.ts`) | If a self-call is lost, the build stalls until stale-build recovery notices |
+| Each invocation chained videos then POSTed `/kick-build` on itself (`kb-build-continue.ts`) | Vercel Deployment Protection blocked the self-call, Hobby killed the 300s function, and the KB stayed `building` |
 | Retries sleep inside the function, up to 30 seconds per attempt | Paid function time is spent waiting, and one blocked video holds up the rest of the build |
 | KB records live in Redis and `updateKnowledgeBase` does an unlocked read, modify, write | Safe only because the lock serializes everything. Running videos in parallel on this store would lose updates |
 | A video that keeps failing is skipped, and the reason lives only in the KB record | No dead-letter queue, no alerting, and no way to replay failures after a fix |
@@ -86,7 +88,7 @@ Speech-to-text stays a build option the user chooses (`transcriptMode: "stt"`). 
 | **Amazon SQS (chosen)** | Per-message visibility timeouts, a native dead-letter queue with redrive, and Lambda's per-queue maximum concurrency give us job semantics with no cluster to run |
 | Apache Kafka (MSK, Confluent) | Built for ordered, replayable streams with many consumers. We need neither ordering nor replay, and retry topics and DLQs would have to be built by hand. Reconsider when analytics or summaries need to replay the transcript stream, or above thousands of messages per second |
 | Upstash QStash | Closest runner-up: fewest new vendors and cheapest at low volume. Rejected because it calls public HTTP endpoints, gives less control over concurrency at scale, and is less recognized for the portfolio goal |
-| Inngest, Trigger.dev | Excellent developer experience, but a hosted workflow engine hides the queue mechanics this project wants to own and demonstrate |
+| Inngest (default on Vercel Hobby) | Durable steps, retries with backoff, and no self-fetch. Used because the app is on Vercel Hobby with no crons: each step stays under 50s and a failed video does not block the others. SQS remains available behind `KB_PIPELINE=queue` when AWS is configured |
 | Google Cloud Tasks | Rate limits per queue but no per-user fairness, and it adds a second cloud alongside AWS for no gain |
 
 ### Compute: AWS Lambda for both stages
@@ -154,10 +156,10 @@ The targets above are not measurements yet. Before this ships:
 
 ## Rollout
 
-1. Feature flag `KB_PIPELINE=legacy|queue`, defaulting to `legacy`.
+1. Feature flag `KB_PIPELINE=legacy|queue`. Default builds use Inngest; `queue` keeps the SQS path.
 2. Ship the job table, queues and workers dark, then turn on `queue` for admin users.
 3. Run both paths side by side, comparing build time and skip rate.
-4. Switch the default, then delete the self-calling chain (`kick-build`, `kb-build-continue.ts`, the build lock and the pacing).
+4. The self-calling chain (`after()`, HMAC `/kick-build`, `kb-build-continue.ts`) has been removed. Kick-build now re-sends `kb/build.requested`.
 
 ## Cost
 
