@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeMarkdown, nextRevealIndex, sanitizeMarkdownHref } from "@/lib/markdown";
+import { normalizeMarkdown, sanitizeMarkdownHref } from "@/lib/markdown";
 
 describe("normalizeMarkdown", () => {
   it("splits inline table rows onto separate lines", () => {
@@ -39,13 +39,5 @@ describe("sanitizeMarkdownHref", () => {
     expect(sanitizeMarkdownHref("//evil.example/phish")).toBeNull();
     expect(sanitizeMarkdownHref("file:///etc/passwd")).toBeNull();
     expect(sanitizeMarkdownHref("blob:https://example.com/uuid")).toBeNull();
-  });
-});
-
-describe("nextRevealIndex", () => {
-  it("reveals one word at a time", () => {
-    const buffer = "Hello world";
-    expect(nextRevealIndex(buffer, 0)).toBe(6);
-    expect(nextRevealIndex(buffer, 6)).toBe(11);
   });
 });

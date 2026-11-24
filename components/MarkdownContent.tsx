@@ -8,14 +8,15 @@ import { normalizeMarkdown, sanitizeMarkdownHref } from "@/lib/markdown";
 interface Props {
   content: string;
   className?: string;
+  streaming?: boolean;
 }
 
 /** Renders model output with the `prose-tubecp` typography (tokens only, see globals.css). */
-export default function MarkdownContent({ content, className }: Props) {
+export default function MarkdownContent({ content, className, streaming = false }: Props) {
   const normalized = normalizeMarkdown(content);
 
   return (
-    <div className={cn("prose-tubecp text-body", className)}>
+    <div className={cn("prose-tubecp text-body", streaming && "is-streaming", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{

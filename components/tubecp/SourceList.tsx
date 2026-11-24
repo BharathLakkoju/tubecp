@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { CaretDown } from "@phosphor-icons/react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemSeparator, ItemTitle } from "@/components/ui/item";
@@ -20,6 +21,8 @@ export default function SourceList({
   defaultOpen?: boolean;
   className?: string;
 }) {
+  const [openByDefault] = useState(defaultOpen);
+
   if (sources.length === 0) return null;
 
   return (
@@ -30,7 +33,7 @@ export default function SourceList({
         ))}
       </div>
 
-      <Collapsible defaultOpen={defaultOpen} className="group/sources">
+      <Collapsible defaultOpen={openByDefault} className="group/sources">
         <CollapsibleTrigger className="inline-flex items-center gap-1 rounded-xs text-label text-foreground-secondary outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
           <CaretDown
             aria-hidden

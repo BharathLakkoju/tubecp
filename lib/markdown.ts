@@ -71,16 +71,3 @@ export function normalizeMarkdown(content: string): string {
     })
     .join("\n");
 }
-
-/** Advance reveal index by the next word (or a few characters). */
-export function nextRevealIndex(buffer: string, index: number): number {
-  if (index >= buffer.length) return index;
-
-  const rest = buffer.slice(index);
-  const wordMatch = rest.match(/^(\s*\S+\s*)/);
-  if (wordMatch) {
-    return index + wordMatch[1].length;
-  }
-
-  return Math.min(buffer.length, index + 2);
-}
