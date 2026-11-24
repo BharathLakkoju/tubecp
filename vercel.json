@@ -5,9 +5,6 @@
     "app/api/inngest/route.ts": {
       "maxDuration": 60
     },
-    "app/api/knowledge-base/index-video/route.ts": {
-      "maxDuration": 60
-    },
     "app/api/**/*.ts": {
       "maxDuration": 60
     }

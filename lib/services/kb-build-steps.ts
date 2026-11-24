@@ -37,7 +37,11 @@ import type {
 
 export const KB_BUILD_VIDEO_CONCURRENCY = 5;
 export const KB_BUILD_STEP_TIMEOUT = "50s";
+export const KB_BUILD_STEP_MS = 50_000;
+/** Keeps one OpenRouter embeddings request inside a single durable step on Hobby (~60s). */
+export const KB_BUILD_EMBED_BATCH_SIZE = 24;
 export const KB_BUILD_VIDEO_RETRIES = 4;
+export const KB_BUILD_VIDEO_INVOKE_TIMEOUT = "10m";
 
 export type VideoBuildStatus = "indexed" | "skipped" | "failed";
 
