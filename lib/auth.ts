@@ -10,6 +10,8 @@ import { KbAccessError } from "@/lib/kb-access";
 import { ResearchAccessError } from "@/lib/research-access";
 import { ResearchSessionError } from "@/lib/research-session";
 import { WorkspaceError } from "@/lib/workspaces";
+import { KbBuildRunnerMisconfiguredError } from "@/lib/inngest/runtime";
+import { formatUnknownError, isTransientConnectivityError } from "@/lib/error-format";
 
 export async function requireUserId(): Promise<string> {
   if (isE2eAuthBypass()) {
@@ -65,6 +67,9 @@ export function apiError(err: unknown, fallback = "Internal server error") {
   if (err instanceof EmailDeliveryError) {
     return NextResponse.json({ error: err.message, code: err.code }, { status: 503 });
   }
+  if (err instanceof KbBuildRunnerMisconfiguredError) {
+    return NextResponse.json({ error: err.message, code: err.code }, { status: 503 });
+  }
   if (err && typeof err === "object" && "code" in err) {
     const e = err as { code: string; message: string };
     if (e.code === "USAGE_LIMIT" || e.code === "FEATURE_GATE") {
@@ -74,10 +79,21 @@ export function apiError(err: unknown, fallback = "Internal server error") {
       return NextResponse.json({ error: e.message, code: e.code }, { status: 429 });
     }
   }
-  console.error(err);
+  const detail = formatUnknownError(err);
+  console.error(detail, err);
+  if (isTransientConnectivityError(err)) {
+    return NextResponse.json(
+      {
+        error: "Could not reach the database. Try again in a moment.",
+        code: "DB_UNAVAILABLE",
+        ...(isDevelopment() ? { detail } : {}),
+      },
+      { status: 503 }
+    );
+  }
   const body: { error: string; detail?: string } = { error: fallback };
   if (isDevelopment()) {
-    body.detail = String(err);
+    body.detail = detail;
   }
   return NextResponse.json(body, { status: 500 });
 }

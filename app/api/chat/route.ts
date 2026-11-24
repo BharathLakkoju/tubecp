@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { streamKnowledgeBaseChat } from "@/lib/services/chat";
 import { appendKbChatMessages } from "@/lib/services/kb-chat";
 import { requireUserId, apiError } from "@/lib/auth";
+import { formatUnknownError } from "@/lib/error-format";
 import { assertKbAccess } from "@/lib/kb-access";
 import { checkAndIncrementUsage } from "@/lib/billing/subscription";
 import { isE2eStubMode } from "@/lib/e2e-stub";
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
         } catch (err) {
           send({
             type: "error",
-            message: err instanceof Error ? err.message : "Chat failed",
+            message: formatUnknownError(err) || "Chat failed",
           });
         } finally {
           controller.close();

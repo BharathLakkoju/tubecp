@@ -3,6 +3,10 @@ import {
   kbBuildRequestedEvent,
   kbBuildVideoEvent,
 } from "@/lib/inngest/client";
+import {
+  assertKbInngestRunnerConfigured,
+  KbBuildRunnerMisconfiguredError,
+} from "@/lib/inngest/runtime";
 import { chunkIdsInBatches, kbBuildStepRun } from "@/lib/inngest/kb-build-step";
 import { captureException } from "@/lib/observe";
 import { getJobStore, TERMINAL_JOB_STATUSES } from "@/lib/pipeline/jobs";
@@ -173,8 +177,10 @@ export const kbBuildRequested = inngest.createFunction(
 
 export async function requestKbBuild(kbId: string, persistent: boolean): Promise<void> {
   try {
+    assertKbInngestRunnerConfigured();
     await inngest.send(kbBuildRequestedEvent.create({ kbId, persistent }));
   } catch (err) {
+    if (err instanceof KbBuildRunnerMisconfiguredError) throw err;
     const message = err instanceof Error ? err.message : "Failed to enqueue knowledge base build";
     console.error(`Inngest KB build enqueue failed for ${kbId}:`, err);
     captureException(err, { kbId, persistent, stage: "inngestEnqueue" });

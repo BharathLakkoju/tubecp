@@ -45,4 +45,10 @@ export function knowledgeBaseBuildStatusFromRecord(kb: KnowledgeBaseRecord) {
 export type KnowledgeBaseBuildStatus = ReturnType<typeof knowledgeBaseBuildStatusFromRecord> & {
   /** Included on GET /api/knowledge-base/[kbId]/build-status while polling during a build. */
   indexedVideoIds?: string[];
+  /** False when Neon job rows cannot be read (build may be running but progress is unknown). */
+  pipelineJobStoreOk?: boolean;
+  /** False on localhost without INNGEST_DEV — kicks only enqueue to cloud and never run here. */
+  kbRunnerReady?: boolean;
+  /** Actionable hint when kbRunnerReady or pipelineJobStoreOk is false. */
+  runnerHint?: string;
 };

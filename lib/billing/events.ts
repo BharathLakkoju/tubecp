@@ -1,6 +1,5 @@
-import { neon } from "@neondatabase/serverless";
 import { captureException } from "@/lib/observe";
-import { useAppPostgres } from "@/lib/db";
+import { createNeonSql, useAppPostgres } from "@/lib/db";
 import type { PlanId } from "@/lib/plans";
 import {
   cancelUserSubscription,
@@ -24,9 +23,7 @@ export type BillingEvent = {
 const memoryEvents = new Set<string>();
 
 function sql() {
-  const url = process.env.DATABASE_URL?.trim();
-  if (!url) throw new Error("DATABASE_URL is not set");
-  return neon(url);
+  return createNeonSql();
 }
 
 async function claimEvent(event: BillingEvent): Promise<boolean> {

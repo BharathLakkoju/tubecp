@@ -212,21 +212,10 @@ export default function ChatPanel({
               ) : (
                 <Bubble variant="ghost">
                   <BubbleContent className="text-body">
-                    <MarkdownContent content={stream.content} />
-                    {stream.isRevealing && (
-                      <span
-                        aria-hidden
-                        className="ml-0.5 inline-block h-4 w-0.5 translate-y-0.5 bg-primary motion-safe:animate-pulse"
-                      />
-                    )}
+                    <MarkdownContent content={stream.content} streaming />
                   </BubbleContent>
                 </Bubble>
               )}
-              {stream.content ? (
-                <MessageFooter className="px-0">
-                  <CopyButton variant="icon" text={stream.content} label="Copy response" />
-                </MessageFooter>
-              ) : null}
             </MessageContent>
           </Message>
         )}

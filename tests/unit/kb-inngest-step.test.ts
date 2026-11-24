@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
+import { NonRetriableError } from "inngest";
 import {
   chunkIdsInBatches,
+  kbBuildStepRun,
   KbBuildStepTimeoutError,
   runWithKbBuildStepDeadline,
 } from "@/lib/inngest/kb-build-step";
@@ -24,5 +26,18 @@ describe("kb-inngest-step", () => {
     await vi.advanceTimersByTimeAsync(KB_BUILD_STEP_MS + 1);
     await rejection;
     vi.useRealTimers();
+  });
+
+  it("turns a 410 OpenRouter error into a NonRetriableError", async () => {
+    const step = {
+      run: async (_id: string, fn: () => Promise<unknown>) => fn(),
+    };
+    const gone = Object.assign(new Error("OpenRouter 410: model end of life"), { status: 410 });
+
+    await expect(
+      kbBuildStepRun(step, "embed-0", async () => {
+        throw gone;
+      })
+    ).rejects.toBeInstanceOf(NonRetriableError);
   });
 });

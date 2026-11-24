@@ -8,12 +8,17 @@ export type PipelineErrorClass =
   | "rate_limited"
   | "provider_429"
   | "provider_5xx"
+  | "provider_4xx"
   | "unknown";
 
-const TERMINAL: ReadonlySet<PipelineErrorClass> = new Set(["no_captions", "invalid_video"]);
+const TERMINAL: ReadonlySet<PipelineErrorClass> = new Set([
+  "no_captions",
+  "invalid_video",
+  "provider_4xx",
+]);
 
 const INVALID_VIDEO_RE =
-  /video(?: is)? unavailable|private video|has been removed|does not exist|invalid video id/i;
+  /video(?: is)? unavailable|private video|members-only|age-restricted|has been removed|does not exist|invalid video id/i;
 const BLOCKED_RE = /sign in to confirm|not a bot|captcha|blocked/i;
 const RATE_LIMITED_RE = /too many requests|\b429\b|rate.?limit/i;
 
@@ -42,6 +47,14 @@ export function classifyPipelineError(err: unknown): PipelineErrorClass {
   if (isRetryableLlmError(err)) {
     const status = (err as { status?: number }).status;
     return status === 429 || RATE_LIMITED_RE.test(text) ? "provider_429" : "provider_5xx";
+  }
+
+  const status = (err as { status?: number }).status;
+  if (typeof status === "number" && status >= 400 && status < 500) {
+    return "provider_4xx";
+  }
+  if (/end of life|no longer available|\bHTTP 410\b/i.test(text)) {
+    return "provider_4xx";
   }
 
   return "unknown";

@@ -84,9 +84,12 @@ export default function KbBuildingPanel({
             router.refresh();
             return;
           }
+          const infraBlocked =
+            next.kbRunnerReady === false || next.pipelineJobStoreOk === false;
           if (
             (next.status === "building" || next.status === "finalizing") &&
             isKbBuildStatusStale(next) &&
+            !infraBlocked &&
             Date.now() - lastKickAt.current > 30_000
           ) {
             lastKickAt.current = Date.now();
@@ -147,17 +150,26 @@ export default function KbBuildingPanel({
           startedAt={new Date(status.startedAt).getTime()}
         />
 
-        {(status.status === "building" || status.status === "finalizing") &&
-          isKbBuildStatusStale(status) && (
-          <Alert>
+        {status.runnerHint && (
+          <Alert variant="destructive">
             <WarningCircle weight="fill" aria-hidden />
-            <AlertTitle>Build may have paused</AlertTitle>
-            <AlertDescription>
-              No progress recently. Use Resume server indexing to continue from the last saved
-              video.
-            </AlertDescription>
+            <AlertTitle>Server indexing cannot run</AlertTitle>
+            <AlertDescription>{status.runnerHint}</AlertDescription>
           </Alert>
         )}
+
+        {!status.runnerHint &&
+          (status.status === "building" || status.status === "finalizing") &&
+          isKbBuildStatusStale(status) && (
+            <Alert>
+              <WarningCircle weight="fill" aria-hidden />
+              <AlertTitle>Build may have paused</AlertTitle>
+              <AlertDescription>
+                No progress recently. Use Resume server indexing to continue from the last saved
+                video.
+              </AlertDescription>
+            </Alert>
+          )}
 
         {error && (
           <Alert variant="destructive">

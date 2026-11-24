@@ -59,6 +59,20 @@ describe("getTranscript hosted fallback", () => {
     expect(fetchHostedTranscript).not.toHaveBeenCalled();
   });
 
+  it("falls back to the hosted API when YouTube returns no caption segments", async () => {
+    vi.mocked(fetchYoutubeCaptionSegments).mockResolvedValueOnce([]);
+    vi.mocked(fetchHostedTranscript).mockResolvedValueOnce({
+      videoId: "abc123",
+      language: "en",
+      segments: [{ start: 5, duration: 2, text: "recovered from hosted" }],
+    });
+
+    const transcript = await getTranscript("abc123", { mode: "captions" });
+
+    expect(transcript.segments[0]?.text).toBe("recovered from hosted");
+    expect(fetchHostedTranscript).toHaveBeenCalledOnce();
+  });
+
   it("surfaces a permanent hosted error instead of retrying captions", async () => {
     vi.mocked(fetchYoutubeCaptionSegments).mockRejectedValueOnce(new Error("sign in to confirm"));
     vi.mocked(fetchHostedTranscript).mockRejectedValueOnce(

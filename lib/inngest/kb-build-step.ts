@@ -1,3 +1,9 @@
+import { NonRetriableError } from "inngest";
+import {
+  classifyPipelineError,
+  describePipelineError,
+  isTerminalErrorClass,
+} from "@/lib/pipeline/errors";
 import { KB_BUILD_STEP_MS, KB_BUILD_STEP_TIMEOUT } from "@/lib/services/kb-build-steps";
 
 export class KbBuildStepTimeoutError extends Error {
@@ -27,8 +33,19 @@ type StepRun = {
   run: (id: string, fn: () => Promise<any>) => Promise<unknown>;
 };
 
+function rethrowIfTerminal(err: unknown): never {
+  if (isTerminalErrorClass(classifyPipelineError(err))) {
+    throw new NonRetriableError(describePipelineError(err), { cause: err });
+  }
+  throw err;
+}
+
 export async function kbBuildStepRun<T>(step: StepRun, id: string, fn: () => Promise<T>): Promise<T> {
-  return (await step.run(id, () => runWithKbBuildStepDeadline(fn))) as T;
+  try {
+    return (await step.run(id, () => runWithKbBuildStepDeadline(fn))) as T;
+  } catch (err) {
+    rethrowIfTerminal(err);
+  }
 }
 
 export function chunkIdsInBatches(chunkIds: string[], batchSize: number): string[][] {
