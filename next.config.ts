@@ -30,6 +30,7 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["*.ngrok-free.app", "*.ngrok.io"],
   serverExternalPackages: ["googleapis", "inngest"],
   experimental: {
+    agentUpgrade: "security",
     optimisticClientCache: false,
     optimizePackageImports: ["@phosphor-icons/react", "framer-motion"],
   },
