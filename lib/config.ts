@@ -20,6 +20,8 @@ export const config = {
   embeddingModel: process.env.EMBEDDING_MODEL ?? DEFAULT_EMBEDDING_MODEL,
   sttModel: process.env.STT_MODEL ?? DEFAULT_STT_MODEL,
   licenseKey: process.env.LICENSE_KEY ?? "",
+  /** When set, transient YouTube caption failures fall back to this hosted transcript service. */
+  transcriptApiBaseUrl: process.env.TRANSCRIPT_API_BASE?.replace(/\/$/, "") ?? "",
 };
 
 export function assertYoutubeKey(): string {
