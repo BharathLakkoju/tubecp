@@ -321,7 +321,10 @@
     --duration-fast: 0ms; --duration-base: 0ms; --duration-slow: 0ms;
     --duration-reveal: 0ms; --duration-hero: 0ms; --stagger-marketing: 0ms; --stagger-app: 0ms;
   }
-  .animate-pulse-ring, .animate-shimmer-bg { animation: none; }
+  .animate-pulse-ring, .animate-shimmer-bg,
+  .prose-tubecp.is-streaming :is(p, li, h1, h2, h3, h4, blockquote, pre, td)::after {
+    animation: none;
+  }
 }
 
 @utility focus-ring {
@@ -575,6 +578,26 @@
 }
 .prose-tubecp tr:last-child td {
   border-bottom: 0;
+}
+
+.prose-tubecp.is-streaming > :last-child:is(p, h1, h2, h3, h4, pre)::after,
+.prose-tubecp.is-streaming > :last-child:is(blockquote) > :last-child::after,
+.prose-tubecp.is-streaming > :last-child:is(ul, ol) > li:last-child:not(:has(> p))::after,
+.prose-tubecp.is-streaming > :last-child:is(ul, ol) > li:last-child > p:last-child::after,
+.prose-tubecp.is-streaming > :last-child.markdown-table-wrap tr:last-child > td:last-child::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-inline-start: 2px;
+  vertical-align: baseline;
+  background: var(--primary);
+  animation: caret-blink 1s steps(1, end) infinite;
+}
+
+@keyframes caret-blink {
+  0%, 50% { opacity: 1; }
+  50.01%, 100% { opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
