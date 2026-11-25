@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { streamKnowledgeBaseChat, type ChatTimingLog } from "@/lib/services/chat";
 import * as llm from "@/lib/services/llm";
-import { saveChunk, saveKnowledgeBase } from "@/lib/store";
+import * as store from "@/lib/store";
 import { deleteKbVectors, upsertKbChunkVectors } from "@/lib/store/kb-vectors";
 import { resetUpstashVectorClientForTests } from "@/lib/store/upstash-vector";
 import type { KnowledgeBaseRecord, TranscriptChunk } from "@/lib/types";
@@ -13,11 +13,10 @@ function embedding(slot: number, dim = 8): number[] {
 describe("streamKnowledgeBaseChat timings", () => {
   const kbId = "kb-chat-timings";
   const originalStub = process.env.E2E_STUB_APIS;
-  const originalBypass = process.env.E2E_AUTH_BYPASS;
 
   beforeEach(async () => {
+    // Keep E2E_AUTH_BYPASS as-is so CI does not try to write KBs to Postgres.
     process.env.E2E_STUB_APIS = "false";
-    process.env.E2E_AUTH_BYPASS = "false";
     resetUpstashVectorClientForTests();
     await deleteKbVectors(kbId);
     vi.restoreAllMocks();
@@ -25,7 +24,6 @@ describe("streamKnowledgeBaseChat timings", () => {
 
   afterEach(() => {
     process.env.E2E_STUB_APIS = originalStub;
-    process.env.E2E_AUTH_BYPASS = originalBypass;
     vi.restoreAllMocks();
   });
 
@@ -63,10 +61,8 @@ describe("streamKnowledgeBaseChat timings", () => {
         },
       ],
     };
-    await saveKnowledgeBase(kb);
-    await saveChunk(chunk);
     await upsertKbChunkVectors(kbId, [chunk]);
-
+    vi.spyOn(store, "getKnowledgeBase").mockResolvedValue(kb);
     vi.spyOn(llm, "generateEmbedding").mockResolvedValue(embedding(0));
     vi.spyOn(llm, "generateTextStream").mockImplementation(async function* () {
       yield "Answer token";
