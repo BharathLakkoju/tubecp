@@ -24,6 +24,8 @@ import { useAppPostgres } from "@/lib/db";
 const RESEARCH_RESULT_TTL_SECONDS = 48 * 60 * 60;
 /** Upstash Redis limits each request to 10MB — batch mget to stay under. */
 const MGET_BATCH_SIZE = 24;
+/** DEL payloads are tiny key names; 100 keys per REST call is well under the 10MB cap. */
+const DEL_BATCH_SIZE = 100;
 
 export type ChunkContent = Pick<
   TranscriptChunk,
@@ -79,12 +81,20 @@ async function set(key: string, value: unknown, ttlSeconds?: number): Promise<vo
 }
 
 async function del(key: string): Promise<void> {
+  await mdel([key]);
+}
+
+async function mdel(keys: string[]): Promise<void> {
+  if (keys.length === 0) return;
   const redis = getRedis();
   if (redis) {
-    await redis.del(key);
+    for (let i = 0; i < keys.length; i += DEL_BATCH_SIZE) {
+      await redis.del(...keys.slice(i, i + DEL_BATCH_SIZE));
+    }
     return;
   }
-  getDevMemoryStore().delete(key);
+  const store = getDevMemoryStore();
+  for (const key of keys) store.delete(key);
 }
 
 export function hashTopic(topic: string): string {
@@ -313,22 +323,26 @@ export async function deleteChunksForKnowledgeBase(
 ): Promise<void> {
   const chunkSet = new Set(chunkIds);
 
-  for (const videoId of videoIds) {
-    const ids = await get<string[]>(`video-chunks:${videoId}`);
-    if (!ids) continue;
-
-    const next = ids.filter((id) => !chunkSet.has(id));
-    if (next.length === 0) {
-      await del(`video-chunks:${videoId}`);
-    } else {
-      await set(`video-chunks:${videoId}`, next);
-    }
+  if (videoIds.length > 0) {
+    const listKeys = videoIds.map((videoId) => `video-chunks:${videoId}`);
+    const lists = await mget<string[]>(listKeys);
+    const emptyLists: string[] = [];
+    await Promise.all(
+      videoIds.map(async (videoId, index) => {
+        const ids = lists[index];
+        if (!ids) return;
+        const next = ids.filter((id) => !chunkSet.has(id));
+        if (next.length === 0) {
+          emptyLists.push(`video-chunks:${videoId}`);
+          return;
+        }
+        await set(`video-chunks:${videoId}`, next);
+      })
+    );
+    await mdel(emptyLists);
   }
 
-  for (const chunkId of chunkIds) {
-    await del(`chunk:${chunkId}`);
-    await del(chunkContentKey(chunkId));
-  }
+  await mdel(chunkIds.flatMap((chunkId) => [`chunk:${chunkId}`, chunkContentKey(chunkId)]));
 }
 
 export async function getUserKnowledgeBases(userId: string): Promise<string[]> {

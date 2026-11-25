@@ -233,4 +233,10 @@ describe("pipeline workers", () => {
     await first;
     expect((await getJobStore().getJob("kb-w", "vid-overlap"))?.status).toBe("indexed");
   });
+
+  it("no-ops fetch work when the build run was deleted with the knowledge base", async () => {
+    await getJobStore().deleteRun("kb-w");
+    await handleFetchJob({ kbId: "kb-w", videoId: "vid-1" }, 1);
+    expect(getTranscript).not.toHaveBeenCalled();
+  });
 });

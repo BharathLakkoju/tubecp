@@ -21,7 +21,7 @@ Each video becomes one job that moves through two SQS queues, a fetch stage and 
 - **YouTube egress:** a shared token bucket in Upstash Redis caps fetches per second per proxy IP. A worker that cannot get a token returns the message with a delay instead of waiting.
 - **Embedding provider:** a tokens-per-minute budget gates the embed stage. On a 429 the consumer lowers its concurrency rather than retrying hot.
 - **Postgres:** batched inserts, with concurrent writers bounded by Lambda maximum concurrency.
-- **Fairness:** each user gets at most 2 active builds and 8 videos in flight.
+- **Fairness:** each user gets at most 2 active builds and 8 videos in flight. Deleting a knowledge base deletes its `kb_build_runs` row so those slots are released immediately.
 
 Workers scale on the age of the oldest message, not queue depth, because depth looks healthy while jobs quietly age.
 

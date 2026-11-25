@@ -1,6 +1,8 @@
 import { v4 as uuidv4 } from "uuid";
 import { config } from "../config";
 import { hasMeaningfulEmbeddingContent } from "../embedding-input";
+import { captureException } from "../observe";
+import { getJobStore } from "../pipeline/jobs";
 import {
   getTranscript,
   getTranscriptDurationMinutes,
@@ -20,6 +22,7 @@ import {
   removeUserKnowledgeBase,
 } from "../store";
 import { deleteKbVectors, upsertKbChunkVectors } from "../store/kb-vectors";
+import { clearKbBuildHeartbeat } from "./kb-build-lock";
 import { deleteKbChatData } from "./kb-chat";
 import { deleteSavedResearchMirrorForKnowledgeBase } from "./saved-research";
 import type {
@@ -324,6 +327,39 @@ export async function finalizeKnowledgeBase(
   return updated;
 }
 
+/**
+ * Make the knowledge base disappear from the user's library immediately.
+ * Heavy chunk/vector cleanup is {@link purgeKnowledgeBaseAssets}.
+ */
+export async function unpublishKnowledgeBase(
+  kb: KnowledgeBaseRecord,
+  userId: string
+): Promise<void> {
+  await Promise.all([
+    deleteKnowledgeBaseRecord(kb.kbId),
+    removeUserKnowledgeBase(userId, kb.kbId),
+    deleteKbChatData(kb.kbId),
+    deleteSavedResearchMirrorForKnowledgeBase(kb.kbId, userId),
+    deleteKbBuildRun(kb.kbId),
+  ]);
+}
+
+async function deleteKbBuildRun(kbId: string): Promise<void> {
+  try {
+    await getJobStore().deleteRun(kbId);
+  } catch (err) {
+    captureException(err, { kbId, stage: "kbDeleteRun" });
+  }
+  await clearKbBuildHeartbeat(kbId);
+}
+
+export async function purgeKnowledgeBaseAssets(kb: KnowledgeBaseRecord): Promise<void> {
+  await Promise.all([
+    deleteChunksForKnowledgeBase(kb.videoIds, kb.chunkIds),
+    deleteKbVectors(kb.kbId),
+  ]);
+}
+
 export async function deleteKnowledgeBase(kbId: string, userId: string): Promise<void> {
   const kb = await getKnowledgeBase(kbId);
   if (!kb) {
@@ -333,10 +369,6 @@ export async function deleteKnowledgeBase(kbId: string, userId: string): Promise
     throw new Error("You do not have access to this knowledge base");
   }
 
-  await deleteChunksForKnowledgeBase(kb.videoIds, kb.chunkIds);
-  await deleteKbVectors(kbId);
-  await deleteKbChatData(kbId);
-  await deleteKnowledgeBaseRecord(kbId);
-  await removeUserKnowledgeBase(userId, kbId);
-  await deleteSavedResearchMirrorForKnowledgeBase(kbId, userId);
+  await unpublishKnowledgeBase(kb, userId);
+  await purgeKnowledgeBaseAssets(kb);
 }
