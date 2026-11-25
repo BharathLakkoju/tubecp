@@ -32,12 +32,15 @@ export interface Evidence {
   relevance: number;
 }
 
+export type ScoreSource = "transcript" | "metadata_fallback";
+
 export interface VideoAnalysis {
   videoId: string;
   relevanceScore: number;
   llmScore?: number;
   semanticScore?: number;
   metadataScore?: number;
+  scoreSource?: ScoreSource;
   discussesTopic: boolean;
   summary: string;
   evidence: Evidence[];

@@ -32,6 +32,8 @@ describe("getResearchPipelineLimits", () => {
       secondarySearchResults: 10,
       maxSecondaryQueries: 3,
       maxExpandedQueries: 5,
+      targetUniqueResults: 40,
+      maxPrimaryPages: 1,
     });
     expect(maxSearchFetchCeiling(limits)).toBe(55);
   });
@@ -40,7 +42,10 @@ describe("getResearchPipelineLimits", () => {
     const limits = getResearchPipelineLimits("researcher");
     expect(limits.search.maxSecondaryQueries).toBe(6);
     expect(limits.search.maxExpandedQueries).toBe(8);
-    expect(maxSearchFetchCeiling(limits)).toBe(102);
+    expect(limits.search.primarySearchResults).toBe(50);
+    expect(limits.search.targetUniqueResults).toBe(60);
+    expect(limits.search.maxPrimaryPages).toBe(2);
+    expect(maxSearchFetchCeiling(limits)).toBe(172);
   });
 });
 
@@ -76,5 +81,25 @@ describe("selectCandidatesForAnalysis", () => {
 
     const selected = selectCandidatesForAnalysis("profitable apps solo", candidates, proLimits);
     expect(selected.map((v) => v.videoId)).toEqual(["good1", "good2"]);
+  });
+
+  it("keeps deeper primary-search hits so researcher can analyze 50-60 videos", () => {
+    const researcherLimits = getResearchPipelineLimits("researcher");
+    const candidates = [
+      mockVideo({
+        videoId: "page2",
+        title: "unrelated title",
+        searchRank: 55,
+        searchScore: 0,
+      }),
+      mockVideo({ videoId: "cooking", title: "Cooking pasta for beginners" }),
+    ];
+
+    const selected = selectCandidatesForAnalysis(
+      "profitable apps solo",
+      candidates,
+      researcherLimits
+    );
+    expect(selected.map((video) => video.videoId)).toEqual(["page2"]);
   });
 });

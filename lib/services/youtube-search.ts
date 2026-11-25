@@ -10,6 +10,26 @@ import {
 import type { ResearchSearchLimits } from "../research-limits";
 import type { DateRange, VideoCandidate } from "../types";
 
+const YOUTUBE_SEARCH_PAGE_SIZE = 50;
+
+export type YoutubeSearchOptions = {
+  maxResults?: number;
+  publishedAfter?: string;
+  publishedBefore?: string;
+  usageUserId?: string;
+  pageToken?: string;
+};
+
+export type YoutubeSearchPage = {
+  videos: VideoCandidate[];
+  nextPageToken?: string;
+};
+
+export type YoutubeSearchPageFn = (
+  query: string,
+  options?: YoutubeSearchOptions
+) => Promise<YoutubeSearchPage>;
+
 function parseDuration(iso?: string): string | undefined {
   if (!iso) return undefined;
   const match = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
@@ -21,17 +41,12 @@ function parseDuration(iso?: string): string | undefined {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-export async function searchYouTube(
+export async function searchYouTubePage(
   query: string,
-  options?: {
-    maxResults?: number;
-    publishedAfter?: string;
-    publishedBefore?: string;
-    usageUserId?: string;
-  }
-): Promise<VideoCandidate[]> {
+  options?: YoutubeSearchOptions
+): Promise<YoutubeSearchPage> {
   const youtube = google.youtube({ version: "v3", auth: assertYoutubeKey() });
-  const maxResults = Math.min(options?.maxResults ?? 25, 50);
+  const maxResults = Math.min(options?.maxResults ?? 25, YOUTUBE_SEARCH_PAGE_SIZE);
 
   const response = await youtube.search.list({
     part: ["snippet"],
@@ -41,17 +56,19 @@ export async function searchYouTube(
     order: "relevance",
     publishedAfter: options?.publishedAfter,
     publishedBefore: options?.publishedBefore,
+    ...(options?.pageToken ? { pageToken: options.pageToken } : {}),
   });
 
   await incrementYouTubeQuota(100);
   await recordYouTubeQuotaUsage(options?.usageUserId, 100);
 
   const items = response.data.items ?? [];
+  const nextPageToken = response.data.nextPageToken ?? undefined;
   const videoIds = items
     .map((item) => item.id?.videoId)
     .filter((id): id is string => Boolean(id));
 
-  if (videoIds.length === 0) return [];
+  if (videoIds.length === 0) return { videos: [], nextPageToken };
 
   const details = await youtube.videos.list({
     part: ["contentDetails", "snippet"],
@@ -61,17 +78,15 @@ export async function searchYouTube(
   await incrementYouTubeQuota(1);
   await recordYouTubeQuotaUsage(options?.usageUserId, 1);
 
-  const detailMap = new Map(
-    (details.data.items ?? []).map((item) => [item.id!, item])
-  );
+  const detailMap = new Map((details.data.items ?? []).map((item) => [item.id!, item]));
 
-  const results: VideoCandidate[] = [];
+  const videos: VideoCandidate[] = [];
   for (const item of items) {
     const videoId = item.id?.videoId;
     if (!videoId) continue;
     const detail = detailMap.get(videoId);
     const snippet = detail?.snippet ?? item.snippet;
-    results.push({
+    videos.push({
       videoId,
       title: snippet?.title ?? "Untitled",
       channel: snippet?.channelTitle ?? "Unknown",
@@ -81,7 +96,15 @@ export async function searchYouTube(
       description: snippet?.description?.slice(0, 500),
     });
   }
-  return results;
+  return { videos, nextPageToken };
+}
+
+export async function searchYouTube(
+  query: string,
+  options?: YoutubeSearchOptions
+): Promise<VideoCandidate[]> {
+  const page = await searchYouTubePage(query, options);
+  return page.videos;
 }
 
 type ScoredCandidate = {
@@ -100,10 +123,11 @@ function mergeSearchResults(
   scoreMap: Map<string, ScoredCandidate>,
   videos: VideoCandidate[],
   isPrimary: boolean,
-  weight: number
+  weight: number,
+  rankOffset = 0
 ): void {
   videos.forEach((video, index) => {
-    const rank = index + 1;
+    const rank = rankOffset + index + 1;
     const points = positionScore(rank, isPrimary) * weight;
     const existing = scoreMap.get(video.videoId);
 
@@ -126,43 +150,67 @@ export async function searchYouTubeMultiple(
   queries: string[],
   dateRange?: DateRange,
   searchLimits?: Partial<ResearchSearchLimits>,
-  usageUserId?: string
+  usageUserId?: string,
+  deps?: { searchPage?: YoutubeSearchPageFn }
 ): Promise<VideoCandidate[]> {
   if (queries.length === 0) return [];
 
+  const searchPage = deps?.searchPage ?? searchYouTubePage;
   const primaryResultsLimit = searchLimits?.primarySearchResults ?? PRIMARY_SEARCH_RESULTS;
   const secondaryResultsLimit = searchLimits?.secondarySearchResults ?? SECONDARY_SEARCH_RESULTS;
   const maxSecondaryQueries = searchLimits?.maxSecondaryQueries ?? MAX_SECONDARY_QUERIES;
+  const targetUniqueResults = searchLimits?.targetUniqueResults ?? primaryResultsLimit;
+  const maxPrimaryPages = searchLimits?.maxPrimaryPages ?? 1;
 
   const [primary, ...secondary] = queries;
   const scoreMap = new Map<string, ScoredCandidate>();
   const searchOpts = {
     publishedAfter: dateRange?.from,
     publishedBefore: dateRange?.to,
+    usageUserId,
   };
 
-  const primaryResults = await searchYouTube(primary, {
+  const firstPage = await searchPage(primary, {
     ...searchOpts,
     maxResults: primaryResultsLimit,
-    usageUserId,
   });
-  mergeSearchResults(scoreMap, primaryResults, true, 1);
+  let primaryPages = 1;
+  let primaryCount = firstPage.videos.length;
+  let nextPageToken = firstPage.nextPageToken;
+  mergeSearchResults(scoreMap, firstPage.videos, true, 1);
 
   const secondaryQueries = secondary.slice(0, maxSecondaryQueries);
   if (secondaryQueries.length > 0) {
     const secondaryBatches = await Promise.all(
       secondaryQueries.map((query) =>
-        searchYouTube(query, {
+        searchPage(query, {
           ...searchOpts,
           maxResults: secondaryResultsLimit,
-          usageUserId,
         })
       )
     );
 
-    secondaryBatches.forEach((videos, index) => {
-      mergeSearchResults(scoreMap, videos, false, 0.4);
+    secondaryBatches.forEach((page) => {
+      mergeSearchResults(scoreMap, page.videos, false, 0.4);
     });
+  }
+
+  while (
+    scoreMap.size < targetUniqueResults &&
+    nextPageToken &&
+    primaryPages < maxPrimaryPages
+  ) {
+    const remaining = targetUniqueResults - scoreMap.size;
+    const page = await searchPage(primary, {
+      ...searchOpts,
+      maxResults: Math.min(primaryResultsLimit, Math.max(remaining, 1)),
+      pageToken: nextPageToken,
+    });
+    primaryPages += 1;
+    mergeSearchResults(scoreMap, page.videos, true, 1, primaryCount);
+    primaryCount += page.videos.length;
+    nextPageToken = page.nextPageToken;
+    if (page.videos.length === 0) break;
   }
 
   return Array.from(scoreMap.values())

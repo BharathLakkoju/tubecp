@@ -1,5 +1,10 @@
 import { generateEmbedding, generateEmbeddings, cosineSimilarity } from "./llm";
 import { hybridCandidateScore, topicKeywordScore, topicTerms } from "./research-scoring";
+import {
+  scoreFromUnderstanding,
+  type Coverage,
+  type ScoreSource,
+} from "./video-understanding";
 import type { VideoCandidate, TranscriptSegment } from "../types";
 
 const topicEmbeddingCache = new Map<string, number[]>();
@@ -194,23 +199,19 @@ export function combineScores(
   llmScore: number,
   semanticScore: number,
   metadataScore: number,
-  discussionLevel: "mentioned" | "brief" | "substantial",
-  searchBoost = 0
+  discussionLevel: Coverage,
+  searchBoost = 0,
+  source?: ScoreSource
 ): number {
-  let composite = Math.round(
-    llmScore * 0.3 + semanticScore * 0.35 + metadataScore * 0.35
-  );
-
-  if (discussionLevel === "substantial") composite = Math.min(100, composite + 5);
-  if (discussionLevel === "mentioned" && semanticScore < 35) {
-    composite = Math.min(composite, 50);
-  }
-
-  if (searchBoost > 0) {
-    composite = Math.min(100, composite + Math.round(searchBoost * 0.15));
-  }
-
-  return Math.min(100, Math.max(0, composite));
+  return scoreFromUnderstanding({
+    source: source ?? (semanticScore > 0 ? "transcript" : "metadata_fallback"),
+    llmScore,
+    transcriptScore: semanticScore,
+    metadataScore,
+    coverage: discussionLevel,
+    evidenceCount: discussionLevel === "mentioned" ? 0 : 1,
+    searchPrior: searchBoost,
+  });
 }
 
 export { topicKeywordScore, topicTerms };

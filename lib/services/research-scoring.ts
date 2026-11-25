@@ -1,4 +1,7 @@
-import type { ResearchPipelineLimits } from "../research-limits";
+import {
+  RESEARCHER_UNIQUE_VIDEO_TARGET,
+  type ResearchPipelineLimits,
+} from "../research-limits";
 import type { VideoCandidate } from "../types";
 
 export const CURRENT_YEAR = new Date().getFullYear();
@@ -129,7 +132,9 @@ export function isWorthyForAnalysis(topic: string, video: VideoCandidate): boole
   const keyword = topicKeywordScore(topic, `${video.title} ${video.description ?? ""}`);
 
   if (keyword >= 45) return true;
-  if (video.searchRank !== undefined && video.searchRank <= 20) return true;
+  if (video.searchRank !== undefined && video.searchRank <= RESEARCHER_UNIQUE_VIDEO_TARGET) {
+    return true;
+  }
   if ((video.searchScore ?? 0) >= 8) return true;
   if ((video.matchedQueries ?? 0) >= 2) return true;
 

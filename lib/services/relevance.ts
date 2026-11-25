@@ -10,32 +10,35 @@ import {
 } from "./semantic";
 import { buildMetadataOnlyAnalysis, scoreMetadataOnly } from "./metadata-analysis";
 import { getCachedAnalysis, cacheAnalysis, hashTopic } from "../store";
-import { isStrongYouTubeMatch, topicKeywordScore } from "./research-scoring";
+import { topicKeywordScore } from "./research-scoring";
+import { shouldRankFromUnderstanding } from "./video-understanding";
 import { toVideoSummary } from "../youtube";
-import type { VideoCandidate, VideoAnalysis } from "../types";
+import type { ScoreSource, VideoCandidate, VideoAnalysis } from "../types";
 
-const ANALYSIS_SYSTEM = `You are a video relevance analyst for YouTube research. Score how well a video helps someone answer the research topic.
+const ANALYSIS_CACHE_VERSION = "understand-v1";
+
+const ANALYSIS_SYSTEM = `You score whether a YouTube video's spoken content answers a research topic.
+
+Use ONLY the transcript excerpts. The title can be clickbait.
+If the excerpts do not discuss the topic, score 0-34 and set discussesTopic=false even when the title matches.
 
 Respond with ONLY valid JSON:
 {
   "relevanceScore": <0-100 integer>,
   "discussesTopic": <boolean>,
-  "summary": "<one sentence: how this video helps answer the research topic>",
+  "summary": "<one sentence: how the spoken content helps answer the research topic>",
   "discussionLevel": "<mentioned|brief|substantial>",
-  "evidence": [{ "timestamp": <seconds>, "text": "<short quote>", "relevance": <0-100> }]
+  "evidence": [{ "timestamp": <seconds>, "text": "<short quote from the excerpts>", "relevance": <0-100> }]
 }
 
 Scoring rubric:
-- 75-100 substantial: the video is mainly about this topic with actionable detail
-- 50-74 brief: meaningful coverage, even if the format is a vlog or build diary
-- 35-49 mentioned: partially relevant, title/thumbnail match but shallow coverage
-- 0-34 not relevant: wrong topic or misleading title
+- 75-100 substantial: excerpts are mainly about this topic with usable detail
+- 50-74 brief: excerpts cover the topic with some useful content
+- 35-49 mentioned: the topic appears but coverage is shallow
+- 0-34 none: excerpts are a different topic, or too thin to tell
 
-Important:
-- "How I built X" / solo developer journey videos ARE relevant when they match the topic
-- Do not penalize conversational tone or tangents if the core question is answered
-- discussesTopic=true when score >= 35 OR the title clearly matches the research question
-- Prefer recall over precision — include videos a human would click on YouTube search`;
+discussesTopic is true only when the excerpts support the topic.
+Quote evidence from the excerpts. Use an empty evidence array when nothing supports the topic.`;
 
 function parseAnalysisJson(
   response: string,
@@ -51,7 +54,7 @@ function parseAnalysisJson(
     return {
       videoId,
       relevanceScore: llmScore,
-      discussesTopic: Boolean(parsed.discussesTopic) || llmScore >= 35,
+      discussesTopic: Boolean(parsed.discussesTopic),
       summary: parsed.summary ?? "",
       discussionLevel,
       evidence: (parsed.evidence ?? []).map(
@@ -80,7 +83,7 @@ export async function analyzeVideo(
   video: VideoCandidate,
   topic: string
 ): Promise<VideoAnalysis> {
-  const topicHash = hashTopic(topic.toLowerCase().trim());
+  const topicHash = hashTopic(`${ANALYSIS_CACHE_VERSION}:${topic.toLowerCase().trim()}`);
   const cached = await getCachedAnalysis(topicHash, video.videoId);
   if (cached) return cached;
 
@@ -115,6 +118,7 @@ export async function analyzeVideo(
 
   let semanticScore = 0;
   let transcriptText = "";
+  let scoreSource: ScoreSource = "metadata_fallback";
 
   try {
     const transcript = await getTranscript(video.videoId, {
@@ -128,9 +132,29 @@ export async function analyzeVideo(
       6500,
       topicEmb
     );
+    scoreSource = "transcript";
   } catch {
-    transcriptText = `Title: ${video.title}\nChannel: ${video.channel}\nDescription: ${video.description ?? "N/A"}`;
-    semanticScore = Math.round(metadataScore * 0.85);
+    return cacheAndReturn(
+      topicHash,
+      video.videoId,
+      buildMetadataOnlyAnalysis(video, topic, {
+        keywordScore,
+        metadataScore,
+        semanticScore: 0,
+      })
+    );
+  }
+
+  if (!transcriptText.trim()) {
+    return cacheAndReturn(
+      topicHash,
+      video.videoId,
+      buildMetadataOnlyAnalysis(video, topic, {
+        keywordScore,
+        metadataScore,
+        semanticScore: 0,
+      })
+    );
   }
 
   const signalFallback = () =>
@@ -140,21 +164,13 @@ export async function analyzeVideo(
       semanticScore,
     });
 
-  const searchContext =
-    video.searchRank !== undefined
-      ? `YouTube search rank: #${video.searchRank} (appeared in ${video.matchedQueries ?? 1} queries)`
-      : "YouTube search rank: unknown";
-
   const userPrompt = `Research topic: "${topic}"
 
-Video: "${video.title}" by ${video.channel}
-${searchContext}
-Title/metadata keyword match: ${keywordScore}/100
-Metadata relevance (embedding): ${metadataScore}/100
-Transcript relevance (embedding): ${semanticScore}/100
+Claimed title: "${video.title}" (do not trust this over the excerpts)
+Channel: ${video.channel}
 
-Most relevant transcript excerpts:
-${transcriptText || "(no transcript available)"}`;
+Transcript excerpts:
+${transcriptText}`;
 
   let response: string;
   try {
@@ -172,23 +188,19 @@ ${transcriptText || "(no transcript available)"}`;
 
   const parsed = parseAnalysisJson(response, video.videoId);
 
-  const llmScore = parsed?.relevanceScore ?? Math.round(metadataScore * 0.6 + semanticScore * 0.4);
+  const llmScore = parsed?.relevanceScore ?? semanticScore;
   const discussionLevel = parsed?.discussionLevel ?? (semanticScore >= 50 ? "brief" : "mentioned");
-  const strongSearch = isStrongYouTubeMatch(video, metadataScore);
+  const evidence = parsed?.evidence ?? [];
   const discussesTopic =
-    parsed?.discussesTopic ??
-    (llmScore >= 35 ||
-      semanticScore >= 48 ||
-      metadataScore >= 55 ||
-      keywordScore >= 60 ||
-      strongSearch);
+    parsed?.discussesTopic ?? (llmScore >= 50 && (semanticScore >= 40 || evidence.length > 0));
 
   const finalScore = combineScores(
     llmScore,
     semanticScore,
     metadataScore,
     discussionLevel,
-    video.searchScore ?? 0
+    video.searchScore ?? 0,
+    scoreSource
   );
 
   const analysis: VideoAnalysis = {
@@ -197,10 +209,11 @@ ${transcriptText || "(no transcript available)"}`;
     llmScore,
     semanticScore,
     metadataScore,
+    scoreSource,
     discussesTopic,
-    summary: parsed?.summary ?? `Relevant content found (semantic match ${semanticScore}%)`,
+    summary: parsed?.summary ?? `Spoken content match ${semanticScore}%`,
     discussionLevel,
-    evidence: parsed?.evidence ?? [],
+    evidence,
   };
 
   return cacheAndReturn(topicHash, video.videoId, analysis);
@@ -217,28 +230,12 @@ export function rankVideos(
   allCandidates: VideoCandidate[] = []
 ) {
   const rankedVideos = analyses
-    .filter(({ video, analysis }) => {
-      const semantic = analysis.semanticScore ?? 0;
-      const metadata = analysis.metadataScore ?? 0;
-      const strongSearch = isStrongYouTubeMatch(video, metadata);
-
-      if (analysis.relevanceScore < 35 && !analysis.discussesTopic) return false;
-
-      if (analysis.relevanceScore >= 38) return true;
-      if (strongSearch && analysis.discussesTopic) return true;
-      if (strongSearch && metadata >= 50) return true;
-
-      if (analysis.discussionLevel === "substantial" || analysis.discussionLevel === "brief") {
-        return analysis.discussesTopic || semantic >= 45;
-      }
-
-      return (
-        analysis.discussesTopic &&
-        analysis.relevanceScore >= 40 &&
-        (semantic >= 40 || metadata >= 55)
-      );
+    .filter(({ analysis }) => shouldRankFromUnderstanding(analysis))
+    .sort((a, b) => {
+      const scoreDelta = b.analysis.relevanceScore - a.analysis.relevanceScore;
+      if (scoreDelta !== 0) return scoreDelta;
+      return (b.video.searchScore ?? 0) - (a.video.searchScore ?? 0);
     })
-    .sort((a, b) => b.analysis.relevanceScore - a.analysis.relevanceScore)
     .slice(0, maxVideos)
     .map(({ video, analysis }) => ({
       ...toVideoSummary(video),
