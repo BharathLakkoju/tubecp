@@ -27,7 +27,7 @@ import {
   registerVideoChunks,
   saveChunk,
 } from "@/lib/store";
-import { addToKbVectorIndex } from "@/lib/store/vector-index";
+import { upsertKbChunkVectors } from "@/lib/store/kb-vectors";
 import type {
   KnowledgeBaseRecord,
   RankedVideo,
@@ -236,10 +236,7 @@ export async function writeVideoIndexForBuild(
   }
 
   await registerVideoChunks(video.videoId, chunks.map((chunk) => chunk.id));
-  await addToKbVectorIndex(
-    kbId,
-    chunks.map((chunk) => ({ id: chunk.id, embedding: chunk.embedding! }))
-  );
+  await upsertKbChunkVectors(kbId, chunks);
 
   const result: VideoBuildResult = {
     videoId: video.videoId,

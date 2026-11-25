@@ -14,7 +14,7 @@ Design targets, not yet measurements:
 
 ## Target architecture
 
-Each video becomes one job that moves through two SQS queues, a fetch stage and an embed stage, each consumed by a Lambda worker. Neon Postgres holds one row per `(kb_id, video_id)` job. Messages carry IDs, not transcripts. The last video to reach a terminal state flips the KB to `ready`, or to `failed` if none were indexed. Chunks and vectors stay in the existing Redis store in phase 1 and move to pgvector in phase 2.
+Each video becomes one job that moves through two SQS queues, a fetch stage and an embed stage, each consumed by a Lambda worker. Neon Postgres holds one row per `(kb_id, video_id)` job. Messages carry IDs, not transcripts. The last video to reach a terminal state flips the KB to `ready`, or to `failed` if none were indexed. Chunk payloads stay in Redis; chat retrieval uses Upstash Vector (one namespace per KB). The Redis IVF index remains a rollback read path. pgvector is still the later system-of-record plan.
 
 ## Backpressure
 

@@ -29,6 +29,7 @@
     "check": "tsc --noEmit && vitest run",
     "pipeline:synth": "npm --prefix infra run synth",
     "pipeline:redrive": "tsx scripts/redrive-dlq.ts",
+    "vector:backfill": "tsx scripts/backfill-upstash-vector.ts",
     "inngest:dev": "npx inngest-cli@latest dev",
     "postinstall": "node scripts/verify-shadcn.mjs"
   },
@@ -48,6 +49,7 @@
     "@tailwindcss/postcss": "^4.3.3",
     "@upstash/ratelimit": "^2.2.0",
     "@upstash/redis": "^1.39.0",
+    "@upstash/vector": "^1.2.6",
     "@vercel/functions": "^3.10.5",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",

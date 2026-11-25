@@ -103,7 +103,7 @@ Parallel workers need atomic, per-video updates and an atomic "last job finished
 
 ### Chunks and vectors: two phases
 
-- **Phase 1 (this branch):** chunks, embeddings and the per-KB vector index stay in Upstash Redis behind the existing `lib/store.ts` and `lib/store/vector-index.ts` APIs. Writes are already per chunk and per video, so they are safe under parallelism once the KB record stops being the shared counter.
+- **Phase 1:** chunk payloads stay in Upstash Redis (`lib/store.ts`). Chat retrieval uses Upstash Vector (one namespace per KB, metadata `{ videoId, chunkIndex, text, startSec }`) through `lib/store/kb-vectors.ts`. The Redis IVF index in `lib/store/vector-index.ts` is read-only behind `CHAT_VECTOR_BACKEND=redis` for rollback. Writes are per chunk and per video, so they are safe under parallelism once the KB record stops being the shared counter.
 - **Phase 2:** move chunks to pgvector (`halfvec`, partitioned by `kb_id`) so Postgres becomes the only system of record. Existing embeddings are copied, not regenerated.
 
 ### Rate limiting: Upstash Redis token bucket

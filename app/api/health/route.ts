@@ -4,6 +4,7 @@ import { createDbPool } from "@/lib/db";
 import { isProduction } from "@/lib/env";
 import { getPolarProductStatus } from "@/lib/plans";
 import { getRedis } from "@/lib/store/redis";
+import { pingUpstashVector } from "@/lib/store/upstash-vector";
 import { getYouTubeQuotaUsage } from "@/lib/usage/youtube-quota";
 
 async function pingRedis(): Promise<boolean> {
@@ -50,6 +51,7 @@ export async function GET() {
     resendKey: Boolean(process.env.RESEND_API_KEY?.trim()),
     emailFrom: Boolean(process.env.EMAIL_FROM?.trim()),
     kv: await pingRedis(),
+    vector: await pingUpstashVector(),
     databaseUrl: Boolean(process.env.DATABASE_URL?.trim()),
     databaseLive: await pingDatabase(),
     authSecret: Boolean(process.env.AUTH_SECRET?.trim()),
@@ -84,6 +86,7 @@ export async function GET() {
     checks.devBypassDisabled &&
     (!production || (checks.resendKey && checks.emailFrom)) &&
     (!production || (checks.inngestEventKey && checks.inngestSigningKey)) &&
+    (!production || checks.vector) &&
     !youtubeQuota.warning;
 
   return NextResponse.json({

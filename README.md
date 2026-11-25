@@ -2,7 +2,7 @@
 
 Turn any YouTube research topic into a **chattable knowledge base** — sourced, timestamped, and monetization-ready.
 
-**Stack:** Next.js (Vercel) · Auth.js / NextAuth (Google/GitHub) · Neon Postgres · Polar payments · Upstash Redis · Sentry · Inngest (knowledge-base builds) · AWS SQS + Lambda (optional `KB_PIPELINE=queue`)
+**Stack:** Next.js (Vercel) · Auth.js / NextAuth (Google/GitHub) · Neon Postgres · Polar payments · Upstash Redis · Upstash Vector · Sentry · Inngest (knowledge-base builds) · AWS SQS + Lambda (optional `KB_PIPELINE=queue`)
 
 ## Features
 
@@ -45,6 +45,7 @@ See `.env.example` for the full list. Required:
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | [GitHub Developer Settings](https://github.com/settings/developers) |
 | `UPSTASH_REDIS_REST_URL` | [Upstash](https://console.upstash.com) or Vercel Marketplace |
 | `UPSTASH_REDIS_REST_TOKEN` | Upstash |
+| `UPSTASH_VECTOR_REST_URL` / `UPSTASH_VECTOR_REST_TOKEN` | [Upstash Vector](https://console.upstash.com/vector) — cosine index, 1536 dims |
 | `POLAR_ACCESS_TOKEN` | [Polar.sh](https://polar.sh) |
 | `POLAR_WEBHOOK_SECRET` | Polar → Webhooks |
 | `POLAR_PRODUCT_ID_PRO` | Polar → Products |
@@ -58,6 +59,7 @@ Email (verification + password reset): set `RESEND_API_KEY` and `EMAIL_FROM` —
 ### 3. Connect services
 
 - **Upstash Redis:** Vercel → Storage → Marketplace → Upstash Redis
+- **Upstash Vector:** create a cosine index (1536 dimensions for `text-embedding-3-small`). After first deploy, copy existing embeddings with `npm run vector:backfill`. Rollback chat search with `CHAT_VECTOR_BACKEND=redis`.
 - **OAuth:** In Google Cloud Console → Credentials → your Web client, add:
   - `http://localhost:3000/api/auth/callback/google`
   - `https://your-app.vercel.app/api/auth/callback/google`

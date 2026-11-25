@@ -31,6 +31,7 @@ kb:{kbId}                → knowledge base metadata
 user-kbs:{userId}        → list of user's knowledge bases (Redis)
 user-kbs:{userId}        → list of user's knowledge bases
 queries:{hash}           → query expansion cache (48h TTL)
+qemb:{model}:{hash}      → question embedding cache (24h TTL)
 rl:*                     → rate limit counters
 ```
 
@@ -60,7 +61,7 @@ At that point you're likely making revenue — the cost is negligible vs OpenRou
 - **Verdict:** Requires always-on infra or TCP connections. Conflicts with pure Vercel serverless. More expensive for this use case.
 
 ### Pinecone / Upstash Vector
-- **Verdict:** Dedicated vector DB is overkill for 10–20 videos per KB (~500 chunks). In-memory cosine similarity on Redis-stored embeddings works fine until ~10k chunks per query.
+- **Verdict:** Chat retrieval uses **Upstash Vector** (one namespace per knowledge base, `topK=8`) so search is a single HTTP query instead of serial Redis GETs over IVF buckets. Question embeddings are cached in Redis for 24h. The old Redis IVF index stays read-only behind `CHAT_VECTOR_BACKEND=redis` for rollback. pgvector remains the later system-of-record plan for chunk storage.
 
 ---
 

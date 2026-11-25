@@ -68,6 +68,12 @@ export function runDeployChecks(env: NodeJS.ProcessEnv = process.env): DeployVal
       passed: isSet(env.UPSTASH_REDIS_REST_URL) && isSet(env.UPSTASH_REDIS_REST_TOKEN),
     },
     {
+      id: "upstash_vector",
+      label: "UPSTASH_VECTOR_REST_URL + UPSTASH_VECTOR_REST_TOKEN",
+      required: true,
+      passed: isSet(env.UPSTASH_VECTOR_REST_URL) && isSet(env.UPSTASH_VECTOR_REST_TOKEN),
+    },
+    {
       id: "resend_api_key",
       label: "RESEND_API_KEY",
       required: production,
@@ -211,6 +217,7 @@ export function validateRemoteHealth(payload: RemoteHealthPayload): DeployValida
     { id: "authSecret", label: "Auth secret configured", required: true },
     { id: "appUrl", label: "App URL configured", required: true },
     { id: "kv", label: "Upstash Redis connected", required: true },
+    { id: "vector", label: "Upstash Vector connected", required: true },
     { id: "resendKey", label: "Resend API key configured", required: true },
     { id: "emailFrom", label: "Email sender configured", required: true },
     { id: "oauthProvider", label: "OAuth provider configured", required: true },

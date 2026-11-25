@@ -23,6 +23,7 @@ The script exits `0` when all required production variables are set and dev bypa
 | `AUTH_SECRET` | Session signing |
 | `NEXT_PUBLIC_APP_URL` | OAuth + checkout redirects |
 | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Rate limits + cache |
+| `UPSTASH_VECTOR_REST_URL` / `UPSTASH_VECTOR_REST_TOKEN` | Chat retrieval (one namespace per KB) |
 | `RESEND_API_KEY` / `EMAIL_FROM` | Verification + password reset — [SETUP-RESEND.md](./SETUP-RESEND.md) |
 | `GOOGLE_*` or `GITHUB_*` OAuth | Sign-in |
 | `POLAR_ACCESS_TOKEN` / `POLAR_WEBHOOK_SECRET` | Billing |
@@ -83,6 +84,7 @@ This checks:
     "resendKey": true,
     "emailFrom": true,
     "kv": true,
+    "vector": true,
     "databaseUrl": true,
     "authSecret": true,
     "appUrl": true,
@@ -99,7 +101,9 @@ This checks:
 }
 ```
 
-`status` is `degraded` when required runtime checks fail (missing keys, Redis unreachable, quota warning).
+`status` is `degraded` when required runtime checks fail (missing keys, Redis/Vector unreachable, quota warning).
+
+Chat retrieval uses Upstash Vector (`topK=8`). Set `CHAT_VECTOR_BACKEND=redis` to read the old Redis IVF index. After deploy, run `npm run vector:backfill` once to copy existing chunk embeddings.
 
 ## 5. Quick manual checks
 

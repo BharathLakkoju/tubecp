@@ -19,7 +19,7 @@ import {
   deleteChunksForKnowledgeBase,
   removeUserKnowledgeBase,
 } from "../store";
-import { addToKbVectorIndex, deleteKbVectorIndex } from "../store/vector-index";
+import { deleteKbVectors, upsertKbChunkVectors } from "../store/kb-vectors";
 import { deleteKbChatData } from "./kb-chat";
 import { deleteSavedResearchMirrorForKnowledgeBase } from "./saved-research";
 import type {
@@ -170,10 +170,7 @@ export async function indexVideoInKnowledgeBase(
   if (existingChunks.length > 0 && existingChunks.every((c) => c.embedding)) {
     const chunkIds = existingChunks.map((c) => c.id);
     await registerVideoChunks(video.videoId, chunkIds);
-    await addToKbVectorIndex(
-      kbId,
-      existingChunks.map((chunk) => ({ id: chunk.id, embedding: chunk.embedding! }))
-    );
+    await upsertKbChunkVectors(kbId, existingChunks);
 
     const updated = await updateKnowledgeBase(
       kbId,
@@ -291,10 +288,7 @@ export async function indexVideoInKnowledgeBase(
     chunkIds.push(embeddableChunks[i].id);
   }
 
-  await addToKbVectorIndex(
-    kbId,
-    embeddableChunks.map((chunk) => ({ id: chunk.id, embedding: chunk.embedding! }))
-  );
+  await upsertKbChunkVectors(kbId, embeddableChunks);
   await registerVideoChunks(video.videoId, chunkIds);
 
   const updated = await updateKnowledgeBase(
@@ -340,7 +334,7 @@ export async function deleteKnowledgeBase(kbId: string, userId: string): Promise
   }
 
   await deleteChunksForKnowledgeBase(kb.videoIds, kb.chunkIds);
-  await deleteKbVectorIndex(kbId);
+  await deleteKbVectors(kbId);
   await deleteKbChatData(kbId);
   await deleteKnowledgeBaseRecord(kbId);
   await removeUserKnowledgeBase(userId, kbId);
