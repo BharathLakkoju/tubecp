@@ -34,10 +34,7 @@ describe("getTranscript caption fallbacks", () => {
     vi.mocked(hostedTranscriptConfigured).mockReturnValue(false);
   });
 
-  it("uses a hosted transcript API when YouTube scrape is empty", async () => {
-    vi.mocked(fetchYoutubeCaptionSegments).mockRejectedValue(
-      new Error("caption scrape returned no segments")
-    );
+  it("uses TRANSCRIPT_API_BASE before scraping YouTube", async () => {
     vi.mocked(hostedTranscriptConfigured).mockReturnValue(true);
     vi.mocked(fetchHostedTranscript).mockResolvedValue([
       { text: "From API", offset: 0, duration: 1000, lang: "en" },
@@ -45,8 +42,20 @@ describe("getTranscript caption fallbacks", () => {
 
     const transcript = await getTranscript("vid-1");
     expect(transcript.segments[0]?.text).toBe("From API");
+    expect(fetchYoutubeCaptionSegments).not.toHaveBeenCalled();
     expect(cacheTranscript).toHaveBeenCalled();
-    expect(youtubeCaptionTrackPresence).not.toHaveBeenCalled();
+  });
+
+  it("falls back to YouTube scrape when the hosted API misses", async () => {
+    vi.mocked(hostedTranscriptConfigured).mockReturnValue(true);
+    vi.mocked(fetchHostedTranscript).mockResolvedValue(null);
+    vi.mocked(fetchYoutubeCaptionSegments).mockResolvedValue([
+      { text: "From scrape", offset: 0, duration: 1000, lang: "en" },
+    ]);
+
+    const transcript = await getTranscript("vid-1");
+    expect(transcript.segments[0]?.text).toBe("From scrape");
+    expect(fetchYoutubeCaptionSegments).toHaveBeenCalled();
   });
 
   it("treats scrape misses as retryable when caption tracks exist", async () => {

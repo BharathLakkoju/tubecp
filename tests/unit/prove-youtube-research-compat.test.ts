@@ -125,4 +125,13 @@ describe("prove YouTube research changes only improve the broken paths", () => {
     });
     expect(segments[0]?.text).toBe("Hello");
   });
+
+  it("parses TRANSCRIPT_API_BASE youtube_transcript_api JSON", () => {
+    const segments = parseHostedTranscriptPayload({
+      success: true,
+      transcript: [{ text: "Never gonna give you up", start: 43, duration: 2.12 }],
+      metadata: { default_audio_language: "en" },
+    });
+    expect(segments[0]).toMatchObject({ text: "Never gonna give you up", offset: 43, duration: 2.12 });
+  });
 });

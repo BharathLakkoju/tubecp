@@ -113,7 +113,7 @@ YouTube fetches take a token per proxy IP from a shared bucket. A worker that ge
 
 ### Fallback when YouTube blocks: transcript API
 
-Caption fetch tries Innertube, YouTube timedtext, the watch page, then `youtube-transcript`. An empty scrape is **retryable**, not `no_captions`. Next the optional hosted API (`TRANSCRIPT_API_URL`) is called. If that also misses, YouTube Data API `captions.list` decides existence: no tracks → skip; tracks present or unknown → retry. Research analysis uses a 12s scrape budget and metadata fallback so the UI does not stall in one 60s function. The SQS circuit breaker still pauses fetches when the block rate is high.
+Caption fetch calls the hosted transcript API first when `TRANSCRIPT_API_BASE` is set (`GET /api/video/transcript?videoId=`). If that misses, it scrapes Innertube, YouTube timedtext, the watch page, then `youtube-transcript`. An empty scrape is **retryable**, not `no_captions`. YouTube Data API `captions.list` then decides existence: no tracks → skip; tracks present or unknown → retry. Research analysis uses a 12s scrape budget and metadata fallback so the UI does not stall in one 60s function. The SQS circuit breaker still pauses fetches when the block rate is high.
 
 ### Infrastructure as code: AWS CDK in TypeScript
 

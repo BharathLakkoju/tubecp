@@ -8,7 +8,11 @@
 import { fallbackQueries } from "../lib/services/query-expansion";
 import { classifyPipelineError, isTerminalErrorClass } from "../lib/pipeline/errors";
 import { TranscriptUnavailableError } from "../lib/services/transcript";
-import { parseHostedTranscriptPayload } from "../lib/services/hosted-transcript";
+import {
+  parseHostedTranscriptPayload,
+  videoTranscriptApiUrl,
+  fetchHostedTranscript,
+} from "../lib/services/hosted-transcript";
 import { rankVideos } from "../lib/services/relevance";
 import type { VideoCandidate, VideoAnalysis } from "../lib/types";
 
@@ -155,7 +159,41 @@ const ranked = rankVideos(
 preserve("rank still keeps high-relevance videos", ranked.rankedVideos.map((v) => v.videoId), ["keep"]);
 preserve("rank still drops off-topic videos", ranked.rankedVideos.some((v) => v.videoId === "drop"), false);
 
-console.log(JSON.stringify({ ok: !failed, rows }, null, 2));
-if (failed) {
-  process.exit(1);
+const pymastersUrl = videoTranscriptApiUrl(
+  "https://get-transcript-back-pymasters-production.up.railway.app",
+  "dQw4w9WgXcQ"
+);
+preserve(
+  "TRANSCRIPT_API_BASE maps to GET /api/video/transcript",
+  pymastersUrl,
+  "https://get-transcript-back-pymasters-production.up.railway.app/api/video/transcript?videoId=dQw4w9WgXcQ&format=json&includeTimestamps=true"
+);
+
+async function proveLiveHostedApi() {
+  process.env.TRANSCRIPT_API_BASE ??=
+    "https://get-transcript-back-pymasters-production.up.railway.app";
+  try {
+    const live = await fetchHostedTranscript("dQw4w9WgXcQ");
+    preserve(
+      "TRANSCRIPT_API_BASE returns timed transcript segments",
+      Boolean(live && live.length > 10 && live.some((seg) => /never gonna/i.test(seg.text))),
+      true
+    );
+    rows.push({
+      contract: "live hosted segment count",
+      observed: live?.length ?? 0,
+    });
+  } catch (err) {
+    failed = true;
+    rows.push({
+      contract: "TRANSCRIPT_API_BASE returns timed transcript segments",
+      improved: false,
+      observed: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
+
+void proveLiveHostedApi().then(() => {
+  console.log(JSON.stringify({ ok: !failed, rows }, null, 2));
+  if (failed) process.exit(1);
+});

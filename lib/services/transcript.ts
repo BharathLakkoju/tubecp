@@ -84,15 +84,17 @@ async function getTranscriptViaCaptions(
   let raw: RawCaptionSegment[] = [];
   let scrapeError: unknown;
 
-  try {
-    raw = await fetchYoutubeCaptionSegments(videoId, { budgetMs: options?.budgetMs });
-  } catch (err) {
-    scrapeError = err;
-  }
-
-  if (raw.length === 0 && hostedTranscriptConfigured()) {
+  if (hostedTranscriptConfigured()) {
     try {
       raw = (await fetchHostedTranscript(videoId)) ?? [];
+    } catch (err) {
+      scrapeError = err;
+    }
+  }
+
+  if (raw.length === 0) {
+    try {
+      raw = await fetchYoutubeCaptionSegments(videoId, { budgetMs: options?.budgetMs });
     } catch (err) {
       scrapeError = scrapeError ?? err;
     }
