@@ -117,7 +117,10 @@ export async function analyzeVideo(
   let transcriptText = "";
 
   try {
-    const transcript = await getTranscript(video.videoId);
+    const transcript = await getTranscript(video.videoId, {
+      budgetMs: 12_000,
+      confirmTracks: false,
+    });
     semanticScore = await scoreTranscriptRelevance(topic, transcript.segments, topicEmb);
     transcriptText = await selectRelevantTranscriptExcerpts(
       topic,

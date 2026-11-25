@@ -12,6 +12,7 @@ import {
   cacheResearchResult,
 } from "@/lib/store";
 
+/** Compact path for MCP, eval, and E2E stubs. The product UI uses expand/search/analyze. */
 export const maxDuration = 60;
 
 function researchStage(stage: string): "expanding" | "searching" | "analyzing" | "ranking" {

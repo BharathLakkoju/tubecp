@@ -170,8 +170,13 @@ export function fallbackQueries(topic: string): string[] {
     if (!/\breview\b/i.test(lower)) add(`${terms} review`);
     if (!/\bvs\b/i.test(lower)) add(`${terms} vs`);
     if (!/\bcompar/i.test(lower)) add(`${terms} comparison`);
+    return out;
   }
 
+  if (!/\bstrateg/i.test(lower)) add(`${terms} strategy`);
+  if (!/\bexample/i.test(lower)) add(`${terms} examples`);
+  if (!/\bcase study/i.test(lower)) add(`${terms} case study`);
+  if (!/\bplaybook/i.test(lower)) add(`${terms} playbook`);
   return out;
 }
 
@@ -240,7 +245,7 @@ async function filterByEmbedding(
   }
 }
 
-const EXPAND_CACHE_VERSION = "v5";
+const EXPAND_CACHE_VERSION = "v6";
 
 export function expandQueriesCacheKey(topic: string, maxQueries: number): string {
   return hashTopic(`${EXPAND_CACHE_VERSION}:${maxQueries}:${topic.toLowerCase().trim()}`);
@@ -276,8 +281,7 @@ async function buildExpandedQueries(
     usageUserId
   );
   const restSuggestions = suggestions.slice(suggestionCap);
-  const needFallback = firstSuggestions.length + paraphrases.length < maxQueries - 1;
-  const fallbacks = needFallback ? fallbackQueries(trimmed) : [];
+  const fallbacks = fallbackQueries(trimmed);
 
   return dedupeQueries(
     trimmed,

@@ -97,7 +97,7 @@ describe("pipeline workers", () => {
 
   it("skips videos with no captions and completes the run", async () => {
     vi.mocked(getTranscript).mockRejectedValueOnce(
-      new TranscriptUnavailableError("vid-1", new Error("No transcript is available for this video"))
+      new TranscriptUnavailableError("vid-1", new Error("Transcripts are disabled on this video"))
     );
 
     await handleFetchJob({ kbId: "kb-w", videoId: "vid-1" }, 1);

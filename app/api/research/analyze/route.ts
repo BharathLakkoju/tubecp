@@ -10,7 +10,7 @@ export const maxDuration = 60;
 export async function POST(req: NextRequest) {
   try {
     const userId = await requireUserId();
-    await rateLimitApi(userId, "research-analyze", 40);
+    await rateLimitApi(userId, "research-analyze", 80);
 
     const { video, topic, researchSessionId } = (await req.json()) as {
       video?: VideoCandidate;

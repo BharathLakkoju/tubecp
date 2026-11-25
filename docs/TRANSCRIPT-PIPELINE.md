@@ -43,7 +43,8 @@ flowchart LR
   FQ --> FW[Lambda fetch worker]
   FW -->|token bucket| RL[(Upstash Redis)]
   FW -->|captions via proxy| YT[YouTube]
-  FW -.circuit open.-> TA[Transcript API]
+  FW -->|optional hosted API| TA[Transcript API]
+  FW -->|captions.list| YTAPI[YouTube Data API]
   FW -->|transcript saved| PG
   FW -->|message| EQ[[SQS embed queue]]
   EQ --> EW[Lambda embed worker]
@@ -73,8 +74,8 @@ These map onto the existing `TranscriptUnavailableError.kind` and `isRetryableLl
 
 | Class | Source today | Handling |
 | --- | --- | --- |
-| `no_captions`, `invalid_video` | `kind === "permanent"` | Terminal, job marked `skipped` |
-| `blocked`, `rate_limited` | `kind === "transient"` (captcha, 429, "sign in to confirm") | Retry with backoff, counts toward the circuit breaker |
+| `no_captions`, `invalid_video` | `kind === "permanent"` after captions.list confirms no tracks, or the player says captions are disabled | Terminal, job marked `skipped` |
+| `blocked`, `rate_limited` | `kind === "transient"` (captcha, 429, "sign in to confirm", scrape empty while tracks exist) | Retry with backoff, counts toward the circuit breaker |
 | `provider_5xx`, `provider_429` | `isRetryableLlmError` | Retry with backoff, embed stage lowers its concurrency on 429 |
 
 Speech-to-text stays a build option the user chooses (`transcriptMode: "stt"`). It is not an automatic fallback, because downloading audio from YouTube is blocked in the same way caption fetches are.
@@ -112,7 +113,7 @@ YouTube fetches take a token per proxy IP from a shared bucket. A worker that ge
 
 ### Fallback when YouTube blocks: transcript API
 
-When the blocked rate crosses a threshold, a circuit breaker **pauses** fetches for five minutes (workers return the message with delay). A hosted transcript API remains a later option at about $0.002 to $0.01 per video.
+Caption fetch tries Innertube, YouTube timedtext, the watch page, then `youtube-transcript`. An empty scrape is **retryable**, not `no_captions`. Next the optional hosted API (`TRANSCRIPT_API_URL`) is called. If that also misses, YouTube Data API `captions.list` decides existence: no tracks → skip; tracks present or unknown → retry. Research analysis uses a 12s scrape budget and metadata fallback so the UI does not stall in one 60s function. The SQS circuit breaker still pauses fetches when the block rate is high.
 
 ### Infrastructure as code: AWS CDK in TypeScript
 

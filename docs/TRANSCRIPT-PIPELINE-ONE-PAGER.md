@@ -33,7 +33,7 @@ SQS delivers at least once, so every stage is idempotent: jobs upsert on `(kb_id
 - **Backoff:** exponential with jitter on the visibility timeout (5s, 20s, 80s, capped at 5 minutes).
 - **Dead letters:** after 5 receives a message moves to a DLQ, which has an alarm and a redrive tool.
 - **Retry budget:** retries are capped at 20% of fresh traffic per stage.
-- **Circuit breaker:** when the blocked rate crosses a threshold, fetches pause for five minutes. A hosted transcript API is a later fallback.
+- **Circuit breaker:** when the blocked rate crosses a threshold, fetches pause for five minutes. Empty scrapes retry; `captions.list` plus an optional `TRANSCRIPT_API_URL` separate blocked videos from true no-captions.
 
 ## What breaks at 10x
 

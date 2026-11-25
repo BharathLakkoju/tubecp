@@ -26,6 +26,14 @@ describe("TranscriptUnavailableError", () => {
     expect(err.kind).toBe("permanent");
   });
 
+  it("treats scrape-empty as transient, not no-captions", () => {
+    const err = new TranscriptUnavailableError(
+      "abc",
+      new Error("No transcripts are available for this video")
+    );
+    expect(err.kind).toBe("transient");
+  });
+
   it("maps disabled transcript errors to a readable reason", () => {
     const err = new TranscriptUnavailableError(
       "J90BUTnYd84",
