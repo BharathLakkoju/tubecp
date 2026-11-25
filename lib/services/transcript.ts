@@ -1,5 +1,7 @@
 import type { KbTranscriptMode, Transcript, TranscriptSegment } from "../types";
+import { config } from "../config";
 import { getCachedTranscript, cacheTranscript } from "../store";
+import { fetchHostedTranscript } from "./hosted-transcript-api";
 import {
   fetchYoutubeCaptionSegments,
   type RawCaptionSegment,
@@ -19,7 +21,7 @@ function transcriptFailureKind(detail: string): TranscriptFailureKind {
     return "transient";
   }
   if (
-    /disabled on this video|transcripts are disabled|no transcript is available|no transcripts are available/i.test(
+    /disabled on this video|transcripts are disabled|no transcript is available|no transcripts are available|private.*unavailable|members-only|age-restricted|hosted transcript api returned no segments/i.test(
       detail
     )
   ) {
@@ -72,15 +74,59 @@ function normalizeCaptionSegment(seg: RawCaptionSegment): TranscriptSegment {
   };
 }
 
+async function getTranscriptViaHostedApi(videoId: string): Promise<Transcript> {
+  const baseUrl = config.transcriptApiBaseUrl;
+  if (!baseUrl) {
+    throw new TranscriptUnavailableError(videoId, new Error("TRANSCRIPT_API_BASE is not configured"));
+  }
+
+  let transcript: Transcript;
+  try {
+    transcript = await fetchHostedTranscript(baseUrl, videoId);
+  } catch (err) {
+    throw new TranscriptUnavailableError(videoId, err);
+  }
+
+  if (transcript.segments.length === 0) {
+    throw new TranscriptUnavailableError(
+      videoId,
+      new Error("Hosted transcript API returned no segments")
+    );
+  }
+
+  await cacheTranscript(transcript, "captions");
+  return transcript;
+}
+
 async function getTranscriptViaCaptions(videoId: string): Promise<Transcript> {
   let raw: RawCaptionSegment[];
   try {
     raw = await fetchYoutubeCaptionSegments(videoId);
   } catch (err) {
-    throw new TranscriptUnavailableError(videoId, err);
+    const captionError =
+      err instanceof TranscriptUnavailableError
+        ? err
+        : new TranscriptUnavailableError(videoId, err);
+
+    if (config.transcriptApiBaseUrl && captionError.kind === "transient") {
+      try {
+        return await getTranscriptViaHostedApi(videoId);
+      } catch (hostedErr) {
+        const hosted =
+          hostedErr instanceof TranscriptUnavailableError
+            ? hostedErr
+            : new TranscriptUnavailableError(videoId, hostedErr);
+        if (hosted.kind === "permanent") throw hosted;
+      }
+    }
+
+    throw captionError;
   }
 
   if (raw.length === 0) {
+    if (config.transcriptApiBaseUrl) {
+      return getTranscriptViaHostedApi(videoId);
+    }
     throw new TranscriptUnavailableError(
       videoId,
       new Error("No transcripts are available for this video")

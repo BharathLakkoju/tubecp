@@ -1,5 +1,5 @@
-import { neon } from "@neondatabase/serverless";
 import { isE2eAuthBypass } from "@/lib/e2e";
+import { createNeonSql } from "@/lib/db";
 import type { RankedVideo } from "@/lib/types";
 import type { PipelineErrorClass } from "@/lib/pipeline/errors";
 
@@ -320,11 +320,7 @@ export function createMemoryJobStore(): JobStore {
 }
 
 function neonSql() {
-  const url = process.env.DATABASE_URL?.trim();
-  if (!url) {
-    throw new Error("DATABASE_URL is not set");
-  }
-  return neon(url);
+  return createNeonSql();
 }
 
 function mapRun(row: Record<string, unknown>): KbBuildRun {

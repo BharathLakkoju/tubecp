@@ -1,11 +1,8 @@
-import { neon } from "@neondatabase/serverless";
-import { useAppPostgres } from "@/lib/db";
+import { createNeonSql, useAppPostgres } from "@/lib/db";
 import type { KnowledgeBaseRecord, RankedVideo } from "@/lib/types";
 
 function sql() {
-  const url = process.env.DATABASE_URL?.trim();
-  if (!url) throw new Error("DATABASE_URL is not set");
-  return neon(url);
+  return createNeonSql();
 }
 
 function mapRow(row: Record<string, unknown>): KnowledgeBaseRecord {

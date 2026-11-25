@@ -22,6 +22,14 @@ describe("pipeline error classes", () => {
     expect(isTerminalErrorClass("invalid_video")).toBe(true);
   });
 
+  it("maps hosted transcript unavailable videos to invalid_video", () => {
+    const err = new TranscriptUnavailableError(
+      "abc",
+      new Error("This video is private, members-only, age-restricted, or unavailable.")
+    );
+    expect(classifyPipelineError(err)).toBe("invalid_video");
+  });
+
   it("maps blocked and rate-limited fetches as retryable", () => {
     const blocked = new TranscriptUnavailableError("abc", new Error("Sign in to confirm you’re not a bot"));
     const limited = new TranscriptUnavailableError("abc", new Error("Too many requests (429)"));
@@ -33,6 +41,16 @@ describe("pipeline error classes", () => {
   it("maps provider 429 and 5xx", () => {
     expect(classifyPipelineError({ status: 429, message: "rate limit" })).toBe("provider_429");
     expect(classifyPipelineError({ status: 503, message: "unavailable" })).toBe("provider_5xx");
+  });
+
+  it("maps retired embedding models (HTTP 410) as terminal provider_4xx", () => {
+    const err = {
+      status: 410,
+      message:
+        "OpenRouter 410: The model 'private/openrouter/nvidia/nemotron-3-embed-1b' has reached its end of life",
+    };
+    expect(classifyPipelineError(err)).toBe("provider_4xx");
+    expect(isTerminalErrorClass("provider_4xx")).toBe(true);
   });
 
   it("defaults unknown errors to retryable", () => {

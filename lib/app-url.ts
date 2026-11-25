@@ -6,7 +6,7 @@ function isLocalHostname(hostname: string): boolean {
   return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "local";
 }
 
-function isLocalAppUrl(url: string): boolean {
+export function isLocalAppUrl(url: string): boolean {
   try {
     const host = new URL(url.startsWith("http") ? url : `https://${url}`).hostname;
     return isLocalHostname(host);

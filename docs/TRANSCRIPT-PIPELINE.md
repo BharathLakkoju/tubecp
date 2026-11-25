@@ -112,7 +112,7 @@ YouTube fetches take a token per proxy IP from a shared bucket. A worker that ge
 
 ### Fallback when YouTube blocks: transcript API
 
-When the blocked rate crosses a threshold, a circuit breaker **pauses** fetches for five minutes (workers return the message with delay). A hosted transcript API remains a later option at about $0.002 to $0.01 per video.
+When the blocked rate crosses a threshold, a circuit breaker **pauses** fetches for five minutes (workers return the message with delay). When `TRANSCRIPT_API_BASE` is set, each transient YouTube caption failure on a video also tries that hosted `GET /api/video/transcript?videoId=&format=json` service before surfacing a retry (`lib/services/transcript.ts`).
 
 ### Infrastructure as code: AWS CDK in TypeScript
 
