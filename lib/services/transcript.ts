@@ -4,6 +4,8 @@ import {
   fetchYoutubeCaptionSegments,
   type RawCaptionSegment,
 } from "./youtube-caption-fetch";
+import { fetchHostedTranscript, hostedTranscriptConfigured } from "./hosted-transcript";
+import { youtubeCaptionTrackPresence } from "./youtube-captions-api";
 import { fetchYoutubeAudioBuffer, YoutubeAudioUnavailableError } from "./youtube-audio";
 import { transcribeAudioBuffer } from "./openrouter-stt";
 import { pipelineLoadStubEnabled } from "../pipeline/config";
@@ -12,17 +14,13 @@ export type TranscriptFailureKind = "permanent" | "transient";
 
 function transcriptFailureKind(detail: string): TranscriptFailureKind {
   if (
-    /too many requests|captcha|429|rate.?limit|sign in to confirm|not a bot|blocked|timeout|timed out|aborted|ECONNRESET|ETIMEDOUT|503|502|playability.*LOGIN_REQUIRED/i.test(
+    /too many requests|captcha|429|rate.?limit|sign in to confirm|not a bot|blocked|timeout|timed out|aborted|ECONNRESET|ETIMEDOUT|503|502|playability.*LOGIN_REQUIRED|caption scrape returned no segments/i.test(
       detail
     )
   ) {
     return "transient";
   }
-  if (
-    /disabled on this video|transcripts are disabled|no transcript is available|no transcripts are available/i.test(
-      detail
-    )
-  ) {
+  if (/disabled on this video|transcripts are disabled/i.test(detail)) {
     return "permanent";
   }
   return "transient";
@@ -61,6 +59,13 @@ export class TranscriptUnavailableError extends Error {
 export interface GetTranscriptOptions {
   mode?: KbTranscriptMode;
   usageUserId?: string;
+  /** Cap YouTube scrape time. Research uses a short budget so analysis cannot stall. */
+  budgetMs?: number;
+  /**
+   * When scrape + hosted API miss, call captions.list to distinguish
+   * "blocked" from "this video has no captions". Default true for KB builds.
+   */
+  confirmTracks?: boolean;
 }
 
 function normalizeCaptionSegment(seg: RawCaptionSegment): TranscriptSegment {
@@ -72,32 +77,58 @@ function normalizeCaptionSegment(seg: RawCaptionSegment): TranscriptSegment {
   };
 }
 
-async function getTranscriptViaCaptions(videoId: string): Promise<Transcript> {
-  let raw: RawCaptionSegment[];
-  try {
-    raw = await fetchYoutubeCaptionSegments(videoId);
-  } catch (err) {
-    throw new TranscriptUnavailableError(videoId, err);
+async function getTranscriptViaCaptions(
+  videoId: string,
+  options?: GetTranscriptOptions
+): Promise<Transcript> {
+  let raw: RawCaptionSegment[] = [];
+  let scrapeError: unknown;
+
+  if (hostedTranscriptConfigured()) {
+    try {
+      raw = (await fetchHostedTranscript(videoId)) ?? [];
+    } catch (err) {
+      scrapeError = err;
+    }
   }
 
   if (raw.length === 0) {
-    throw new TranscriptUnavailableError(
-      videoId,
-      new Error("No transcripts are available for this video")
-    );
+    try {
+      raw = await fetchYoutubeCaptionSegments(videoId, { budgetMs: options?.budgetMs });
+    } catch (err) {
+      scrapeError = scrapeError ?? err;
+    }
   }
 
-  const segments = raw.map(normalizeCaptionSegment);
-  const language = raw.find((seg) => seg.lang)?.lang ?? "en";
+  if (raw.length > 0) {
+    const segments = raw.map(normalizeCaptionSegment);
+    const language = raw.find((seg) => seg.lang)?.lang ?? "en";
+    const transcript: Transcript = { videoId, language, segments };
+    await cacheTranscript(transcript, "captions");
+    return transcript;
+  }
 
-  const transcript: Transcript = {
+  const confirmTracks = options?.confirmTracks !== false;
+  if (confirmTracks) {
+    const presence = await youtubeCaptionTrackPresence(videoId, options?.usageUserId);
+    if (presence === "absent") {
+      throw new TranscriptUnavailableError(
+        videoId,
+        new Error("Transcripts are disabled on this video")
+      );
+    }
+    if (presence === "present") {
+      throw new TranscriptUnavailableError(
+        videoId,
+        new Error("Caption tracks exist but YouTube blocked automated access — retrying")
+      );
+    }
+  }
+
+  throw new TranscriptUnavailableError(
     videoId,
-    language,
-    segments,
-  };
-
-  await cacheTranscript(transcript, "captions");
-  return transcript;
+    scrapeError ?? new Error("caption scrape returned no segments")
+  );
 }
 
 async function getTranscriptViaStt(
@@ -157,7 +188,7 @@ export async function getTranscript(
     return getTranscriptViaStt(videoId, options?.usageUserId);
   }
 
-  return getTranscriptViaCaptions(videoId);
+  return getTranscriptViaCaptions(videoId, options);
 }
 
 export function transcriptToText(transcript: Transcript): string {

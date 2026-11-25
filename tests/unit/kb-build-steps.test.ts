@@ -190,7 +190,7 @@ describe("kb-build-steps", () => {
   it("never leaves the KB building and includes a per-video error summary", async () => {
     await seedKb();
     vi.mocked(getTranscript).mockRejectedValue(
-      new TranscriptUnavailableError("vid-a", new Error("No transcripts are available for this video"))
+      new TranscriptUnavailableError("vid-a", new Error("Transcripts are disabled on this video"))
     );
 
     const results = [

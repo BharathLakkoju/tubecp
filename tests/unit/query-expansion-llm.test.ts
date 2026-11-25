@@ -121,6 +121,13 @@ describe("expandQueries", () => {
     expect(queries).toContain("react tutorial for beginners");
   });
 
+  it("fills generic topics with conceptual queries when suggest and LLM are empty", async () => {
+    const { queries } = await expandQueries("AI SaaS monetization", { maxQueries: 5 });
+    expect(queries[0]).toBe("AI SaaS monetization");
+    expect(queries.length).toBeGreaterThanOrEqual(3);
+    expect(queries.some((q) => /strategy|examples|playbook|case study/i.test(q))).toBe(true);
+  });
+
   it("marks repeat expansions as cached for usage limits", async () => {
     vi.mocked(getCachedExpandedQueries)
       .mockResolvedValueOnce(null)
@@ -152,7 +159,10 @@ describe("fallbackQueries", () => {
     expect(queries.some((q) => /for beginners|explained|tutorial/i.test(q))).toBe(false);
   });
 
-  it("does not suffix generic conceptual topics", () => {
-    expect(fallbackQueries("AI SaaS monetization")).toEqual([]);
+  it("uses conceptual suffixes for generic topics instead of format words", () => {
+    const queries = fallbackQueries("AI SaaS monetization");
+    expect(queries.some((q) => q.includes("strategy"))).toBe(true);
+    expect(queries.some((q) => q.includes("examples"))).toBe(true);
+    expect(queries.some((q) => /for beginners|explained|tutorial/i.test(q))).toBe(false);
   });
 });

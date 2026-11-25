@@ -1,3 +1,5 @@
+import { youtubeHttpFetch } from "./youtube-http";
+
 const SUGGEST_TIMEOUT_MS = 3_000;
 
 function parseSuggestPayload(text: string): string[] {
@@ -25,17 +27,30 @@ export async function fetchYoutubeSearchSuggestions(
   const trimmed = query.trim();
   if (!trimmed) return [];
 
-  const url = `https://suggestqueries.google.com/complete/search?client=firefox&ds=yt&q=${encodeURIComponent(trimmed)}`;
+  const seeds = [trimmed, `${trimmed} `];
+  const seen = new Set<string>();
+  const suggestions: string[] = [];
 
-  try {
-    const res = await fetch(url, {
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (!res.ok) return [];
-    const text = await res.text();
-    return parseSuggestPayload(text).slice(0, 8);
-  } catch {
-    return [];
+  for (const seed of seeds) {
+    const url = `https://suggestqueries.google.com/complete/search?client=firefox&ds=yt&q=${encodeURIComponent(seed)}`;
+    try {
+      const res = await youtubeHttpFetch(url, {
+        headers: { Accept: "application/json" },
+        timeoutMs,
+      });
+      if (!res.ok) continue;
+      const text = await res.text();
+      for (const value of parseSuggestPayload(text)) {
+        const key = value.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        suggestions.push(value);
+      }
+    } catch {
+      // Suggest is best-effort; paraphrases and fallbacks still fill the list.
+    }
+    if (suggestions.length >= 8) break;
   }
+
+  return suggestions.slice(0, 8);
 }

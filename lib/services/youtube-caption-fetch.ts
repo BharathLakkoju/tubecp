@@ -2,7 +2,8 @@ import { YoutubeTranscript } from "youtube-transcript";
 import { youtubeHttpFetch } from "./youtube-http";
 
 const INNERTUBE_API_URL = "https://www.youtube.com/youtubei/v1/player?prettyPrint=false";
-const VIDEO_FETCH_BUDGET_MS = 60_000;
+/** Stay under the Vercel Hobby 60s cap so a miss can still classify and return. */
+export const VIDEO_FETCH_BUDGET_MS = 22_000;
 
 const WATCH_PAGE_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36";
@@ -13,6 +14,12 @@ const INNERTUBE_CLIENTS = [
     clientName: "ANDROID",
     clientVersion: "20.10.38",
     userAgent: "com.google.android.youtube/20.10.38 (Linux; U; Android 14)",
+  },
+  {
+    clientName: "WEB_EMBEDDED_PLAYER",
+    clientVersion: "1.20251125.00.00",
+    userAgent:
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
   },
   {
     clientName: "IOS",
@@ -450,6 +457,48 @@ async function fetchViaWatchPage(
   return null;
 }
 
+async function fetchViaTimedTextApi(
+  videoId: string,
+  budget: VideoFetchBudget
+): Promise<RawCaptionSegment[] | null> {
+  const langs = [...LANG_PREFERENCE, "en-US"];
+  const hosts = [
+    `https://www.youtube.com/api/timedtext?v=${videoId}`,
+    `https://video.google.com/timedtext?v=${videoId}`,
+  ];
+
+  for (const lang of langs) {
+    for (const host of hosts) {
+      const urls = [`${host}&lang=${lang}&fmt=json3`, `${host}&lang=${lang}`];
+      for (const url of urls) {
+        try {
+          budget.assertTimeRemaining();
+          const resp = await youtubeHttpFetch(url, {
+            headers: {
+              "User-Agent": WATCH_PAGE_USER_AGENT,
+              "Accept-Language": "en-US,en;q=0.9",
+              Referer: `https://www.youtube.com/watch?v=${videoId}`,
+            },
+          });
+          if (resp.status === 429) {
+            throw new Error("YouTube is receiving too many requests");
+          }
+          if (!resp.ok) continue;
+          const body = await resp.text();
+          if (!body.trim()) continue;
+          const segments = parseCaptionBody(body, lang);
+          if (segments.length > 0) return segments;
+        } catch (err) {
+          if (isRateLimitedError(err)) throw err;
+          if (err instanceof Error && /timed out/i.test(err.message)) throw err;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
 async function fetchViaYoutubeTranscriptPackage(
   videoId: string,
   budget: VideoFetchBudget
@@ -474,10 +523,14 @@ async function fetchViaYoutubeTranscriptPackage(
   return null;
 }
 
-export async function fetchYoutubeCaptionSegments(videoId: string): Promise<RawCaptionSegment[]> {
-  const budget = new VideoFetchBudget();
+export async function fetchYoutubeCaptionSegments(
+  videoId: string,
+  options?: { budgetMs?: number }
+): Promise<RawCaptionSegment[]> {
+  const budget = new VideoFetchBudget(options?.budgetMs ?? VIDEO_FETCH_BUDGET_MS);
   const strategies = [
     (id: string) => fetchViaInnertube(id, budget),
+    (id: string) => fetchViaTimedTextApi(id, budget),
     (id: string) => fetchViaWatchPage(id, budget),
     (id: string) => fetchViaYoutubeTranscriptPackage(id, budget),
   ];
@@ -512,5 +565,5 @@ export async function fetchYoutubeCaptionSegments(videoId: string): Promise<RawC
   if (rateLimit && !answered) {
     throw rateLimit instanceof Error ? rateLimit : new Error(String(rateLimit));
   }
-  throw new Error("No transcripts are available for this video");
+  throw new Error("caption scrape returned no segments");
 }

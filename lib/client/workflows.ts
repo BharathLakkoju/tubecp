@@ -84,71 +84,32 @@ export async function runResearch(
   }
 
   onProgress?.("expanding", 5, "expanding");
-  const res = await fetch("/api/research", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ topic }),
-  });
-  const contentType = res.headers.get("content-type") ?? "";
-  if (!contentType.includes("ndjson")) {
-    const data = await parseJsonResponseBody<{ code?: string; error?: string }>(res);
-    const code = data.code ? `[${data.code}] ` : "";
-    throw new Error(`${code}${data.error ?? `Request failed: ${res.status}`}`);
-  }
-  if (!res.ok || !res.body) {
-    throw new Error(`Research failed: ${res.status}`);
-  }
+  const expanded = await postJson<{
+    queries: string[];
+    researchSessionId: string;
+    cached?: boolean;
+    research?: ResearchResult;
+  }>("/api/research/expand", { topic });
+  onResearchSession?.(expanded.researchSessionId);
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let research: ResearchResult | null = null;
-  let researchSessionId = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      const event = JSON.parse(line) as {
-        type?: string;
-        stage?: ResearchStage;
-        message?: string;
-        progress?: number;
-        queries?: string[];
-        allVideos?: ResearchLiveState["allVideos"];
-        analyzedVideos?: ResearchLiveState["analyzedVideos"];
-        analyzedScores?: ResearchLiveState["analyzedScores"];
-        research?: ResearchResult;
-        researchSessionId?: string;
-      };
-
-      if (event.type === "error") {
-        throw new Error(event.message ?? "Research failed");
+  if (expanded.research?.rankedVideos?.length) {
+    onProgress?.(
+      `found ${expanded.research.rankedVideos.length} relevant videos`,
+      100,
+      "ranking",
+      {
+        queries: expanded.research.queriesUsed,
+        allVideos: expanded.research.allVideos,
       }
-      if (event.type === "progress") {
-        onProgress?.(event.message ?? event.stage ?? "researching", event.progress, event.stage, {
-          queries: event.queries,
-          allVideos: event.allVideos,
-          analyzedVideos: event.analyzedVideos,
-          analyzedScores: event.analyzedScores,
-        });
-      }
-      if (event.type === "done" && event.research && event.researchSessionId) {
-        research = event.research;
-        researchSessionId = event.researchSessionId;
-        onResearchSession?.(researchSessionId);
-      }
-    }
+    );
+    return { research: expanded.research, researchSessionId: expanded.researchSessionId };
   }
 
-  if (!research || !researchSessionId) {
-    throw new Error("Research did not complete");
+  if (!expanded.queries?.length) {
+    throw new Error("Research did not produce search queries");
   }
-  return { research, researchSessionId };
+
+  return continueResearch(topic, expanded.researchSessionId, expanded.queries, onProgress);
 }
 
 async function resumeFromCheckpoint(
