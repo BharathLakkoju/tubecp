@@ -12,6 +12,7 @@
     "dev:mcp": "tsx mcp/server.ts",
     "eval": "tsx scripts/eval.ts",
     "eval:dry": "tsx scripts/eval.ts --dry-run",
+    "prove:understanding": "tsx scripts/prove-video-understanding.ts",
     "eval:stability": "tsx scripts/eval.ts --topic ai-saas-monetization --runs 3",
     "set-plan": "tsx scripts/set-user-plan.ts",
     "seed:test-users": "tsx scripts/seed-test-users.ts",

@@ -14,7 +14,9 @@ describe("buildMetadataOnlyAnalysis", () => {
     const analysis = buildMetadataOnlyAnalysis(video, "AI SaaS monetization");
 
     expect(analysis.discussesTopic).toBe(true);
-    expect(analysis.relevanceScore).toBeGreaterThanOrEqual(45);
+    expect(analysis.scoreSource).toBe("metadata_fallback");
+    expect(analysis.relevanceScore).toBeGreaterThan(0);
+    expect(analysis.relevanceScore).toBeLessThanOrEqual(45);
     expect(analysis.semanticScore).toBe(0);
     expect(analysis.summary).toContain("keyword match");
   });

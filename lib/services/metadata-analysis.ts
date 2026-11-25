@@ -1,5 +1,6 @@
 import { combineScores } from "./semantic";
 import { isStrongYouTubeMatch, topicKeywordScore } from "./research-scoring";
+import type { ScoreSource } from "./video-understanding";
 import type { VideoCandidate, VideoAnalysis } from "../types";
 
 export type MetadataAnalysisSignals = {
@@ -48,20 +49,20 @@ export function buildMetadataOnlyAnalysis(
   if (heuristicLlm >= 72 || semanticScore >= 65) discussionLevel = "substantial";
   else if (heuristicLlm >= 48 || semanticScore >= 45) discussionLevel = "brief";
 
+  const source: ScoreSource = semanticScore > 0 ? "transcript" : "metadata_fallback";
   const strongSearch = isStrongYouTubeMatch(video, metadataScore);
   const discussesTopic =
-    heuristicLlm >= 35 ||
-    semanticScore >= 48 ||
-    metadataScore >= 55 ||
-    keywordScore >= 60 ||
-    strongSearch;
+    source === "transcript"
+      ? heuristicLlm >= 35 || semanticScore >= 48
+      : metadataScore >= 55 || keywordScore >= 60 || strongSearch;
 
   const relevanceScore = combineScores(
     heuristicLlm,
     semanticScore,
     metadataScore,
     discussionLevel,
-    video.searchScore ?? 0
+    video.searchScore ?? 0,
+    source
   );
 
   const rankNote =
@@ -75,6 +76,7 @@ export function buildMetadataOnlyAnalysis(
     llmScore: heuristicLlm,
     semanticScore,
     metadataScore,
+    scoreSource: source,
     discussesTopic,
     summary: `Likely relevant to "${topic}" from title and description (keyword match ${keywordScore}/100).${rankNote}`,
     discussionLevel,

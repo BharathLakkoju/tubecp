@@ -4,26 +4,26 @@ import { mockVideo } from "../fixtures/research";
 import * as llm from "@/lib/services/llm";
 
 describe("combineScores", () => {
-  it("weights LLM, semantic, and metadata scores", () => {
-    const score = combineScores(80, 70, 60, "brief");
-    expect(score).toBe(Math.round(80 * 0.3 + 70 * 0.35 + 60 * 0.35));
+  it("scores from transcript and LLM, not title metadata", () => {
+    const score = combineScores(80, 70, 20, "brief", 0, "transcript");
+    expect(score).toBe(Math.round(80 * 0.65 + 70 * 0.35));
   });
 
-  it("boosts substantial discussion", () => {
-    const brief = combineScores(70, 70, 70, "brief");
-    const substantial = combineScores(70, 70, 70, "substantial");
+  it("boosts substantial discussion when evidence exists", () => {
+    const brief = combineScores(70, 70, 70, "brief", 0, "transcript");
+    const substantial = combineScores(70, 70, 70, "substantial", 0, "transcript");
     expect(substantial).toBeGreaterThan(brief);
     expect(substantial).toBeLessThanOrEqual(100);
   });
 
-  it("caps mentioned videos with low semantic score", () => {
-    const score = combineScores(90, 20, 80, "mentioned");
-    expect(score).toBeLessThanOrEqual(50);
+  it("caps mentioned videos with low transcript score", () => {
+    const score = combineScores(90, 20, 80, "mentioned", 0, "transcript");
+    expect(score).toBeLessThanOrEqual(40);
   });
 
   it("clamps to 0-100", () => {
-    expect(combineScores(0, 0, 0, "mentioned")).toBe(0);
-    expect(combineScores(100, 100, 100, "substantial")).toBe(100);
+    expect(combineScores(0, 0, 0, "mentioned", 0, "transcript")).toBe(0);
+    expect(combineScores(100, 100, 100, "substantial", 0, "transcript")).toBe(100);
   });
 });
 

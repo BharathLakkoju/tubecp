@@ -57,6 +57,24 @@ describe("rankVideos", () => {
     expect(result.rankedVideos).toHaveLength(1);
   });
 
+  it("does not rank a top YouTube hit whose understanding score is low", () => {
+    const analyses = [
+      mockAnalysisPair(
+        { videoId: "clickbait", searchRank: 1, searchScore: 29 },
+        {
+          relevanceScore: 22,
+          discussesTopic: false,
+          semanticScore: 18,
+          metadataScore: 90,
+          discussionLevel: "mentioned",
+        }
+      ),
+    ];
+
+    const result = rankVideos(topic, queries, 5, analyses);
+    expect(result.rankedVideos).toHaveLength(0);
+  });
+
   it("returns topic and query metadata", () => {
     const result = rankVideos(topic, queries, 42, []);
     expect(result.topic).toBe(topic);
