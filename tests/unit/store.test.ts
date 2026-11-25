@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   cacheResearchResult,
+  deleteChunksForKnowledgeBase,
   getCachedResearchResult,
   getChunkContentsByIds,
   getChunksByIds,
   hashTopic,
+  registerVideoChunks,
   researchResultCacheKey,
   saveChunk,
 } from "@/lib/store";
@@ -69,6 +71,37 @@ describe("getChunkContentsByIds", () => {
       text: "hello",
     });
     expect(contents[0]).not.toHaveProperty("embedding");
+  });
+});
+
+describe("deleteChunksForKnowledgeBase", () => {
+  it("removes a large chunk set and empty video lists in batches", async () => {
+    const chunkIds = Array.from({ length: 120 }, (_, i) => `bulk-chunk-${i}`);
+    await Promise.all(
+      chunkIds.map((id, i) =>
+        saveChunk({
+          id,
+          videoId: i < 60 ? "bulk-vid-a" : "bulk-vid-b",
+          title: "Bulk",
+          channel: "Channel",
+          timestamp: i,
+          text: `chunk ${i}`,
+        })
+      )
+    );
+    await registerVideoChunks(
+      "bulk-vid-a",
+      chunkIds.filter((_, i) => i < 60)
+    );
+    await registerVideoChunks(
+      "bulk-vid-b",
+      chunkIds.filter((_, i) => i >= 60)
+    );
+
+    await deleteChunksForKnowledgeBase(["bulk-vid-a", "bulk-vid-b"], chunkIds);
+
+    expect(await getChunksByIds(chunkIds)).toHaveLength(0);
+    expect(await getChunksByIds(["bulk-chunk-0", "bulk-chunk-119"])).toHaveLength(0);
   });
 });
 

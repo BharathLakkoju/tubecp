@@ -81,6 +81,8 @@ export type JobStore = {
   countInFlightVideos(userId: string): Promise<number>;
   listQueuedJobs(userId: string, limit: number): Promise<KbVideoJob[]>;
   resetRetryableJobs(kbId: string): Promise<KbVideoJob[]>;
+  /** Drop a run and its jobs so a deleted KB no longer counts against fairness caps. */
+  deleteRun(kbId: string): Promise<void>;
 };
 
 function isTerminal(status: JobStatus): boolean {
@@ -307,6 +309,12 @@ export function createMemoryJobStore(): JobStore {
         runs.set(kbId, { ...run, status: "building", updatedAt: new Date().toISOString() });
       }
       return reset;
+    },
+    async deleteRun(kbId) {
+      runs.delete(kbId);
+      for (const [key, job] of jobs) {
+        if (job.kbId === kbId) jobs.delete(key);
+      }
     },
   };
 }
@@ -600,6 +608,9 @@ export function createNeonJobStore(): JobStore {
         [kbId]
       )) as Record<string, unknown>[];
       return rows.map(mapJob);
+    },
+    async deleteRun(kbId) {
+      await neonSql().query(`DELETE FROM kb_build_runs WHERE kb_id = $1`, [kbId]);
     },
   };
 }

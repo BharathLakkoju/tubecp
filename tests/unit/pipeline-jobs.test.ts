@@ -123,4 +123,12 @@ describe("pipeline job store", () => {
     });
     expect(third.becameFinalizer).toBe(false);
   });
+
+  it("deleteRun drops the run and its jobs so fairness counts go to zero", async () => {
+    expect(await store.countActiveRuns("user-1")).toBe(1);
+    await store.deleteRun("kb-1");
+    expect(await store.getRun("kb-1")).toBeNull();
+    expect(await store.listJobs("kb-1")).toHaveLength(0);
+    expect(await store.countActiveRuns("user-1")).toBe(0);
+  });
 });

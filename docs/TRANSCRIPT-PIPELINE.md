@@ -129,7 +129,7 @@ Vercel issues short-lived OIDC tokens that assume an IAM role allowed only to se
 - **YouTube egress:** token bucket per proxy IP in Redis.
 - **Embedding provider:** tokens-per-minute budget. On a 429 the consumer lowers its concurrency rather than retrying hot.
 - **Postgres:** batched inserts and a bounded number of concurrent writers, set through Lambda maximum concurrency.
-- **Fairness:** at most 2 active builds and 8 videos in flight per user.
+- **Fairness:** at most 2 active builds and 8 videos in flight per user. Deleting a knowledge base deletes its `kb_build_runs` row (jobs cascade) so those slots are released immediately.
 - **Backoff:** retryable failures extend the visibility timeout exponentially with jitter (5s, 20s, 80s, capped at 5 minutes).
 - **Dead letters:** after 5 receives a message moves to the DLQ. An alarm fires on DLQ depth, and `scripts/redrive-dlq.ts` replays messages once the cause is fixed.
 - **Retry budget:** retries are capped at 20% of fresh traffic per stage.

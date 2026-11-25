@@ -23,6 +23,7 @@ import {
   type VideoBuildResult,
 } from "@/lib/services/kb-build-steps";
 import { writeKbBuildHeartbeat } from "@/lib/services/kb-build-lock";
+import { getKnowledgeBase } from "@/lib/store";
 
 function originalBuildEvent(event: {
   data?: { event?: { data?: { kbId?: string; persistent?: boolean } } };
@@ -40,6 +41,16 @@ export const kbBuildVideo = inngest.createFunction(
   },
   async ({ event, step }): Promise<VideoBuildResult> => {
     const { kbId, videoId, persistent } = event.data;
+    if (!(await getKnowledgeBase(kbId))) {
+      return {
+        videoId,
+        title: videoId,
+        status: "skipped",
+        error: "Knowledge base deleted",
+        chunkIds: [],
+        minutes: 0,
+      } satisfies VideoBuildResult;
+    }
     await writeKbBuildHeartbeat(kbId);
 
     const existingJob = await getJobStore().getJob(kbId, videoId);
@@ -119,6 +130,9 @@ export const kbBuildRequested = inngest.createFunction(
   },
   async ({ event, step }) => {
     const { kbId, persistent } = event.data;
+    if (!(await getKnowledgeBase(kbId))) {
+      return { kbId, status: "failed" as const, results: [] as VideoBuildResult[] };
+    }
 
     const pending = await step.run("load-videos", () => loadPendingBuildVideos(kbId));
 
