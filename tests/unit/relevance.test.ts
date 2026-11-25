@@ -57,6 +57,26 @@ describe("rankVideos", () => {
     expect(result.rankedVideos).toHaveLength(1);
   });
 
+  it("still ranks a borderline video that actually discusses the topic", () => {
+    const analyses = [
+      mockAnalysisPair(
+        { videoId: "borderline" },
+        {
+          relevanceScore: 36,
+          discussesTopic: true,
+          semanticScore: 50,
+          discussionLevel: "brief",
+          scoreSource: "transcript",
+          evidence: [{ timestamp: 40, text: "We price the AI SaaS at $49", relevance: 72 }],
+        }
+      ),
+    ];
+
+    const result = rankVideos(topic, queries, 5, analyses);
+    expect(result.rankedVideos.map((video) => video.videoId)).toEqual(["borderline"]);
+    expect(result.rankedVideos[0].whyRelevant.length).toBeGreaterThan(0);
+  });
+
   it("does not rank a top YouTube hit whose understanding score is low", () => {
     const analyses = [
       mockAnalysisPair(

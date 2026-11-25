@@ -10,6 +10,32 @@ export const METADATA_FALLBACK_CAP = 45;
 /** Ranked results require this understanding score. Search rank does not bypass it. */
 export const UNDERSTANDING_RANK_MIN = 38;
 
+/** Master's lower bound: below this, off-topic videos were always dropped. */
+export const UNDERSTANDING_RANK_FLOOR = 35;
+
+export type RankableAnalysis = {
+  relevanceScore: number;
+  discussesTopic: boolean;
+  discussionLevel: Coverage;
+  semanticScore?: number;
+  evidence?: Array<unknown>;
+  scoreSource?: ScoreSource;
+};
+
+/**
+ * Keep videos the old ranker kept for real coverage in the 35-37 band,
+ * without letting YouTube search position bypass understanding.
+ */
+export function shouldRankFromUnderstanding(analysis: RankableAnalysis): boolean {
+  if (analysis.relevanceScore >= UNDERSTANDING_RANK_MIN) return true;
+  if (analysis.relevanceScore < UNDERSTANDING_RANK_FLOOR) return false;
+  if (analysis.scoreSource === "metadata_fallback") return false;
+  const covered =
+    analysis.discussionLevel === "brief" || analysis.discussionLevel === "substantial";
+  if (!covered) return false;
+  return analysis.discussesTopic || (analysis.semanticScore ?? 0) >= 45;
+}
+
 export type UnderstandingInput = {
   source: ScoreSource;
   llmScore: number;

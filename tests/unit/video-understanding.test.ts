@@ -4,6 +4,7 @@ import {
   UNDERSTANDING_RANK_MIN,
   legacyBlendScore,
   scoreFromUnderstanding,
+  shouldRankFromUnderstanding,
 } from "@/lib/services/video-understanding";
 
 const clickbait = {
@@ -66,6 +67,45 @@ describe("scoreFromUnderstanding", () => {
       searchPrior: 29,
     });
     expect(fallback).toBeLessThanOrEqual(METADATA_FALLBACK_CAP);
+  });
+
+  it("still ranks a 35-37 video that discusses the topic with spoken coverage", () => {
+    expect(
+      shouldRankFromUnderstanding({
+        relevanceScore: 36,
+        discussesTopic: true,
+        discussionLevel: "brief",
+        semanticScore: 50,
+        evidence: [{ timestamp: 12, text: "pricing", relevance: 70 }],
+        scoreSource: "transcript",
+      })
+    ).toBe(true);
+  });
+
+  it("still ranks a 35-37 video with high semantic coverage even if discussesTopic is false", () => {
+    expect(
+      shouldRankFromUnderstanding({
+        relevanceScore: 36,
+        discussesTopic: false,
+        discussionLevel: "brief",
+        semanticScore: 72,
+        evidence: [],
+        scoreSource: "transcript",
+      })
+    ).toBe(true);
+  });
+
+  it("does not let a top YouTube hit rank without understanding", () => {
+    expect(
+      shouldRankFromUnderstanding({
+        relevanceScore: 36,
+        discussesTopic: false,
+        discussionLevel: "mentioned",
+        semanticScore: 18,
+        evidence: [],
+        scoreSource: "transcript",
+      })
+    ).toBe(false);
   });
 
   it("does not add YouTube search position into a transcript score", () => {

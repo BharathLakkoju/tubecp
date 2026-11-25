@@ -11,7 +11,7 @@ import {
 import { buildMetadataOnlyAnalysis, scoreMetadataOnly } from "./metadata-analysis";
 import { getCachedAnalysis, cacheAnalysis, hashTopic } from "../store";
 import { topicKeywordScore } from "./research-scoring";
-import { UNDERSTANDING_RANK_MIN } from "./video-understanding";
+import { shouldRankFromUnderstanding } from "./video-understanding";
 import { toVideoSummary } from "../youtube";
 import type { ScoreSource, VideoCandidate, VideoAnalysis } from "../types";
 
@@ -230,7 +230,7 @@ export function rankVideos(
   allCandidates: VideoCandidate[] = []
 ) {
   const rankedVideos = analyses
-    .filter(({ analysis }) => analysis.relevanceScore >= UNDERSTANDING_RANK_MIN)
+    .filter(({ analysis }) => shouldRankFromUnderstanding(analysis))
     .sort((a, b) => {
       const scoreDelta = b.analysis.relevanceScore - a.analysis.relevanceScore;
       if (scoreDelta !== 0) return scoreDelta;
