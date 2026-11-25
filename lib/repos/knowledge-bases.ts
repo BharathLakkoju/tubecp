@@ -89,6 +89,14 @@ export async function listKnowledgeBaseRows(userId: string): Promise<KnowledgeBa
   return rows.map(mapRow);
 }
 
+export async function listAllKnowledgeBaseRows(): Promise<KnowledgeBaseRecord[]> {
+  if (!useAppPostgres()) return [];
+  const rows = (await sql().query(
+    `SELECT * FROM knowledge_bases ORDER BY created_at DESC`
+  )) as Record<string, unknown>[];
+  return rows.map(mapRow);
+}
+
 export async function deleteKnowledgeBaseRow(kbId: string): Promise<void> {
   if (!useAppPostgres()) return;
   await sql().query(`DELETE FROM knowledge_bases WHERE id = $1`, [kbId]);

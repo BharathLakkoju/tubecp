@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { isE2eAuthBypass } from "@/lib/e2e";
 import { createKnowledgeBase } from "@/lib/services/knowledge-base";
-import { addToKbVectorIndex } from "@/lib/store/vector-index";
+import { upsertKbChunkVectors } from "@/lib/store/kb-vectors";
 import {
   addUserKnowledgeBase,
   registerVideoChunks,
@@ -86,7 +86,7 @@ export async function stubKnowledgeBaseBuild(
 
   await saveChunk(chunk);
   await registerVideoChunks(video.videoId, [chunkId]);
-  await addToKbVectorIndex(kb.kbId, [{ id: chunkId, embedding }]);
+  await upsertKbChunkVectors(kb.kbId, [chunk]);
 
   const ready = await updateKnowledgeBase(
     kb.kbId,

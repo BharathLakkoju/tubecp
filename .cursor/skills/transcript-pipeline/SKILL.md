@@ -43,7 +43,7 @@ Copy this and complete it before handing back:
 | Default Inngest build | `lib/inngest/`, `lib/services/kb-build-steps.ts`, `app/api/inngest/route.ts` |
 | Transcript fetch and error kinds | `lib/services/transcript.ts`, `youtube-caption-fetch.ts` |
 | Chunking and embedding | `lib/services/knowledge-base.ts`, `lib/services/llm.ts` |
-| Chunk and vector storage (phase 1) | `lib/store.ts`, `lib/store/vector-index.ts` |
+| Chunk and vector storage (phase 1) | `lib/store.ts`, `lib/store/kb-vectors.ts` (Upstash Vector), `lib/store/vector-index.ts` (Redis IVF rollback) |
 | Postgres schema | `lib/db/schema.sql`, applied by `npm run db:migrate` |
 | Queue pipeline | `lib/pipeline/` (jobs, workers, SQS handler, orchestrate) |
 | CDK stack | `infra/stack.ts` (`npm --prefix infra run synth`) |

@@ -19,8 +19,8 @@ vi.mock("@/lib/services/llm", async (importOriginal) => {
   };
 });
 
-vi.mock("@/lib/store/vector-index", () => ({
-  addToKbVectorIndex: vi.fn(async () => undefined),
+vi.mock("@/lib/store/kb-vectors", () => ({
+  upsertKbChunkVectors: vi.fn(async () => undefined),
 }));
 
 vi.mock("@/lib/services/kb-chat", () => ({

@@ -9,7 +9,7 @@ import {
   registerVideoChunks,
   saveChunk,
 } from "@/lib/store";
-import { addToKbVectorIndex } from "@/lib/store/vector-index";
+import { upsertKbChunkVectors } from "@/lib/store/kb-vectors";
 import {
   classifyPipelineError,
   describePipelineError,
@@ -62,10 +62,7 @@ export async function handleEmbedJob(message: PipelineMessage, receiveCount: num
     if (reusable.length > 0 && reusable.length === existing.length) {
       const chunkIds = reusable.map((chunk) => chunk.id);
       await registerVideoChunks(message.videoId, chunkIds);
-      await addToKbVectorIndex(
-        message.kbId,
-        reusable.map((chunk) => ({ id: chunk.id, embedding: chunk.embedding! }))
-      );
+      await upsertKbChunkVectors(message.kbId, reusable);
       const cached = await getCachedTranscript(
         message.videoId,
         run.transcriptMode === "stt" ? "stt" : "captions"
@@ -114,10 +111,7 @@ export async function handleEmbedJob(message: PipelineMessage, receiveCount: num
       await saveChunk(embeddable[i]);
       chunkIds.push(embeddable[i].id);
     }
-    await addToKbVectorIndex(
-      message.kbId,
-      embeddable.map((chunk) => ({ id: chunk.id, embedding: chunk.embedding! }))
-    );
+    await upsertKbChunkVectors(message.kbId, embeddable);
     await registerVideoChunks(message.videoId, chunkIds);
     const { becameFinalizer } = await store.completeJob(message.kbId, message.videoId, {
       status: "indexed",

@@ -12,6 +12,7 @@ describe("GET /api/health", () => {
     expect(typeof body.checks.youtubeKey).toBe("boolean");
     expect(typeof body.checks.openrouterKey).toBe("boolean");
     expect(typeof body.checks.kv).toBe("boolean");
+    expect(typeof body.checks.vector).toBe("boolean");
     expect(typeof body.checks.databaseUrl).toBe("boolean");
     expect(typeof body.checks.databaseLive).toBe("boolean");
     expect(typeof body.checks.authSecret).toBe("boolean");

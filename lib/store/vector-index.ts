@@ -1,3 +1,10 @@
+/**
+ * Redis IVF vector index. Chat search no longer uses this path by default;
+ * Upstash Vector owns retrieval (see lib/store/kb-vectors.ts). This module
+ * stays as a read-only rollback index behind CHAT_VECTOR_BACKEND=redis.
+ * New writes go through upsertKbVectors and only land here when
+ * REDIS_VECTOR_INDEX_WRITES=true (or rollback is on).
+ */
 import { cosineSimilarity } from "@/lib/services/llm";
 import { getDevMemoryStore } from "@/lib/store/dev-memory";
 import { getRedis } from "@/lib/store/redis";
