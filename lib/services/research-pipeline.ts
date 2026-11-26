@@ -1,8 +1,8 @@
 import { mapWithConcurrency } from "../concurrency";
-import { expandQueries } from "./query-expansion";
+import { expandQueries, tagSearchQueries } from "./query-expansion";
 import { searchYouTubeMultiple } from "./youtube-search";
-import { analyzeVideo, rankVideos, preRankCandidates } from "./relevance";
-import { selectCandidatesForAnalysis } from "./research-scoring";
+import { queueForReading } from "./recall";
+import { assessVideo, orderSelection } from "./selection";
 import { getResearchPipelineLimits } from "../research-limits";
 import { toVideoSummary } from "../youtube";
 import type { ResearchResult, VideoSummary } from "../types";
@@ -40,58 +40,51 @@ export async function runResearchPipeline(
   });
 
   onProgress({ stage: "searching", message: "Searching YouTube...", progress: 12, queries });
-  const allCandidates = await searchYouTubeMultiple(queries, undefined, limits.search);
+  const tagged = tagSearchQueries(topic, queries);
+  const allCandidates = await searchYouTubeMultiple(
+    tagged.map((query) => query.text),
+    undefined,
+    limits.search,
+    undefined,
+    { queryKinds: tagged.map((query) => query.kind) }
+  );
   const allVideos = allCandidates.map(toVideoSummary);
 
   if (allCandidates.length === 0) {
     return { topic, queriesUsed: queries, videosSearched: 0, allVideos: [], rankedVideos: [] };
   }
 
-  onProgress({
-    stage: "preranking",
-    message: `Pre-ranking ${allCandidates.length} candidates by relevance...`,
-    progress: 20,
-    queries,
-    allVideos,
-  });
-
-  const preRanked =
-    allCandidates.length <= limits.preRankLimit
-      ? allCandidates
-      : await preRankCandidates(topic, allCandidates, limits.preRankLimit);
-
-  const toAnalyze = selectCandidatesForAnalysis(topic, preRanked, limits);
+  const queue = queueForReading(allCandidates, limits);
   let analyzedCount = 0;
   const analyzedVideos: VideoSummary[] = [];
-  const analyzedScores: Record<string, number> = {};
 
-  const analyses = await mapWithConcurrency(toAnalyze, 4, async (video) => {
+  const assessments = await mapWithConcurrency(queue.toRead, 4, async (video) => {
     analyzedCount += 1;
-    const analysis = await analyzeVideo(video, topic);
+    const state = await assessVideo(video, topic);
     analyzedVideos.push(toVideoSummary(video));
-    analyzedScores[video.videoId] = analysis.relevanceScore;
     onProgress({
       stage: "analyzing",
-      message: `Analyzing "${video.title.slice(0, 50)}..." (${analyzedCount}/${toAnalyze.length})`,
-      progress: 25 + Math.round((analyzedCount / toAnalyze.length) * 65),
+      message: `Reading "${video.title.slice(0, 50)}..." (${analyzedCount}/${queue.toRead.length})`,
+      progress: 25 + Math.round((analyzedCount / queue.toRead.length) * 65),
       queries,
       allVideos,
       analyzedVideos: [...analyzedVideos],
-      analyzedScores: { ...analyzedScores },
     });
-    return { video, analysis };
+    return state;
   });
 
-  onProgress({ stage: "ranking", message: "Ranking videos by relevance...", progress: 95 });
+  onProgress({ stage: "ranking", message: "Selecting videos by transcript...", progress: 95 });
 
-  const result = rankVideos(
+  const result = orderSelection({
     topic,
-    queries,
-    allCandidates.length,
-    analyses,
+    queriesUsed: queries,
+    videosSearched: allCandidates.length,
+    allVideos,
+    assessments,
+    pastAnalyzeCap: queue.pastAnalyzeCap,
+    pastSearchCap: queue.pastSearchCap,
     maxResults,
-    allCandidates
-  );
+  });
 
   onProgress({
     stage: "complete",

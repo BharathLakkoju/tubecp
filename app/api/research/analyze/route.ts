@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { analyzeVideo } from "@/lib/services/relevance";
+import { assessVideo } from "@/lib/services/selection";
 import { requireUserId, apiError } from "@/lib/auth";
 import { assertResearchSession, getResearchCheckpoint, saveResearchCheckpoint } from "@/lib/research-session";
 import { rateLimitApi } from "@/lib/ratelimit";
@@ -24,18 +24,14 @@ export async function POST(req: NextRequest) {
 
     await assertResearchSession(userId, researchSessionId);
 
-    const analysis = await analyzeVideo(video, topic);
+    const state = await assessVideo(video, topic);
 
     if (researchSessionId) {
       const checkpoint = await getResearchCheckpoint(userId, researchSessionId);
-      const analyses = [...(checkpoint?.analyses ?? [])];
-      const existingIndex = analyses.findIndex((item) => item.video.videoId === video.videoId);
-      const entry = { video, analysis };
-      if (existingIndex >= 0) {
-        analyses[existingIndex] = entry;
-      } else {
-        analyses.push(entry);
-      }
+      const states = [...(checkpoint?.states ?? [])];
+      const existingIndex = states.findIndex((item) => item.video.videoId === video.videoId);
+      if (existingIndex >= 0) states[existingIndex] = state;
+      else states.push(state);
 
       await saveResearchCheckpoint(researchSessionId, {
         topic: topic.trim(),
@@ -44,12 +40,14 @@ export async function POST(req: NextRequest) {
         candidates: checkpoint?.candidates,
         allCandidates: checkpoint?.allCandidates,
         videosSearched: checkpoint?.videosSearched,
-        analyses,
+        pastAnalyzeCap: checkpoint?.pastAnalyzeCap,
+        pastSearchCap: checkpoint?.pastSearchCap,
+        states,
         updatedAt: new Date().toISOString(),
       });
     }
 
-    return NextResponse.json({ video, analysis });
+    return NextResponse.json({ video, state });
   } catch (err) {
     return apiError(err);
   }

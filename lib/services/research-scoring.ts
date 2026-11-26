@@ -54,7 +54,16 @@ export function topicTerms(topic: string): string[] {
   ];
 }
 
-/** Keyword overlap score (0–100) between a topic and video metadata. */
+function termInText(haystack: string, term: string): boolean {
+  return new RegExp(`(?:^|\\W)${term}(?:\\W|$)`).test(haystack);
+}
+
+/**
+ * Keyword overlap (0–100) between a topic and video metadata.
+ * Terms match whole words, so "tan" does not hit "Stanford".
+ * Two subject hits score like a 3-term topic, so extra modifiers in a long
+ * topic do not erase a video that names the subject.
+ */
 export function topicKeywordScore(topic: string, text: string): number {
   const terms = topicTerms(topic);
   if (terms.length === 0) return 0;
@@ -62,9 +71,13 @@ export function topicKeywordScore(topic: string, text: string): number {
   const haystack = text.toLowerCase();
   let hits = 0;
   for (const term of terms) {
-    if (haystack.includes(term)) hits++;
+    if (termInText(haystack, term)) hits++;
   }
-  return Math.round((hits / terms.length) * 100);
+  if (hits === 0) return 0;
+
+  const fraction = hits / terms.length;
+  const subject = hits / Math.min(terms.length, 3);
+  return Math.round(Math.max(fraction, subject) * 100);
 }
 
 /** Remove stale years unless the original topic explicitly mentions a year. */

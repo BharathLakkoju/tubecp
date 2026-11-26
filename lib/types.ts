@@ -12,6 +12,16 @@ export interface VideoCandidate {
   searchScore?: number;
   /** How many expanded queries returned this video. */
   matchedQueries?: number;
+  /** Which search queries returned this video, and at what YouTube rank. */
+  matches?: SearchMatch[];
+}
+
+export type QueryKind = "topic" | "subject" | "name" | "paraphrase";
+
+export interface SearchMatch {
+  query: string;
+  kind: QueryKind;
+  rank: number;
 }
 
 export interface TranscriptSegment {
@@ -61,12 +71,38 @@ export interface RankedVideo extends VideoSummary {
   discussionLevel: "brief" | "substantial";
 }
 
+export type UnreadReason = "no_captions" | "captions_failed" | "model_failed";
+
+export type SkipReason = "over_search_cap" | "over_analyze_cap";
+
+export interface RejectedVideo {
+  video: VideoSummary;
+  reason: "off_topic" | "mention_only";
+  why: string;
+}
+
+export interface UnreadVideo {
+  video: VideoSummary;
+  reason: UnreadReason;
+}
+
+export interface SkippedVideo {
+  video: VideoSummary;
+  reason: SkipReason;
+}
+
 export interface ResearchResult {
   topic: string;
   queriesUsed: string[];
   videosSearched: number;
   allVideos: VideoSummary[];
+  /** Videos whose transcript discusses the topic, already ordered. */
   rankedVideos: RankedVideo[];
+  /** Present when this result was produced by transcript judgments. */
+  speechSelection?: boolean;
+  rejected?: RejectedVideo[];
+  unread?: UnreadVideo[];
+  skipped?: SkippedVideo[];
 }
 
 /** Saved research summary for lists and navigation. */

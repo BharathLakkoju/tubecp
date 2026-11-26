@@ -2,6 +2,30 @@ import { config } from "../config";
 import { getCachedExpandedQueries, cacheExpandedQueries, hashTopic } from "../store";
 import { cosineSimilarity, generateEmbeddings, generateText } from "./llm";
 import { dedupeQueries, sanitizeExpandedQuery, topicTerms } from "./research-scoring";
+import type { QueryKind } from "../types";
+
+const NOT_A_NAME = new Set(["make", "build", "write", "learn", "using", "use", "create", "ship", "get"]);
+
+/** Name and subject queries that do not have to repeat every topic word. */
+export function recallQueries(topic: string): Array<{ text: string; kind: QueryKind }> {
+  const terms = topicTerms(topic);
+  if (terms.length < 4 || NOT_A_NAME.has(terms[0])) return [];
+  return [
+    { text: `${terms[0]} ${terms[1]}`, kind: "name" },
+    { text: terms.slice(2, 6).join(" "), kind: "subject" },
+  ];
+}
+
+export function tagSearchQueries(
+  topic: string,
+  queries: string[]
+): Array<{ text: string; kind: QueryKind }> {
+  const recall = new Map(recallQueries(topic).map((query) => [query.text.toLowerCase(), query.kind]));
+  return queries.map((text, index) => ({
+    text,
+    kind: index === 0 ? "topic" : (recall.get(text.toLowerCase()) ?? "paraphrase"),
+  }));
+}
 import { fetchYoutubeSearchSuggestions } from "./youtube-query-suggest";
 
 export type QueryIntent = "learn" | "compare" | "generic";
@@ -245,7 +269,7 @@ async function filterByEmbedding(
   }
 }
 
-const EXPAND_CACHE_VERSION = "v6";
+const EXPAND_CACHE_VERSION = "v7";
 
 export function expandQueriesCacheKey(topic: string, maxQueries: number): string {
   return hashTopic(`${EXPAND_CACHE_VERSION}:${maxQueries}:${topic.toLowerCase().trim()}`);
@@ -283,11 +307,13 @@ async function buildExpandedQueries(
   const restSuggestions = suggestions.slice(suggestionCap);
   const fallbacks = fallbackQueries(trimmed);
 
-  return dedupeQueries(
+  const paraphrasesAndFallbacks = dedupeQueries(
     trimmed,
     [...firstSuggestions, ...paraphrases, ...restSuggestions, ...fallbacks],
     maxQueries
   );
+  const recall = recallQueries(trimmed).map((query) => query.text);
+  return dedupeQueries(trimmed, [...recall, ...paraphrasesAndFallbacks], maxQueries);
 }
 
 export async function expandQueries(

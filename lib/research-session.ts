@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { getRedis } from "@/lib/store/redis";
 import type { ResearchResult, VideoAnalysis, VideoCandidate } from "@/lib/types";
+import type { VideoState } from "@/lib/services/selection";
 
 const SESSION_TTL_SECONDS = 2 * 60 * 60;
 
@@ -19,6 +20,9 @@ export type ResearchCheckpoint = {
   allCandidates?: VideoCandidate[];
   videosSearched?: number;
   analyses?: Array<{ video: VideoCandidate; analysis: VideoAnalysis }>;
+  states?: VideoState[];
+  pastAnalyzeCap?: VideoCandidate[];
+  pastSearchCap?: VideoCandidate[];
   result?: ResearchResult;
   updatedAt: string;
 };

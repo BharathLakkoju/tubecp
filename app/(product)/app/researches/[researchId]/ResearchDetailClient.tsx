@@ -10,11 +10,11 @@ import { formatDisplayDate } from "@/lib/format-display-date";
 import type { SavedResearchRecord } from "@/lib/types";
 
 export default function ResearchDetailClient({ record }: { record: SavedResearchRecord }) {
-  const ranked = useMemo(
-    () =>
-      [...record.result.rankedVideos].sort((a, b) => b.relevanceScore - a.relevanceScore),
-    [record.result.rankedVideos]
-  );
+  const ranked = useMemo(() => {
+    const videos = record.result.rankedVideos;
+    if (record.result.speechSelection) return videos;
+    return [...videos].sort((a, b) => b.relevanceScore - a.relevanceScore);
+  }, [record.result]);
 
   return (
     <AppPage>

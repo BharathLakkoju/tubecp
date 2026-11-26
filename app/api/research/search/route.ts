@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchYouTubeMultiple } from "@/lib/services/youtube-search";
-import { preRankCandidates } from "@/lib/services/relevance";
-import { selectCandidatesForAnalysis } from "@/lib/services/research-scoring";
+import { tagSearchQueries } from "@/lib/services/query-expansion";
+import { queueForReading } from "@/lib/services/recall";
 import { cacheQueries, hashTopic } from "@/lib/store";
 import { getResearchPipelineLimits } from "@/lib/research-limits";
 import { getUserSubscription } from "@/lib/billing/subscription";
@@ -33,21 +33,16 @@ export async function POST(req: NextRequest) {
     const sub = await getUserSubscription(userId);
     const limits = getResearchPipelineLimits(sub.plan);
 
+    const tagged = tagSearchQueries(topic, queries);
     const allCandidates = await searchYouTubeMultiple(
-      queries,
+      tagged.map((query) => query.text),
       dateRange,
       limits.search,
-      userId
+      userId,
+      { queryKinds: tagged.map((query) => query.kind) }
     );
-    const preRanked =
-      allCandidates.length <= limits.preRankLimit
-        ? allCandidates
-        : await preRankCandidates(topic, allCandidates, limits.preRankLimit).catch((err) => {
-            console.warn("Pre-rank failed, returning unranked candidates:", err);
-            return allCandidates.slice(0, limits.preRankLimit);
-          });
-
-    const candidates = selectCandidatesForAnalysis(topic, preRanked, limits);
+    const queue = queueForReading(allCandidates, limits);
+    const candidates = queue.toRead;
 
     const topicHash = hashTopic(topic.toLowerCase().trim());
     await cacheQueries(topicHash, queries, allCandidates.map((v) => v.videoId));
@@ -59,6 +54,8 @@ export async function POST(req: NextRequest) {
         queries,
         candidates,
         allCandidates,
+        pastAnalyzeCap: queue.pastAnalyzeCap,
+        pastSearchCap: queue.pastSearchCap,
         videosSearched: allCandidates.length,
         updatedAt: new Date().toISOString(),
       });
@@ -67,6 +64,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       candidates,
       allCandidates,
+      pastAnalyzeCap: queue.pastAnalyzeCap,
+      pastSearchCap: queue.pastSearchCap,
       videosSearched: allCandidates.length,
       pipelineLimits: limits,
     });

@@ -1,7 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import { POST } from "@/app/api/research/rank/route";
-import { mockAnalysisPair } from "../fixtures/research";
+import { mockVideo } from "../fixtures/research";
+import type { VideoState } from "@/lib/services/selection";
 
 vi.mock("@/auth", () => ({
   auth: vi.fn().mockResolvedValue(null),
@@ -25,6 +26,7 @@ vi.mock("@/lib/billing/subscription", () => ({
 
 vi.mock("@/lib/research-session", () => ({
   assertResearchSession: vi.fn().mockResolvedValue(undefined),
+  getResearchCheckpoint: vi.fn().mockResolvedValue(null),
   saveResearchCheckpoint: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -40,7 +42,7 @@ describe("POST /api/research/rank", () => {
 
     const req = new NextRequest("http://localhost/api/research/rank", {
       method: "POST",
-      body: JSON.stringify({ topic: "test", queriesUsed: [], analyses: [] }),
+      body: JSON.stringify({ topic: "test", queriesUsed: [], states: [] }),
     });
 
     const res = await POST(req);
@@ -62,9 +64,32 @@ describe("POST /api/research/rank", () => {
   it("ranks videos for authenticated requests", async () => {
     vi.mocked(requireUserId).mockResolvedValue("user_test");
 
-    const analyses = [
-      mockAnalysisPair({ videoId: "high" }, { relevanceScore: 85 }),
-      mockAnalysisPair({ videoId: "low" }, { relevanceScore: 20, discussesTopic: false }),
+    const states: VideoState[] = [
+      {
+        state: "selected",
+        video: {
+          videoId: "high",
+          title: mockVideo().title,
+          channel: mockVideo().channel,
+          url: mockVideo().url,
+          thumbnailUrl: "",
+        },
+        discussion: "substantial",
+        why: "The transcript covers pricing.",
+        evidence: [{ timestamp: 12, text: "We charge $49", relevance: 80 }],
+      },
+      {
+        state: "rejected",
+        video: {
+          videoId: "low",
+          title: "Other",
+          channel: "c",
+          url: "https://www.youtube.com/watch?v=low",
+          thumbnailUrl: "",
+        },
+        reason: "off_topic",
+        why: "The transcript is about something else.",
+      },
     ];
 
     const req = new NextRequest("http://localhost/api/research/rank", {
@@ -73,7 +98,7 @@ describe("POST /api/research/rank", () => {
         topic: "AI SaaS monetization",
         queriesUsed: ["AI SaaS revenue"],
         videosSearched: 10,
-        analyses,
+        states,
         researchSessionId: "session_test",
       }),
     });

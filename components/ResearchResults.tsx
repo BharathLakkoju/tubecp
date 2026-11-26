@@ -52,7 +52,12 @@ export default function ResearchResults({
   onClear,
   topCount,
 }: Props) {
-  const scores = Object.fromEntries(ranked.map((video) => [video.videoId, video.relevanceScore]));
+  const scores = research.speechSelection
+    ? undefined
+    : Object.fromEntries(ranked.map((video) => [video.videoId, video.relevanceScore]));
+  const shown = research.speechSelection
+    ? ranked.map(({ relevanceScore: _score, ...video }) => video)
+    : ranked;
   const rankedLinksText = ranked.map((video) => video.url).join("\n");
 
   return (
@@ -78,9 +83,13 @@ export default function ResearchResults({
           </div>
         )}
         <RankedVideoList
-          title="Best matches"
-          caption={`${ranked.length} relevant of ${research.allVideos.length} found · sorted by relevance`}
-          videos={ranked}
+          title={research.speechSelection ? "Discuss the topic" : "Best matches"}
+          caption={
+            research.speechSelection
+              ? `${ranked.length} selected from ${research.allVideos.length} found · transcript`
+              : `${ranked.length} relevant of ${research.allVideos.length} found · sorted by relevance`
+          }
+          videos={shown}
           scores={scores}
           numbered
           selectable={selectable}
@@ -88,9 +97,17 @@ export default function ResearchResults({
           onToggle={onToggle}
           pageSize={10}
           copyable
-          emptyMessage="No videos met the relevance threshold for this topic. Try a broader topic."
+          emptyMessage={
+            research.speechSelection
+              ? "No transcript discussed this topic. Unread videos can be tried again."
+              : "No videos met the relevance threshold for this topic. Try a broader topic."
+          }
         />
       </div>
+
+      {research.speechSelection && (
+        <SpeechGroups research={research} />
+      )}
 
       <div className="flex flex-col gap-1">
         <Collapsible>
@@ -119,6 +136,44 @@ export default function ResearchResults({
           </Collapsible>
         )}
       </div>
+    </div>
+  );
+}
+
+const UNREAD_COPY: Record<string, string> = {
+  no_captions: "No captions. The next search tries again tomorrow.",
+  captions_failed: "Captions failed. The next search tries again.",
+  model_failed: "The transcript was not judged. The next search tries again.",
+};
+
+const SKIP_COPY: Record<string, string> = {
+  over_search_cap: "Past the search cap. A higher plan can read further.",
+  over_analyze_cap: "Past the analyze cap. A higher plan can read further.",
+};
+
+function SpeechGroups({ research }: { research: ResearchResult }) {
+  const rejected = research.rejected ?? [];
+  const unread = research.unread ?? [];
+  const skipped = research.skipped ?? [];
+  if (rejected.length + unread.length + skipped.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-2 text-body-sm text-foreground-secondary">
+      {unread.length > 0 && (
+        <p>
+          {unread.length} not read. {unread.map((item) => UNREAD_COPY[item.reason]).filter(Boolean)[0]}
+        </p>
+      )}
+      {skipped.length > 0 && (
+        <p>
+          {skipped.length} not attempted. {SKIP_COPY[skipped[0].reason]}
+        </p>
+      )}
+      {rejected.length > 0 && (
+        <p>
+          {rejected.length} read and not about this topic.
+        </p>
+      )}
     </div>
   );
 }

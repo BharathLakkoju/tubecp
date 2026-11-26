@@ -2,9 +2,9 @@ import type {
   ResearchResult,
   KnowledgeBase,
   VideoCandidate,
-  VideoAnalysis,
   ResearchLiveState,
 } from "@/lib/types";
+import type { VideoState } from "@/lib/services/selection";
 import type { ResearchCheckpoint } from "@/lib/research-session";
 import { mapWithConcurrency } from "@/lib/concurrency";
 import { parseJsonResponseBody } from "@/lib/client/fetch-json";
@@ -130,21 +130,21 @@ async function resumeFromCheckpoint(
       checkpoint.queries,
       checkpoint.candidates,
       checkpoint.allCandidates ?? checkpoint.candidates,
-      checkpoint.videosSearched ?? checkpoint.candidates.length,
-      checkpoint.analyses ?? [],
-      onProgress
-    );
+    checkpoint.videosSearched ?? checkpoint.candidates.length,
+    checkpoint.states ?? [],
+    onProgress
+  );
   }
 
-  if (checkpoint.stage === "analyzed" && checkpoint.queries && checkpoint.analyses) {
+  if (checkpoint.stage === "analyzed" && checkpoint.queries && checkpoint.states) {
     onProgress?.("resuming from analysis", 85, "analyzing");
     return rankOnly(
       topic,
       researchSessionId,
       checkpoint.queries,
-      checkpoint.analyses,
+      checkpoint.states,
       checkpoint.allCandidates ?? [],
-      checkpoint.videosSearched ?? checkpoint.analyses.length,
+      checkpoint.videosSearched ?? checkpoint.states.length,
       onProgress
     );
   }
@@ -206,17 +206,16 @@ async function analyzeAndRank(
   candidates: VideoCandidate[],
   allCandidates: VideoCandidate[],
   videosSearched: number,
-  existingAnalyses: Array<{ video: VideoCandidate; analysis: VideoAnalysis }>,
+  existingStates: VideoState[],
   onProgress?: ProgressCallback
 ): Promise<RunResearchResult> {
-  const completedIds = new Set(existingAnalyses.map((item) => item.video.videoId));
+  const completedIds = new Set(existingStates.map((item) => item.video.videoId));
   const pending = candidates.filter((video) => !completedIds.has(video.videoId));
 
-  let analyzedCount = existingAnalyses.length;
-  const analyses = [...existingAnalyses];
-  const completedInFlight: Array<{ video: VideoCandidate; analysis: VideoAnalysis }> = [];
+  let analyzedCount = existingStates.length;
+  const states = [...existingStates];
 
-  const newAnalyses = await mapWithConcurrency(pending, ANALYSIS_CONCURRENCY, async (video) => {
+  const newStates = await mapWithConcurrency(pending, ANALYSIS_CONCURRENCY, async (video) => {
     analyzedCount += 1;
     onProgress?.(
       `"${video.title.slice(0, 50)}…" (${analyzedCount}/${candidates.length})`,
@@ -225,63 +224,48 @@ async function analyzeAndRank(
     );
 
     try {
-      const result = await postJson<{ video: VideoCandidate; analysis: VideoAnalysis }>(
-        "/api/research/analyze",
-        {
-          video,
-          topic,
-          researchSessionId,
-        }
-      );
-
-      completedInFlight.push(result);
-      const completed = [...analyses, ...completedInFlight];
+      const result = await postJson<{ state: VideoState }>("/api/research/analyze", {
+        video,
+        topic,
+        researchSessionId,
+      });
+      states.push(result.state);
       onProgress?.(
-        `analyzed ${completed.length}/${candidates.length} videos`,
+        `read ${states.length}/${candidates.length} videos`,
         20 + Math.round((analyzedCount / candidates.length) * 65),
         "analyzing",
-        {
-          analyzedVideos: completed.map(({ video: item }) => toVideoSummary(item)),
-          analyzedScores: Object.fromEntries(
-            completed.map(({ video: item, analysis }) => [item.videoId, analysis.relevanceScore])
-          ),
-        }
+        { analyzedVideos: states.map((item) => item.video) }
       );
-
-      return result;
+      return result.state;
     } catch {
-      return null;
+      const unread: VideoState = {
+        state: "unread",
+        video: toVideoSummary(video),
+        reason: "captions_failed",
+      };
+      states.push(unread);
+      return unread;
     }
   });
 
-  const successful = newAnalyses.filter(
-    (entry): entry is { video: VideoCandidate; analysis: VideoAnalysis } => entry !== null
-  );
-  analyses.push(...successful);
-
-  if (analyses.length === 0) {
+  if (states.length === 0 && newStates.length === 0) {
     throw new Error("RESEARCH_FAILED");
   }
 
-  return rankOnly(topic, researchSessionId, queries, analyses, allCandidates, videosSearched, onProgress);
+  return rankOnly(topic, researchSessionId, queries, states, allCandidates, videosSearched, onProgress);
 }
 
 async function rankOnly(
   topic: string,
   researchSessionId: string,
   queries: string[],
-  analyses: Array<{ video: VideoCandidate; analysis: VideoAnalysis }>,
+  states: VideoState[],
   allCandidates: VideoCandidate[],
   videosSearched: number,
   onProgress?: ProgressCallback
 ): Promise<RunResearchResult> {
-  const analyzedVideos = analyses.map(({ video }) => toVideoSummary(video));
-  const analyzedScores = Object.fromEntries(
-    analyses.map(({ video, analysis }) => [video.videoId, analysis.relevanceScore])
-  );
-  onProgress?.(`analyzed ${analyses.length} videos`, 85, "analyzing", {
-    analyzedVideos,
-    analyzedScores,
+  onProgress?.(`read ${states.length} videos`, 85, "analyzing", {
+    analyzedVideos: states.map((item) => item.video),
   });
 
   onProgress?.("ranking", 90, "ranking");
@@ -289,7 +273,7 @@ async function rankOnly(
     topic,
     queriesUsed: queries,
     videosSearched,
-    analyses,
+    states,
     allCandidates,
     researchSessionId,
   });

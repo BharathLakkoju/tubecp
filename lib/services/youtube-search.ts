@@ -8,7 +8,7 @@ import {
   SECONDARY_SEARCH_RESULTS,
 } from "../constants/research";
 import type { ResearchSearchLimits } from "../research-limits";
-import type { DateRange, VideoCandidate } from "../types";
+import type { DateRange, QueryKind, SearchMatch, VideoCandidate } from "../types";
 
 const YOUTUBE_SEARCH_PAGE_SIZE = 50;
 
@@ -112,6 +112,7 @@ type ScoredCandidate = {
   score: number;
   bestRank: number;
   hits: number;
+  matches: SearchMatch[];
 };
 
 function positionScore(rank: number, isPrimary: boolean): number {
@@ -124,23 +125,29 @@ function mergeSearchResults(
   videos: VideoCandidate[],
   isPrimary: boolean,
   weight: number,
-  rankOffset = 0
+  rankOffset = 0,
+  query?: { text: string; kind: QueryKind }
 ): void {
   videos.forEach((video, index) => {
     const rank = rankOffset + index + 1;
     const points = positionScore(rank, isPrimary) * weight;
+    const match: SearchMatch | null = query
+      ? { query: query.text, kind: query.kind, rank }
+      : null;
     const existing = scoreMap.get(video.videoId);
 
     if (existing) {
       existing.score += points;
       existing.hits += 1;
       existing.bestRank = Math.min(existing.bestRank, rank);
+      if (match) existing.matches.push(match);
     } else {
       scoreMap.set(video.videoId, {
         video,
         score: points,
         bestRank: rank,
         hits: 1,
+        matches: match ? [match] : [],
       });
     }
   });
@@ -151,7 +158,7 @@ export async function searchYouTubeMultiple(
   dateRange?: DateRange,
   searchLimits?: Partial<ResearchSearchLimits>,
   usageUserId?: string,
-  deps?: { searchPage?: YoutubeSearchPageFn }
+  deps?: { searchPage?: YoutubeSearchPageFn; queryKinds?: QueryKind[] }
 ): Promise<VideoCandidate[]> {
   if (queries.length === 0) return [];
 
@@ -162,6 +169,8 @@ export async function searchYouTubeMultiple(
   const targetUniqueResults = searchLimits?.targetUniqueResults ?? primaryResultsLimit;
   const maxPrimaryPages = searchLimits?.maxPrimaryPages ?? 1;
 
+  const kinds = deps?.queryKinds ?? [];
+  const kindAt = (index: number): QueryKind => kinds[index] ?? (index === 0 ? "topic" : "paraphrase");
   const [primary, ...secondary] = queries;
   const scoreMap = new Map<string, ScoredCandidate>();
   const searchOpts = {
@@ -177,7 +186,10 @@ export async function searchYouTubeMultiple(
   let primaryPages = 1;
   let primaryCount = firstPage.videos.length;
   let nextPageToken = firstPage.nextPageToken;
-  mergeSearchResults(scoreMap, firstPage.videos, true, 1);
+  mergeSearchResults(scoreMap, firstPage.videos, true, 1, 0, {
+    text: primary,
+    kind: kindAt(0),
+  });
 
   const secondaryQueries = secondary.slice(0, maxSecondaryQueries);
   if (secondaryQueries.length > 0) {
@@ -190,8 +202,11 @@ export async function searchYouTubeMultiple(
       )
     );
 
-    secondaryBatches.forEach((page) => {
-      mergeSearchResults(scoreMap, page.videos, false, 0.4);
+    secondaryBatches.forEach((page, index) => {
+      mergeSearchResults(scoreMap, page.videos, false, 0.4, 0, {
+        text: secondaryQueries[index],
+        kind: kindAt(index + 1),
+      });
     });
   }
 
@@ -207,7 +222,10 @@ export async function searchYouTubeMultiple(
       pageToken: nextPageToken,
     });
     primaryPages += 1;
-    mergeSearchResults(scoreMap, page.videos, true, 1, primaryCount);
+    mergeSearchResults(scoreMap, page.videos, true, 1, primaryCount, {
+      text: primary,
+      kind: kindAt(0),
+    });
     primaryCount += page.videos.length;
     nextPageToken = page.nextPageToken;
     if (page.videos.length === 0) break;
@@ -215,10 +233,11 @@ export async function searchYouTubeMultiple(
 
   return Array.from(scoreMap.values())
     .sort((a, b) => b.score - a.score)
-    .map(({ video, score, bestRank, hits }) => ({
+    .map(({ video, score, bestRank, hits, matches }) => ({
       ...video,
       searchScore: Math.round(score),
       searchRank: bestRank,
       matchedQueries: hits,
+      matches,
     }));
 }

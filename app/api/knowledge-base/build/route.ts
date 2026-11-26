@@ -48,7 +48,19 @@ export async function POST(req: NextRequest) {
       ? await assertResearchAccess(researchId.trim(), userId)
       : null;
 
-    const kb = await startKnowledgeBaseBuild(topic, rankedVideos, userId, persistent, {
+    let videosForBuild = rankedVideos;
+    if (linkedResearch?.result.speechSelection) {
+      const allowed = new Set(linkedResearch.result.rankedVideos.map((video) => video.videoId));
+      videosForBuild = rankedVideos.filter((video) => allowed.has(video.videoId));
+      if (videosForBuild.length === 0) {
+        return NextResponse.json(
+          { error: "Only videos whose transcript discusses the topic can be indexed" },
+          { status: 400 }
+        );
+      }
+    }
+
+    const kb = await startKnowledgeBaseBuild(topic, videosForBuild, userId, persistent, {
       transcriptMode: mode,
     });
 
