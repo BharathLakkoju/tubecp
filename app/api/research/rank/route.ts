@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { rankVideos } from "@/lib/services/relevance";
 import { requireUserId, apiError } from "@/lib/auth";
 import { getUserSubscription } from "@/lib/billing/subscription";
 import { getResearchPipelineLimits } from "@/lib/research-limits";
-import { assertResearchSession, saveResearchCheckpoint } from "@/lib/research-session";
+import { assertResearchSession, getResearchCheckpoint, saveResearchCheckpoint } from "@/lib/research-session";
 import { rateLimitApi } from "@/lib/ratelimit";
 import { persistUserResearch } from "@/lib/services/saved-research";
+import { orderSelection, selectionNeedsRetry, type VideoState } from "@/lib/services/selection";
 import { cacheResearchResult, researchResultCacheKey } from "@/lib/store";
-import type { VideoAnalysis, VideoCandidate } from "@/lib/types";
+import { toVideoSummary } from "@/lib/youtube";
+import type { VideoCandidate } from "@/lib/types";
 
 export const maxDuration = 10;
 
@@ -16,47 +17,57 @@ export async function POST(req: NextRequest) {
     const userId = await requireUserId();
     await rateLimitApi(userId, "research-rank", 20);
 
-    const { topic, queriesUsed, videosSearched, analyses, allCandidates, researchSessionId } =
+    const { topic, queriesUsed, videosSearched, states, allCandidates, researchSessionId } =
       (await req.json()) as {
         topic?: string;
         queriesUsed?: string[];
         videosSearched?: number;
-        analyses?: Array<{ video: VideoCandidate; analysis: VideoAnalysis }>;
+        states?: VideoState[];
         allCandidates?: VideoCandidate[];
         researchSessionId?: string;
       };
 
-    if (!topic || !queriesUsed || !analyses) {
+    if (!topic || !queriesUsed || !states) {
       return NextResponse.json(
-        { error: "topic, queriesUsed, and analyses are required" },
+        { error: "topic, queriesUsed, and states are required" },
         { status: 400 }
       );
     }
 
     await assertResearchSession(userId, researchSessionId);
+    const checkpoint = researchSessionId
+      ? await getResearchCheckpoint(userId, researchSessionId)
+      : null;
 
     const sub = await getUserSubscription(userId);
     const limits = getResearchPipelineLimits(sub.plan);
+    const scraped = allCandidates ?? [];
 
-    const result = rankVideos(
+    const result = orderSelection({
       topic,
       queriesUsed,
-      videosSearched ?? analyses.length,
-      analyses,
-      limits.maxResults,
-      allCandidates ?? []
-    );
+      videosSearched: videosSearched ?? scraped.length,
+      allVideos: scraped.map(toVideoSummary),
+      assessments: states,
+      pastAnalyzeCap: checkpoint?.pastAnalyzeCap ?? [],
+      pastSearchCap: checkpoint?.pastSearchCap ?? [],
+      maxResults: limits.maxResults,
+    });
 
-    await cacheResearchResult(researchResultCacheKey(sub.plan, topic), result);
+    if (!selectionNeedsRetry(result)) {
+      await cacheResearchResult(researchResultCacheKey(sub.plan, topic), result);
+    }
 
     if (researchSessionId) {
       await saveResearchCheckpoint(researchSessionId, {
         topic,
         stage: "ranked",
         queries: queriesUsed,
-        allCandidates,
-        videosSearched: videosSearched ?? analyses.length,
-        analyses,
+        allCandidates: scraped,
+        videosSearched: result.videosSearched,
+        states,
+        pastAnalyzeCap: checkpoint?.pastAnalyzeCap,
+        pastSearchCap: checkpoint?.pastSearchCap,
         result,
         updatedAt: new Date().toISOString(),
       });

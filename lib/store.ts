@@ -250,6 +250,38 @@ export async function getCachedResearchResult(
   return cached.result;
 }
 
+export type CachedJudgment =
+  | {
+      state: "selected";
+      discussion: "brief" | "substantial";
+      why: string;
+      evidence: import("./types").Evidence[];
+    }
+  | { state: "rejected"; reason: "off_topic" | "mention_only"; why: string }
+  | { state: "unread"; reason: "no_captions" };
+
+function judgmentKey(topic: string, videoId: string): string {
+  return `judgment:v1:${hashTopic(topic.toLowerCase().trim())}:${videoId}`;
+}
+
+export async function getCachedJudgment(
+  topic: string,
+  videoId: string
+): Promise<CachedJudgment | null> {
+  return get<CachedJudgment>(judgmentKey(topic, videoId));
+}
+
+export async function putCachedJudgment(
+  topic: string,
+  videoId: string,
+  value: CachedJudgment
+): Promise<void> {
+  const ttl = value.state === "unread" ? 24 * 60 * 60 : 7 * 24 * 60 * 60;
+  const existing = await getCachedJudgment(topic, videoId);
+  if (existing && existing.state !== "unread") return;
+  await set(judgmentKey(topic, videoId), value, ttl);
+}
+
 export async function cacheResearchResult(
   cacheKey: string,
   result: ResearchResult

@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { searchYouTube } from "@/lib/services/youtube-search";
 import { getTranscript } from "@/lib/services/transcript";
-import { analyzeVideo } from "@/lib/services/relevance";
+import { assessVideo } from "@/lib/services/selection";
 import { runResearchPipeline } from "@/lib/services/research-pipeline";
 import { startKnowledgeBaseBuild } from "@/lib/kb/orchestrator";
 import { chatWithKnowledgeBase } from "@/lib/services/chat";
@@ -86,8 +86,8 @@ export function registerMcpTools(server: McpServer, ctx: McpToolContext): void {
           url: `https://www.youtube.com/watch?v=${videoId}`,
           publishedAt: "",
         };
-        const analysis = await analyzeVideo(video, topic);
-        return { content: [{ type: "text", text: JSON.stringify(analysis, null, 2) }] };
+        const state = await assessVideo(video, topic);
+        return { content: [{ type: "text", text: JSON.stringify(state, null, 2) }] };
       } catch (err) {
         if (err instanceof McpEnforcementError) return toolError(err.message);
         throw err;

@@ -48,14 +48,12 @@ describe("runResearch", () => {
       if (url.includes("/api/research/analyze")) {
         return new Response(
           JSON.stringify({
-            video: body.video,
-            analysis: {
-              videoId: "v1",
-              relevanceScore: 80,
-              discussesTopic: true,
-              summary: "Relevant",
-              discussionLevel: "brief",
-              evidence: [],
+            state: {
+              state: "selected",
+              video: body.video,
+              discussion: "brief",
+              why: "The transcript covers the topic.",
+              evidence: [{ timestamp: 4, text: "Here is the point", relevance: 70 }],
             },
           }),
           { status: 200, headers: { "Content-Type": "application/json" } }
@@ -94,6 +92,12 @@ describe("runResearch", () => {
     expect(urls.some((url) => url.endsWith("/api/research"))).toBe(false);
     expect(urls.some((url) => url.includes("/api/research/expand"))).toBe(true);
     expect(urls.some((url) => url.includes("/api/research/analyze"))).toBe(true);
+    const rankCall = fetchMock.mock.calls.find((call) =>
+      String(call[0]).includes("/api/research/rank")
+    );
+    const rankBody = JSON.parse(String(rankCall?.[1]?.body));
+    expect(rankBody.states[0].state).toBe("selected");
+    expect(rankBody.analyses).toBeUndefined();
     vi.unstubAllGlobals();
   });
 });

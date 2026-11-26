@@ -97,10 +97,11 @@ export default function AppResearchClient({
   const [useSpeechToText, setUseSpeechToText] = useState(false);
   const lastProgressAt = useRef(Date.now());
 
-  const ranked = useMemo(
-    () => [...(research?.rankedVideos ?? [])].sort((a, b) => b.relevanceScore - a.relevanceScore),
-    [research]
-  );
+  const ranked = useMemo(() => {
+    const videos = research?.rankedVideos ?? [];
+    if (research?.speechSelection) return videos;
+    return [...videos].sort((a, b) => b.relevanceScore - a.relevanceScore);
+  }, [research]);
 
   useEffect(() => {
     if (!activeBuildKbId) return;
@@ -184,10 +185,12 @@ export default function AppResearchClient({
       setResumeSessionId(researchSessionId);
       void refreshResearches({ silent: true });
       setProgressMsg("");
-      const top = [...result.rankedVideos]
-        .sort((a, b) => b.relevanceScore - a.relevanceScore)
-        .slice(0, TOP_COUNT)
-        .map((video) => video.videoId);
+      const ordered = result.speechSelection
+        ? result.rankedVideos
+        : [...result.rankedVideos].sort((a, b) => b.relevanceScore - a.relevanceScore);
+      const top = (result.speechSelection ? ordered : ordered.slice(0, TOP_COUNT)).map(
+        (video) => video.videoId
+      );
       setSelectedIds(new Set(top));
     } catch (err) {
       setError(parseClientError(err));

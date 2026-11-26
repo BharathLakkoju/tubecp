@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/services/query-expansion", () => ({
   expandQueries: vi.fn(async () => ({ queries: ["q1", "q2"], cached: true })),
+  tagSearchQueries: (topic: string, queries: string[]) =>
+    queries.map((text, index) => ({ text, kind: index === 0 ? "topic" : "paraphrase" })),
 }));
 
 vi.mock("@/lib/services/youtube-search", () => ({
