@@ -1,8 +1,10 @@
 "use client";
 
+import CopyButton from "@/components/CopyButton";
 import RankedVideoList from "@/components/tubecp/RankedVideoList";
 import { QueryList } from "@/components/ResearchResults";
 import type { ResearchLiveState } from "@/lib/types";
+import { videoUrlsAsLines } from "@/lib/video-urls";
 
 interface Props {
   live: ResearchLiveState;
@@ -30,13 +32,21 @@ export default function ResearchLiveView({ live }: Props) {
       {(hasScraped || hasAnalyzed) && (
         <div className="grid gap-6 md:grid-cols-2">
           {hasScraped && (
-            <RankedVideoList
-              title="Videos found"
-              caption={`${live.allVideos.length} so far`}
-              videos={live.allVideos}
-              emptyMessage="No videos were returned from YouTube search."
-              maxHeightClass="max-h-[28rem]"
-            />
+            <div className="flex flex-col gap-3">
+              <div className="flex justify-end">
+                <CopyButton
+                  text={videoUrlsAsLines(live.allVideos)}
+                  label="Copy searched links"
+                />
+              </div>
+              <RankedVideoList
+                title="Videos found"
+                caption={`${live.allVideos.length} so far`}
+                videos={live.allVideos}
+                emptyMessage="No videos were returned from YouTube search."
+                maxHeightClass="max-h-[28rem]"
+              />
+            </div>
           )}
           {hasAnalyzed && (
             <RankedVideoList
