@@ -6,6 +6,7 @@ import RankedVideoList from "@/components/tubecp/RankedVideoList";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import type { RankedVideo, ResearchResult } from "@/lib/types";
+import { videoUrlsAsLines } from "@/lib/video-urls";
 
 interface Props {
   research: ResearchResult;
@@ -58,7 +59,8 @@ export default function ResearchResults({
   const shown = research.speechSelection
     ? ranked.map(({ relevanceScore: _score, ...video }) => video)
     : ranked;
-  const rankedLinksText = ranked.map((video) => video.url).join("\n");
+  const analyzedLinksText = videoUrlsAsLines(ranked);
+  const searchedLinksText = videoUrlsAsLines(research.allVideos);
 
   return (
     <div className="flex flex-col gap-6">
@@ -77,9 +79,14 @@ export default function ResearchResults({
       )}
 
       <div className="flex flex-col gap-3">
-        {ranked.length > 0 && (
-          <div className="flex justify-end">
-            <CopyButton text={rankedLinksText} label="Copy all links" />
+        {(ranked.length > 0 || research.allVideos.length > 0) && (
+          <div className="flex flex-wrap justify-end gap-2" role="group" aria-label="Copy video links">
+            {ranked.length > 0 && (
+              <CopyButton text={analyzedLinksText} label="Copy analyzed links" />
+            )}
+            {research.allVideos.length > 0 && (
+              <CopyButton text={searchedLinksText} label="Copy searched links" />
+            )}
           </div>
         )}
         <RankedVideoList
@@ -122,6 +129,7 @@ export default function ResearchResults({
                 videos={research.allVideos}
                 emptyMessage="No videos were returned from YouTube search."
                 maxHeightClass="max-h-[28rem]"
+                copyable
               />
             </div>
           </CollapsibleContent>
